@@ -6,8 +6,15 @@ export default defineConfig({
         alias: {
             "@/model": path.resolve(__dirname, "./src/model"),
             "@/database": path.resolve(__dirname, "./src/model/database"),
-            "@/stravaApi": path.resolve(__dirname, "./src/model/stravaApi/index"),
-            "@/ffvlApi": path.resolve(__dirname, "./src/model/ffvlApi/index"),
+            // Point at the directory, not at index. tsconfig declares two
+            // mappings for these ("@/stravaApi" exact and "@/stravaApi/*"
+            // wildcard), but a string alias here is a prefix substitution and
+            // can only express one. Aliasing to .../index made the subpath
+            // import "@/stravaApi/model" resolve to ".../stravaApi/index/model".
+            // Aliasing to the directory serves both: Vite resolves the bare
+            // specifier to index itself.
+            "@/stravaApi": path.resolve(__dirname, "./src/model/stravaApi"),
+            "@/ffvlApi": path.resolve(__dirname, "./src/model/ffvlApi"),
             "@/tasks": path.resolve(__dirname, "./src/tasks"),
             "@/api": path.resolve(__dirname, "./src/api"),
             "@/webhooks": path.resolve(__dirname, "./src/webhooks"),
