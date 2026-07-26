@@ -66,8 +66,14 @@ resource "google_cloud_run_domain_mapping" "site" {
   # so the provider reconciling them means destroy-and-recreate — which restarts
   # managed-certificate provisioning and, with DNS currently resolving nothing,
   # would leave the mapping stuck pending indefinitely.
+  #
+  # DO NOT "tidy this away". Terraform emits "Redundant ignore_changes element"
+  # here because terraform_labels is provider-computed, but removing it brings
+  # the destroy straight back — verified. Nor is labels/effective_labels a
+  # substitute; terraform_labels is specifically the ForceNew path. This is a
+  # rough edge in the google provider's three-way label model.
   lifecycle {
-    ignore_changes = [metadata[0].labels, metadata[0].terraform_labels, metadata[0].effective_labels]
+    ignore_changes = [metadata[0].terraform_labels]
   }
 }
 
