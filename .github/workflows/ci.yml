@@ -68,6 +68,8 @@ jobs:
 
       - run: yarn install --frozen-lockfile
         working-directory: site
+      - run: yarn test
+        working-directory: site
       - run: yarn build
         working-directory: site
 
