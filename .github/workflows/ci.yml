@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  common:
+    name: common (test + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: common/yarn.lock
+      - run: yarn install --frozen-lockfile
+        working-directory: common
+      - run: yarn test
+        working-directory: common
+      - run: yarn build
+        working-directory: common
+
+  functions:
+    name: functions (test)
+    runs-on: ubuntu-latest
+    # Testcontainers spins up a real PostgreSQL; the suite is configured with a
+    # 60s per-test timeout, so give the job room for image pulls on a cold runner.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: functions/yarn.lock
+
+      # functions depends on @parastats/common via file:../common, and its build
+      # copies ../common/dist wholesale. Without this the tests run against a
+      # stale or absent common build.
+      - run: yarn install --frozen-lockfile && yarn build
+        working-directory: common
+
+      - run: yarn install --frozen-lockfile
+        working-directory: functions
+      - run: yarn test
+        working-directory: functions
+
+  site:
+    name: site (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: site/yarn.lock
+
+      - run: yarn install --frozen-lockfile && yarn build
+        working-directory: common
+
+      - run: yarn install --frozen-lockfile
+        working-directory: site
+      - run: yarn build
+        working-directory: site
+
+  terraform:
+    name: terraform (fmt + validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      # -backend=false validates syntax and provider schemas without needing
+      # GCP credentials or the state bucket, so this runs on every PR including
+      # ones from forks.
+      - run: terraform init -backend=false -input=false
+        working-directory: infra
+      - run: terraform validate
+        working-directory: infra

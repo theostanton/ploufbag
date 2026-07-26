@@ -1,0 +1,155 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/terraform-plan.yml'
+
+# Read-only against GCP, but it does acquire the state lock briefly, so don't
+# let a rapid push sequence pile up concurrent plans against the same state.
+concurrency:
+  group: terraform-plan-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write        # required to mint the OIDC token for WIF
+  pull-requests: write   # required to post the plan comment
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    # Fork PRs cannot access secrets or mint a usable OIDC token, and we do not
+    # want them to: a plan reads every secret in state. CI's terraform job still
+    # validates their syntax.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # data.archive_file zips functions/dist at plan time. Without a build,
+      # plan fails outright — this is not an optimisation.
+      - name: Build functions bundle
+        run: |
+          yarn --cwd common install --frozen-lockfile
+          yarn --cwd common build
+          yarn --cwd functions install --frozen-lockfile
+          yarn --cwd functions buildProd
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - run: terraform init -input=false
+        working-directory: infra
+
+      - name: Terraform plan
+        id: plan
+        working-directory: infra
+        continue-on-error: true
+        env:
+          TF_VAR_site_tag: ${{ github.sha }}
+          TF_VAR_client_id: ${{ secrets.CLIENT_ID }}
+          TF_VAR_client_secret: ${{ secrets.CLIENT_SECRET }}
+          TF_VAR_ffvl_key: ${{ secrets.FFVL_KEY }}
+          TF_VAR_mapbox_token: ${{ secrets.MAPBOX_TOKEN }}
+          TF_VAR_strava_webhook_secret: ${{ secrets.STRAVA_WEBHOOK_SECRET }}
+          TF_VAR_strava_webhook_verify_token: ${{ secrets.STRAVA_WEBHOOK_VERIFY_TOKEN }}
+        run: |
+          terraform plan -no-color -input=false -lock-timeout=5m -out=tfplan 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # Surface destroys in the comment header rather than burying them in a
+      # 500-line plan body that nobody scrolls through.
+      - name: Summarise destructive changes
+        id: summary
+        working-directory: infra
+        if: steps.plan.outputs.exitcode == '0'
+        run: |
+          terraform show -json tfplan > plan.json
+          # `// []` guards the no-changes case, where terraform omits the key.
+          destroys=$(jq -r '
+            [ (.resource_changes // [])[]
+              | select(.change.actions | index("delete"))
+              | .address
+            ] | join(", ")
+          ' plan.json)
+          if [ -n "$destroys" ]; then
+            echo "header=⚠️ **This plan destroys or replaces:** \`${destroys}\`" >> "$GITHUB_OUTPUT"
+          else
+            echo "header=✅ No resources destroyed or replaced." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post plan as PR comment
+        uses: actions/github-script@v7
+        env:
+          PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
+          PLAN_HEADER: ${{ steps.summary.outputs.header }}
+        with:
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('infra/plan.txt', 'utf8');
+            // GitHub comments cap at 65536 chars; keep the tail, which is where
+            // the plan summary line lives.
+            const max = 60000;
+            const plan = raw.length > max
+              ? '...(truncated, see the workflow log for the full plan)...\n' + raw.slice(-max)
+              : raw;
+
+            const failed = process.env.PLAN_EXITCODE !== '0';
+            const header = failed
+              ? '❌ **Terraform plan failed.**'
+              : (process.env.PLAN_HEADER || '');
+
+            const body = [
+              '## Terraform Plan',
+              header,
+              '',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```terraform',
+              plan,
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+
+            // Update the existing comment instead of adding one per push.
+            const marker = '## Terraform Plan';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail if plan failed
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
