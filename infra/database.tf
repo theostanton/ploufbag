@@ -23,7 +23,11 @@ resource "google_sql_database_instance" "instance" {
     }
     tier = data.google_sql_tiers.tiers.tiers[0].tier
   }
-  deletion_protection = false
+
+  # Deploys now auto-apply on merge to main, so an accidental destroy would run
+  # unattended. This is the backstop behind the plan-time destroy guard in
+  # .github/workflows/deploy.yml.
+  deletion_protection = true
 }
 
 resource "google_sql_database" "database" {

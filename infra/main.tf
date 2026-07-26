@@ -55,9 +55,3 @@ resource "google_artifact_registry_repository" "docker" {
   description   = "Docker repository"
   format        = "DOCKER"
 }
-
-locals {
-  envs          = {for tuple in regexall("(.*)=(.*)", file(".env")) : tuple[0] => sensitive(tuple[1])}
-  CLIENT_ID     = local.envs["CLIENT_ID"]
-  CLIENT_SECRET = local.envs["CLIENT_SECRET"]
-}

@@ -27,28 +27,18 @@ tasks:
     cmds:
       - docker push europe-west1-docker.pkg.dev/para-stats/parastats/parastats-site:{{.TAG}}
 
-  update-version:
-    desc: Update versions in file
-    internal: true
-    requires:
-      vars: [ TAG ]
-    cmds:
-      - sed -i '' 's/^site_tag[[:space:]]*=[[:space:]]*.*/site_tag     = "{{.TAG}}"/' infra/terraform.tfvars
-
   deploy:
     desc: Deploy site image
+    # TAG defaults here so `task site:deploy` still works standalone, but the
+    # root `deploy` task passes one in so the same tag reaches infra:apply.
     vars:
-      TAG: '{{now | unixEpoch}}'
+      TAG: '{{.TAG | default (now | unixEpoch)}}'
     cmds:
       - task: build
         vars:
           TAG:
             ref: .TAG
       - task: push
-        vars:
-          TAG:
-            ref: .TAG
-      - task: update-version
         vars:
           TAG:
             ref: .TAG
