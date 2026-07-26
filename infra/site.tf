@@ -60,6 +60,15 @@ resource "google_cloud_run_domain_mapping" "site" {
   spec {
     route_name = google_cloud_run_v2_service.site.name
   }
+
+  # GCP injects system labels onto domain mappings (cloud.googleapis.com/location,
+  # run.googleapis.com/overrideAt). Labels are ForceNew on this legacy v1 resource,
+  # so the provider reconciling them means destroy-and-recreate — which restarts
+  # managed-certificate provisioning and, with DNS currently resolving nothing,
+  # would leave the mapping stuck pending indefinitely.
+  lifecycle {
+    ignore_changes = [metadata[0].labels, metadata[0].terraform_labels, metadata[0].effective_labels]
+  }
 }
 
 resource "google_cloud_run_v2_service_iam_binding" "site" {

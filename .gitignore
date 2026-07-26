@@ -49,6 +49,13 @@ site/.next
 .task
 /infra/.terraform
 /infra/.terraform.tfstate.lock.info
+# One-time state-recovery import blocks. The random_* resources are imported by
+# their literal value, so this file contains the database password and session
+# secret in plaintext. Never commit it; delete it once the import has landed.
+/infra/imports.tf
+# Saved plan files embed every variable value, including secrets.
+tfplan
+*.tfplan
 # .terraform.lock.hcl is deliberately NOT ignored — it is the dependency lock
 # file and is meant to be committed. Ignoring it is why provider versions
 # floated (a bare init pulled google 7.x over the 6.x that built this infra).
