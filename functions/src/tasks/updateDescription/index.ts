@@ -1,9 +1,8 @@
 import {TaskResult, TaskBody} from "@/tasks/model";
-// import {generateStats} from "./updateActivityDescription";
 import {Pilots, Flights, isSuccess} from "@parastats/common";
 import {StravaApi} from "@/stravaApi";
 import {StravaActivityId} from "@/stravaApi/model";
-import {generateStats} from "@parastats/common/dist/DescriptionGenerator";
+import {generateStats} from "./updateActivityDescription";
 
 export type UpdateDescriptionTask = {
     name: "UpdateDescription";
