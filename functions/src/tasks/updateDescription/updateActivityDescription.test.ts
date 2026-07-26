@@ -1,7 +1,10 @@
 import {afterAll, afterEach, beforeAll, beforeEach, expect, it, test} from "vitest";
 import {TestContainer} from "../../model/database/generateContainer.test";
 import {StartedPostgreSqlContainer} from "@testcontainers/postgresql";
-import {end} from "@parastats/common";
+// `end` is not exported by @parastats/common — it is the local alias for
+// closeAllConnections, re-exported from model/database/client, which is how the
+// other test files import it.
+import {end} from "../../model/database/client";
 import {DescriptionPreference, FlightRow, DescriptionFormatter, withPooledClient} from "@parastats/common";
 import {Mocks} from "../../model/database/Mocks.test";
 

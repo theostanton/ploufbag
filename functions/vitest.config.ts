@@ -30,6 +30,10 @@ export default defineConfig({
             FFVL_KEY: ""
         },
         testTimeout: 60_000,
+        // Testcontainers pulls and starts a PostgreSQL image inside beforeAll.
+        // hookTimeout defaults to 10s regardless of testTimeout, which a cold
+        // runner never meets — the cause of "Hook timed out in 10000ms".
+        hookTimeout: 120_000,
         // setupFiles: ['dotenv/config'],
     },
 })
