@@ -8,6 +8,7 @@ import ViewOnStrava from "@ui/links/ViewOnStrava";
 import ClientOnlyDate from "@ui/ClientOnlyDate";
 import Link from "next/link";
 import FlightMap from "@ui/FlightMap";
+import SignupBanner from "@ui/SignupBanner";
 import mapStyles from "@ui/FlightMap.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
 
@@ -50,6 +51,7 @@ export default async function FlightDetail({params}: {
 
     return <div className={styles.page}>
         <div className={styles.container}>
+            <SignupBanner from="flight"/>
             {/* Header Section */}
             <header className={styles.pageHeader}>
                 <h1 className={styles.title}>

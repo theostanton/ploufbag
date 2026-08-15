@@ -40,6 +40,34 @@ export const STRAVA_AUTHORIZE_URL =
     `&approval_prompt=force` +
     `&scope=${OAUTH_SCOPE}`;
 
+/**
+ * Where a "Connect with Strava" press came from, so the funnel can tell a home
+ * page signup apart from one the detail-page banner earned.
+ *
+ * An allowlist rather than free text because the value arrives as a query
+ * parameter and is written straight into analytics_events.path. Without it,
+ * anyone could hand-craft /connect?from=... and write arbitrary strings into
+ * the analytics table.
+ */
+export const SIGNUP_SOURCES = ['flight', 'pilot', 'site'] as const;
+
+export type SignupSource = typeof SIGNUP_SOURCES[number];
+
+/** The href a signup button should point at, tagged with its origin. */
+export function connectHref(source?: SignupSource): string {
+    return source ? `/connect?from=${source}` : '/connect';
+}
+
+/**
+ * The path to record for a signup click, given the untrusted `from` parameter.
+ * Anything not on the allowlist is recorded as a plain /connect.
+ */
+export function signupClickPath(from: string | null): string {
+    return (SIGNUP_SOURCES as readonly string[]).includes(from ?? '')
+        ? `/connect?from=${from}`
+        : '/connect';
+}
+
 export type SignupState = {
     /** Whether we should be offering the Strava button at all. */
     isOpen: boolean;

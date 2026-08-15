@@ -7,6 +7,7 @@ import {Flights} from "@database/flights";
 import FlightItem from "@ui/FlightItem";
 import {StravaAthleteId} from "@ploufbag/common";
 import SiteMap from "@ui/SiteMap";
+import SignupBanner from "@ui/SignupBanner";
 import mapStyles from "@ui/FlightMap.module.css";
 import {formatSiteName} from "../../../utils/formatSiteName";
 
@@ -36,6 +37,7 @@ export default async function SiteDetail({params}: {
 
     return <div className={styles.page}>
         <div className={styles.container}>
+            <SignupBanner from="site"/>
             {/* Header Section */}
             <header className={styles.pageHeader}>
                 <h1 className={styles.title}>{formatSiteName(site.name)}</h1>
