@@ -64,6 +64,15 @@ export type FlightRow = {
     polyline: Polyline | undefined
     landing_id: string | undefined
     takeoff_id: string | undefined
+    /**
+     * Short public handle, e.g. `a45nz`, behind ploufbag.com/a45nz.
+     *
+     * Optional because nothing in application code ever supplies one: the column
+     * has a database default that mints it, so rows read back always carry a
+     * slug while rows being written never need to. Converters building a
+     * FlightRow from a Strava activity therefore do not have to invent one.
+     */
+    slug?: string
 }
 
 export type DescriptionPreference = {

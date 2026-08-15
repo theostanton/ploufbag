@@ -8,7 +8,7 @@ import {
 import { formatSiteName, formatAggregationResult } from './utils';
 import { Client } from './database';
 import { isSuccess, WindReport, WindDirection } from './model';
-import { DESCRIPTION_FOOTER } from './descriptionFooter';
+import { descriptionFooter, SAMPLE_SLUG } from './descriptionFooter';
 
 export interface PreferencesProvider {
     get(pilotId: StravaAthleteId): Promise<{ success: true; value: DescriptionPreference } | { success: false; error: string }>;
@@ -191,7 +191,11 @@ export class DescriptionFormatter {
             return null;
         }
 
-        return [...this.lines, DESCRIPTION_FOOTER].join('\n')
+        // Links to the flight when the row carries a slug. A row read back from
+        // the database always does; the fallback covers a flight formatted
+        // before the slug backfill reached it, which links to the domain rather
+        // than breaking.
+        return [...this.lines, descriptionFooter(this.flightRow.slug)].join('\n')
     }
 
     // Standalone preview generation without database dependencies
@@ -252,6 +256,6 @@ export class DescriptionFormatter {
             return 'No preview available with current preferences';
         }
 
-        return [...lines, DESCRIPTION_FOOTER].join('\n');
+        return [...lines, descriptionFooter(this.flightRow.slug ?? SAMPLE_SLUG)].join('\n');
     }
 }

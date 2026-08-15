@@ -4,7 +4,7 @@ import {
     SiteType 
 } from './types';
 import { formatSiteName, formatAggregationResult } from './utils';
-import { DESCRIPTION_FOOTER } from './descriptionFooter';
+import { descriptionFooter, SAMPLE_SLUG } from './descriptionFooter';
 
 // Client-side only version of DescriptionFormatter for previews
 export class DescriptionFormatterClient {
@@ -81,6 +81,6 @@ export class DescriptionFormatterClient {
             return 'No preview available with current preferences';
         }
 
-        return [...lines, DESCRIPTION_FOOTER].join('\n');
+        return [...lines, descriptionFooter(this.flightRow.slug ?? SAMPLE_SLUG)].join('\n');
     }
 }
