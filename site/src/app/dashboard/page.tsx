@@ -99,7 +99,11 @@ export default async function Dashboard() {
         duration_sec: recentFlights[0].duration_sec,
         distance_meters: recentFlights[0].distance_meters,
         description: recentFlights[0].description,
-        polyline: recentFlights[0].polyline,
+        // The preview formatter renders text from the flight's statistics and
+        // never looks at its geometry; the field exists only to satisfy the
+        // FlightRow shape it takes. The list query no longer fetches polylines,
+        // and adding it back to ship an unread column would be wasteful.
+        polyline: [],
         landing_id: recentFlights[0].landing?.ffvl_sid,
         takeoff_id: recentFlights[0].takeoff?.ffvl_sid
     } : null;

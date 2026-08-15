@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from "react";
 
-export default function ClientOnlyDate({date, format = 'full'}: {date: Date, format?: 'full' | 'date' | 'time'}) {
+export default function ClientOnlyDate({date, format = 'full'}: {date: Date, format?: 'full' | 'date' | 'time' | 'short'}) {
     const [formattedDate, setFormattedDate] = useState<string>('');
     const [isClient, setIsClient] = useState(false);
     
@@ -18,6 +18,13 @@ export default function ClientOnlyDate({date, format = 'full'}: {date: Date, for
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
+            }).format(new Date(date));
+        } else if (format === 'short') {
+            // Compact form for list rows in the chrome panels, where the full
+            // weekday-and-year string does not fit.
+            formatted = new Intl.DateTimeFormat('en-US', {
+                month: 'short',
+                day: 'numeric'
             }).format(new Date(date));
         } else if (format === 'date') {
             formatted = new Intl.DateTimeFormat('en-US', {

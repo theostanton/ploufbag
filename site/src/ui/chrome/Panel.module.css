@@ -1,0 +1,112 @@
+.header {
+    margin-bottom: var(--space-6);
+}
+
+.back {
+    display: inline-block;
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+}
+
+.back:hover {
+    color: var(--color-text-primary);
+    text-decoration: none;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    /* Panel titles live in a 420px rail, not across a 1200px page, so the
+       document-scale 4xl heading is far too large here. */
+    font-size: var(--font-size-2xl);
+    line-height: var(--line-height-tight);
+    margin: 0;
+}
+
+.accent {
+    flex: none;
+    width: 5px;
+    height: 1.1em;
+    border-radius: 3px;
+}
+
+.subtitle {
+    margin: var(--space-3) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.section {
+    margin-bottom: var(--space-8);
+}
+
+.section:last-child {
+    margin-bottom: 0;
+}
+
+.sectionHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.sectionTitle {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4) var(--space-5);
+    margin: 0;
+}
+
+.fact {
+    min-width: 0;
+}
+
+.factLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: 2px;
+}
+
+.factValue {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.factValue a {
+    color: var(--color-secondary);
+    text-decoration: none;
+}
+
+.empty {
+    padding: var(--space-8) 0;
+    text-align: center;
+}
+
+.emptyTitle {
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.emptyDetail {
+    margin: var(--space-3) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}

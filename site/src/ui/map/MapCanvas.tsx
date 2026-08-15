@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import Map, { Layer, MapEvent, Source } from 'react-map-gl/mapbox'
+import { useRouter } from 'next/navigation'
+import Map, { Layer, MapEvent, MapMouseEvent, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import styles from './MapCanvas.module.css'
-import { useScene } from './store'
+import { setHoveredFlight, setHoveredSite, useScene } from './store'
 import { useBaseData } from './useBaseData'
+import { useMapScene } from './useMapScene'
 import {
     FLIGHTS_SOURCE_ID,
     SITES_SOURCE_ID,
@@ -33,6 +35,13 @@ const INITIAL_VIEW_STATE = {
 }
 
 /**
+ * Layers the pointer can reach. Order matters: the site marker wins a tie with
+ * a track running underneath it, because it is the smaller target and hitting
+ * it is therefore the more deliberate act.
+ */
+const INTERACTIVE_LAYER_IDS = [siteCircleLayer.id!, flightHitLayer.id!]
+
+/**
  * The single Mapbox instance for the whole application.
  *
  * It is mounted by the root layout, which the App Router does not remount
@@ -44,7 +53,11 @@ const INITIAL_VIEW_STATE = {
 export default function MapCanvas() {
     const scene = useScene()
     const baseData = useBaseData()
+    const router = useRouter()
     const [isReady, setIsReady] = useState(false)
+    const [isHoveringFeature, setIsHoveringFeature] = useState(false)
+
+    useMapScene(baseData, isReady)
 
     const onLoad = useCallback((event: MapEvent) => {
         setIsReady(true)
@@ -54,6 +67,44 @@ export default function MapCanvas() {
             // there is no reason to hand the live map to anything in production.
             ;(window as unknown as { __ploufbagMap?: unknown }).__ploufbagMap = event.target
         }
+    }, [])
+
+    /**
+     * Clicking the map is navigation, nothing more. The route change is what
+     * updates the map, through the scene the new page registers -- there is no
+     * separate "select this flight" path that could disagree with the URL.
+     */
+    const onClick = useCallback(
+        (event: MapMouseEvent) => {
+            const site = event.features?.find((feature) => feature.layer?.id === siteCircleLayer.id)
+            if (site?.properties?.slug) {
+                router.push(`/sites/${site.properties.slug}`)
+                return
+            }
+            const flight = event.features?.find(
+                (feature) => feature.layer?.id === flightHitLayer.id
+            )
+            if (flight?.properties?.id) {
+                router.push(`/flights/${flight.properties.id}`)
+            }
+        },
+        [router]
+    )
+
+    const onMouseMove = useCallback((event: MapMouseEvent) => {
+        const site = event.features?.find((feature) => feature.layer?.id === siteCircleLayer.id)
+        const flight = event.features?.find((feature) => feature.layer?.id === flightHitLayer.id)
+        setHoveredSite(site?.properties?.id ? String(site.properties.id) : null)
+        // Suppress the track highlight while a site is under the cursor, so the
+        // hover matches what a click would do.
+        setHoveredFlight(!site && flight?.properties?.id ? String(flight.properties.id) : null)
+        setIsHoveringFeature(Boolean(site || flight))
+    }, [])
+
+    const onMouseLeave = useCallback(() => {
+        setHoveredSite(null)
+        setHoveredFlight(null)
+        setIsHoveringFeature(false)
     }, [])
 
     if (!MAPBOX_TOKEN) {
@@ -84,6 +135,11 @@ export default function MapCanvas() {
                 // run reads as a ridge run only in relief.
                 terrain={{ source: 'terrain-dem', exaggeration: 1.15 }}
                 onLoad={onLoad}
+                interactiveLayerIds={INTERACTIVE_LAYER_IDS}
+                onClick={onClick}
+                onMouseMove={onMouseMove}
+                onMouseOut={onMouseLeave}
+                cursor={isHoveringFeature ? 'pointer' : 'grab'}
                 // The chrome supplies its own controls, positioned to avoid the
                 // sheet; Mapbox's default attribution overlaps the mobile sheet.
                 attributionControl={false}

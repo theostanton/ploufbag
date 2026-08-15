@@ -3,34 +3,60 @@ import type { LayerProps } from 'react-map-gl/mapbox'
 /**
  * Layer styling for the two shared sources.
  *
- * Everything is data-driven or feature-state-driven. Nothing here is rebuilt in
- * response to a route change: emphasis is applied with setFeatureState on
- * individual features, which the GPU handles without re-uploading the source.
- * The previous implementation added a source and a layer per flight and threw
- * them away on navigation.
+ * Nothing here is rebuilt in response to a route change. Emphasis is a
+ * setFeatureState on the handful of features involved plus one paint swap for
+ * the rest, so a navigation never re-uploads a source. The implementation this
+ * replaces added a source and a layer per flight and threw them all away on the
+ * way out.
  */
 
 export const FLIGHTS_SOURCE_ID = 'flights'
 export const SITES_SOURCE_ID = 'sites'
 
 /**
- * Opacity ramp shared by the casing and the line.
+ * Opacity ramp shared by the casing, the line and the site markers.
  *
- * Order matters: hover beats selected beats dimmed. A dimmed track is still
- * visible -- it is context, and fading it out entirely would make a flight
- * detail view look like an empty map, which is exactly what this design is
- * trying to avoid.
+ * Hover beats selected beats everything else. A backgrounded track is still
+ * visible -- it is context, and fading it out entirely would leave a flight
+ * detail view looking like an empty map, which is the thing this design exists
+ * to avoid.
+ *
+ * Dimming is a paint swap, not a per-feature state. Marking every unselected
+ * feature dim would mean a setFeatureState call per flight on every navigation;
+ * swapping the fallback branch of one expression is a single call regardless of
+ * how many flights there are. Only `hover` and `selected` -- which apply to a
+ * handful of features at a time -- are feature-state.
  */
-const opacityByState = (base: number, dimmed: number): unknown => [
+export type EmphasisMode = 'normal' | 'focused'
+
+const opacityByState = (base: number, dimmed: number, mode: EmphasisMode = 'normal'): unknown => [
     'case',
     ['boolean', ['feature-state', 'hover'], false],
     1,
     ['boolean', ['feature-state', 'selected'], false],
     1,
-    ['boolean', ['feature-state', 'dim'], false],
-    dimmed,
-    base,
+    mode === 'focused' ? dimmed : base,
 ]
+
+/**
+ * The opacity paint properties for a given mode, keyed by layer id and paint
+ * property, so the emphasis hook can apply them without knowing the ramps.
+ *
+ * `as const` keeps the property names as literal types rather than widening
+ * them to string, which is what lets them be passed to setPaintProperty without
+ * a cast that would also hide a genuine typo.
+ */
+export const opacityPaint = (mode: EmphasisMode) => [
+    { layer: 'flights-casing', property: 'line-opacity', value: opacityByState(0.7, 0.1, mode) },
+    { layer: 'flights-line', property: 'line-opacity', value: opacityByState(0.9, 0.18, mode) },
+    { layer: 'sites-circle', property: 'circle-opacity', value: opacityByState(0.95, 0.28, mode) },
+    {
+        layer: 'sites-circle',
+        property: 'circle-stroke-opacity',
+        value: opacityByState(1, 0.28, mode),
+    },
+    { layer: 'sites-label', property: 'text-opacity', value: opacityByState(1, 0.22, mode) },
+] as const
 
 /**
  * Width ramp. Selected and hovered tracks get a wider stroke as well as full
@@ -58,7 +84,7 @@ export const flightCasingLayer: LayerProps = {
     paint: {
         'line-color': 'rgba(12, 16, 14, 0.55)',
         'line-width': widthByZoom(3, 5) as never,
-        'line-opacity': opacityByState(0.7, 0.12) as never,
+        'line-opacity': opacityByState(0.7, 0.1) as never,
     },
 }
 
@@ -70,7 +96,7 @@ export const flightLineLayer: LayerProps = {
     paint: {
         'line-color': ['get', 'color'],
         'line-width': widthByZoom(1.4, 2.6) as never,
-        'line-opacity': opacityByState(0.9, 0.22) as never,
+        'line-opacity': opacityByState(0.9, 0.18) as never,
     },
 }
 
@@ -119,8 +145,8 @@ export const siteCircleLayer: LayerProps = {
             1.5,
         ] as never,
         'circle-stroke-color': 'rgba(255, 255, 255, 0.92)',
-        'circle-opacity': opacityByState(0.95, 0.3) as never,
-        'circle-stroke-opacity': opacityByState(1, 0.3) as never,
+        'circle-opacity': opacityByState(0.95, 0.28) as never,
+        'circle-stroke-opacity': opacityByState(1, 0.28) as never,
     },
 }
 
@@ -152,6 +178,6 @@ export const siteLabelLayer: LayerProps = {
         // markers.
         'text-halo-color': 'rgba(12, 16, 14, 0.85)',
         'text-halo-width': 1.4,
-        'text-opacity': opacityByState(1, 0.25) as never,
+        'text-opacity': opacityByState(1, 0.22) as never,
     },
 }

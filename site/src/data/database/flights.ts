@@ -2,9 +2,28 @@ import {failure, Either, success} from "@model/Either";
 import {withPooledClient, Client} from "./client";
 import {FlightWithSites, StravaActivityId, StravaAthleteId} from "@ploufbag/common";
 
+/**
+ * A flight without its track.
+ *
+ * Every list in the chrome renders from this. The geometry now reaches the
+ * browser once, through /api/geo/flights, simplified and cached — so a list
+ * that also carried polylines would be shipping the same data twice, in its
+ * bulkier form, to render rows that never look at it.
+ */
+export type FlightSummary = Omit<FlightWithSites, 'polyline'>
+
 export namespace Flights {
 
-    function generateQuery(where: string = "", limit: number = 9999): string {
+    /**
+     * @param withPolyline  whether to select the track geometry.
+     *
+     * Panels that only list flights do not need it, and it is by far the largest
+     * column: /flights was serialising every polyline into the RSC payload to
+     * render a list that never touched them. The map gets its geometry from
+     * /api/geo/flights, once, simplified and cached — so a list query asking for
+     * polylines is now pure waste on both the wire and the server.
+     */
+    function generateQuery(where: string = "", limit: number = 9999, withPolyline: boolean = true): string {
         return `select f.pilot_id,
                        f.strava_activity_id,
                        f.wing,
@@ -12,7 +31,7 @@ export namespace Flights {
                        f.distance_meters,
                        f.start_date,
                        f.description,
-                       f.polyline,
+                       ${withPolyline ? 'f.polyline,' : ''}
                        to_json(t) as takeoff,
                        to_json(l) as landing,
                        to_json(p) as pilot
@@ -25,6 +44,7 @@ export namespace Flights {
                 limit ${limit}`
     }
 
+    /** With polylines: this is the source for /api/geo/flights. */
     export async function getAll(): Promise<Either<FlightWithSites[]>> {
         return withPooledClient(async (database: Client) => {
             const result = await database.query<FlightWithSites>(generateQuery())
@@ -36,9 +56,10 @@ export namespace Flights {
         });
     }
 
-    export async function getLatest(): Promise<Either<FlightWithSites[]>> {
+    /** Every flight, for the /flights panel. No geometry — see FlightSummary. */
+    export async function getAllSummaries(): Promise<Either<FlightSummary[]>> {
         return withPooledClient(async (database: Client) => {
-            const result = await database.query<FlightWithSites>(generateQuery("", 20))
+            const result = await database.query<FlightSummary>(generateQuery("", 9999, false))
             if (result.rows) {
                 return success(result.rows.map(row => row.reify()))
             } else {
@@ -47,10 +68,21 @@ export namespace Flights {
         });
     }
 
-    export async function getForPilot(pilotId: StravaAthleteId, limit: number = 1000): Promise<Either<FlightWithSites[]>> {
+    export async function getLatest(): Promise<Either<FlightSummary[]>> {
         return withPooledClient(async (database: Client) => {
-            const result = await database.query<FlightWithSites>(
-                generateQuery("where f.pilot_id = $1::integer", limit),
+            const result = await database.query<FlightSummary>(generateQuery("", 20, false))
+            if (result.rows) {
+                return success(result.rows.map(row => row.reify()))
+            } else {
+                return failure(`No flights`)
+            }
+        });
+    }
+
+    export async function getForPilot(pilotId: StravaAthleteId, limit: number = 1000): Promise<Either<FlightSummary[]>> {
+        return withPooledClient(async (database: Client) => {
+            const result = await database.query<FlightSummary>(
+                generateQuery("where f.pilot_id = $1::integer", limit, false),
                 [pilotId]
             )
             if (result.rows) {
@@ -61,10 +93,10 @@ export namespace Flights {
         });
     }
 
-    export async function getForPilotAndWing(pilotId: StravaAthleteId, wing: string): Promise<Either<FlightWithSites[]>> {
+    export async function getForPilotAndWing(pilotId: StravaAthleteId, wing: string): Promise<Either<FlightSummary[]>> {
         return withPooledClient(async (database: Client) => {
-            const result = await database.query<FlightWithSites>(
-                generateQuery("where f.pilot_id = $1::integer and lower(wing) = $2"),
+            const result = await database.query<FlightSummary>(
+                generateQuery("where f.pilot_id = $1::integer and lower(wing) = $2", 9999, false),
                 [pilotId, wing]
             )
             if (result.rows) {
@@ -135,6 +167,8 @@ export namespace Flights {
         });
     }
 
+    // Still carries polylines because SiteMap draws them. Becomes a summary
+    // query when the sites route moves onto the shared map.
     export async function getForSite(siteId: string): Promise<Either<FlightWithSites[]>> {
         return withPooledClient(async (database: Client) => {
             const result = await database.query<FlightWithSites>(
