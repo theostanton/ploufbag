@@ -1,13 +1,29 @@
+/*
+ * These fill the space the layout gives them rather than measuring the viewport
+ * themselves.
+ *
+ * They previously set `min-height: calc(100vh - var(--header-height))`, which
+ * subtracted the header but not the breadcrumb or the footer. Inside a body that
+ * is already `min-height: 100vh`, the page floor became
+ * `header + breadcrumb + (100vh - header) + footer`, i.e. a full viewport plus
+ * the footer -- so the footer was pushed below the fold by exactly its own
+ * height on every page, however little content there was.
+ *
+ * `flex: 1 0 auto` fills the leftover space when content is short (keeping the
+ * footer on screen without scrolling) and grows past it when content is long.
+ * Deliberately not `flex: 1`, whose `flex-basis: 0` lets tall content be
+ * compressed by the flex algorithm.
+ */
 .page {
     padding: var(--space-6) 0;
-    min-height: calc(100vh - var(--header-height));
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
 }
 
 .pageCentered {
     padding: var(--space-12) 0;
-    min-height: calc(100vh - var(--header-height));
+    flex: 1 0 auto;
     display: flex;
     justify-content: center;
     align-items: center;

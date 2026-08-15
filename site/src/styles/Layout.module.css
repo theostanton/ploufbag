@@ -2,11 +2,27 @@
     display: flex !important;
     flex-direction: column !important;
     min-height: 100vh !important;
+    /*
+     * 100dvh, where supported, is the *visible* viewport: on mobile Safari and
+     * Chrome, 100vh is the height with browser chrome retracted, which is taller
+     * than what you can actually see. Sized in vh alone, the footer sits below
+     * the fold on a phone even when the layout maths is otherwise right. The vh
+     * line above stays as the fallback for browsers without dvh.
+     */
+    min-height: 100dvh !important;
     background-color: var(--color-background);
 }
 
+/*
+ * flex: 1 makes this fill the space between header and footer, and being a
+ * flex column itself lets the page inside it do the same. Without that, a page
+ * wanting to fill the viewport has to reach for `100vh` and ends up
+ * double-counting it -- see .page / .pageCentered in Page.module.css.
+ */
 .container {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: var(--container-max-width);
     margin: 0 auto;
