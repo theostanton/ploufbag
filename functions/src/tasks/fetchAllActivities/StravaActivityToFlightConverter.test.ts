@@ -1,16 +1,16 @@
-import {isSuccess} from "@parastats/common";
 import {expect, test} from "vitest";
-import {StravaActivity, StravaActivityId, StravaAthleteId} from "../../model/stravaApi/model";
+import {StravaActivity, StravaAthleteId} from "../../model/stravaApi/model";
 import {StravaActivityToFlightConverter} from "./StravaActivityToFlightConverter";
 import {TestContainer} from "../../model/database/generateContainer.test";
 import {LatLng} from "../../model/database/model";
-import {Mocks} from "../../model/database/Mocks.test";
 
 test('StravaActivityToFlightConverter.convert() ', async () => {
 
     const container = await TestContainer.generateEmpty()
 
-    const pilotId: StravaAthleteId = Math.random()
+    // Must be an integer: convert() does parseInt(pilotId.toString()), so a bare
+    // Math.random() fraction was silently converted to 0.
+    const pilotId: StravaAthleteId = Math.floor(Math.random() * 1_000_000)
 
     const input: StravaActivity = {
         id: Math.random().toString(),
@@ -26,25 +26,28 @@ test('StravaActivityToFlightConverter.convert() ', async () => {
         }
     }
 
-    const result = await StravaActivityToFlightConverter.convert(pilotId, input)
+    // Either<V> is the tuple [value, error]; there is no .success or .value.
+    const [value, error] = await StravaActivityToFlightConverter.convert(pilotId, input)
 
-    expect(result.success).toBe(true)
+    expect(error).toBeUndefined()
+    expect(value).toBeDefined()
 
-    if (isSuccess(result)) {
-        const value = result.value
-        expect(value.pilot_id).toEqual(pilotId)
-        expect(value.wing).toEqual("Wing name")
-        expect(value.strava_activity_id).toEqual(input.id)
-        expect(value.duration_sec).toEqual(input.elapsed_time)
-        expect(value.distance_meters).toEqual(input.distance)
-        expect(value.start_date).toEqual(input.start_date)
-        expect(value.description).toEqual(input.description)
-        expect(value.polyline).toEqual(latLngsPlanprazBoisDuBouchet)
-        expect(value.takeoff_id).toEqual(Mocks.planpraz.slug)
-        expect(value.landing_id).toEqual(Mocks.leBoisDuBouchet.slug)
-    }
+    expect(value!.pilot_id).toEqual(pilotId)
+    expect(value!.wing).toEqual("Wing name")
+    expect(value!.strava_activity_id).toEqual(input.id)
+    expect(value!.duration_sec).toEqual(input.elapsed_time)
+    expect(value!.distance_meters).toEqual(input.distance)
+    expect(value!.start_date).toEqual(input.start_date)
+    expect(value!.description).toEqual(input.description)
+    expect(value!.polyline).toEqual(latLngsPlanprazBoisDuBouchet)
 
-    await container.stop()
+    // takeoff/landing resolve against the five sites seeded by create_sites.sql,
+    // and getIdOfCloset returns ffvl_sid, not slug. The track starts by
+    // plan-de-l'aiguille (2) and ends by le-bois-du-bouchet (4).
+    expect(value!.takeoff_id).toEqual("2")
+    expect(value!.landing_id).toEqual("4")
+
+    await container?.stop()
 })
 
 const polylinePlanprazBoisDuBouchet: string = "i}jwGqbyh@lB_@Xc@P_@ZgARa@n@k@T]L]PYPEt@XLCFG^gANWDEVMRERDZf@z@vBJLVFdCSTa@ZkARe@n@eFPmCx@gGDi@RqFF[h@{@Pg@P}@Dm@@YEoAJgCMkBCgCPiBBoB?k@McEI_AE]GMMBIZ@RFJHBLAZu@NcBBcAAsBQyDKaJB_A^{DFsCCMKG[GGKBM^e@p@m@jDuCXSl@[r@OLFDNCD_@?y@JQAICFSZc@nEqEdA}@tA}@ZYfAaBXg@HWDq@CwBo@yBqAwDc@gBM_@Ya@_@]c@Ue@Os@CYD]No@n@u@tAg@b@y@l@GHQb@E^D`@\\\\\\\\h@P`AB\\\\H"

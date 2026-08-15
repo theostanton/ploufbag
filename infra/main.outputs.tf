@@ -7,8 +7,8 @@ locals {
     DATABASE_PORT             = 5432
     DATABASE_USER             = google_sql_user.functions.name
     DATABASE_PASSWORD         = random_password.database.result
-    CLIENT_ID                       = local.CLIENT_ID
-    CLIENT_SECRET                   = local.CLIENT_SECRET
+    CLIENT_ID                       = var.client_id
+    CLIENT_SECRET                   = var.client_secret
     QUEUE_ID_FETCH_ACTIVITIES       = google_cloud_tasks_queue.fetch_activities.id
     QUEUE_ID_WING_ACTIVITY          = google_cloud_tasks_queue.wing_activity.id
     QUEUE_ID_UPDATE_SINGLE_ACTIVITY = google_cloud_tasks_queue.update_single_activity.id
@@ -28,8 +28,8 @@ locals {
     PRODUCION_DATABASE_PORT     = 5432
     PRODUCION_DATABASE_USER     = google_sql_user.functions.name
     PRODUCION_DATABASE_PASSWORD = random_password.database.result
-    CLIENT_ID                   = local.CLIENT_ID
-    CLIENT_SECRET               = local.CLIENT_SECRET
+    CLIENT_ID                   = var.client_id
+    CLIENT_SECRET               = var.client_secret
     TASKS_PORT                  = 3000
     TASKS_URL                   = "http://tasks:3000"
     LOCAL_DATABASE_HOST         = "database"

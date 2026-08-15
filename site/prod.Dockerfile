@@ -26,17 +26,19 @@ COPY site/public ./public
 COPY site/next.config.js .
 COPY site/tsconfig.json .
 
-# Buildtime
-ARG DATABASE_HOST
-ENV DATABASE_HOST=${DATABASE_HOST}
-ARG DATABASE_NAME
-ENV DATABASE_NAME=${DATABASE_NAME}
-ARG DATABASE_PASSWORD
-ENV DATABASE_PASSWORD=${DATABASE_PASSWORD}
-ARG DATABASE_PORT
-ENV DATABASE_PORT=${DATABASE_PORT}
-ARG DATABASE_USER
-ENV DATABASE_USER=${DATABASE_USER}
+# Buildtime.
+#
+# The DATABASE_* args that used to live here are gone. They existed because the
+# Next build statically prerendered /flights, /pilots and /sites, each of which
+# queries before reaching any dynamic API. That made the image build require
+# network access to the production database — impossible from a CI runner, given
+# the instance only allowlists two /32 addresses — and it baked the production DB
+# password into an image layer, where it stays readable to anyone who can pull
+# the image. The root layout now declares force-dynamic, so no page body runs at
+# build time and no connection is opened.
+#
+# NEXT_PUBLIC_MAPBOX_TOKEN stays: NEXT_PUBLIC_* values are genuinely inlined into
+# the client bundle at build time, and it is a publishable token by design.
 ARG NEXT_PUBLIC_MAPBOX_TOKEN
 ENV NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN}
 

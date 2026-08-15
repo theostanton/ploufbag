@@ -21,9 +21,16 @@ resource "google_sql_database_instance" "instance" {
         value = "81.220.110.158/32"
       }
     }
-    tier = data.google_sql_tiers.tiers.tiers[0].tier
+    # Was data.google_sql_tiers.tiers.tiers[0].tier — index 0 of an
+    # API-returned list, so a reordering upstream would silently propose a tier
+    # change on the live database. Pinned to the tier the instance actually runs.
+    tier = "db-f1-micro"
   }
-  deletion_protection = false
+
+  # Deploys now auto-apply on merge to main, so an accidental destroy would run
+  # unattended. This is the backstop behind the plan-time destroy guard in
+  # .github/workflows/deploy.yml.
+  deletion_protection = true
 }
 
 resource "google_sql_database" "database" {
@@ -37,6 +44,3 @@ resource "google_sql_user" "functions" {
   password = random_password.database.result
 }
 
-data "google_sql_tiers" "tiers" {
-  project = local.project_id
-}

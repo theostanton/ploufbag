@@ -1,0 +1,134 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys race for the Terraform state lock. cancel-in-progress is
+# deliberately false: cancelling mid-apply is how you get a half-applied change
+# and a stale lock, which is worse than queueing.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: para-stats
+  REGION: europe-west1
+  IMAGE: europe-west1-docker.pkg.dev/para-stats/parastats/parastats-site
+
+jobs:
+  deploy:
+    name: Build and apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ---------------------------------------------------------------------
+      # Build artifacts
+      # ---------------------------------------------------------------------
+
+      # functions/dist is zipped by data.archive_file at plan time, so this must
+      # happen before terraform runs. common must be built first because
+      # functions' buildProd copies ../common/dist verbatim.
+      - name: Build functions bundle
+        run: |
+          yarn --cwd common install --frozen-lockfile
+          yarn --cwd common build
+          yarn --cwd functions install --frozen-lockfile
+          yarn --cwd functions buildProd
+
+      # Tagged with the commit SHA rather than a unix epoch, so a running
+      # revision is traceable to a commit and re-runs are idempotent.
+      - name: Build and push site image
+        run: |
+          docker build -f site/prod.Dockerfile \
+            -t "${IMAGE}:${GITHUB_SHA}" \
+            --platform linux/amd64 \
+            --build-arg NEXT_PUBLIC_MAPBOX_TOKEN="${{ secrets.MAPBOX_TOKEN }}" \
+            .
+          docker push "${IMAGE}:${GITHUB_SHA}"
+
+      # ---------------------------------------------------------------------
+      # Terraform
+      # ---------------------------------------------------------------------
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - run: terraform init -input=false
+        working-directory: infra
+
+      - name: Terraform plan
+        working-directory: infra
+        env:
+          TF_VAR_site_tag: ${{ github.sha }}
+          TF_VAR_client_id: ${{ secrets.CLIENT_ID }}
+          TF_VAR_client_secret: ${{ secrets.CLIENT_SECRET }}
+          TF_VAR_ffvl_key: ${{ secrets.FFVL_KEY }}
+          TF_VAR_mapbox_token: ${{ secrets.MAPBOX_TOKEN }}
+          TF_VAR_strava_webhook_secret: ${{ secrets.STRAVA_WEBHOOK_SECRET }}
+          TF_VAR_strava_webhook_verify_token: ${{ secrets.STRAVA_WEBHOOK_VERIFY_TOKEN }}
+        run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+
+      # This is what makes auto-apply-on-merge tolerable. Applies run unattended,
+      # so anything that would delete the database, the function source bucket,
+      # or a random_* resource whose value exists nowhere else must stop the
+      # job. random_id.session_secret in particular: replacing it rotates
+      # SESSION_SECRET and silently logs out every user.
+      - name: Guard against destructive changes
+        working-directory: infra
+        run: |
+          terraform show -json tfplan > plan.json
+          protected='google_sql_database_instance|google_sql_database\.|google_sql_user\.|google_storage_bucket\.functions|random_id\.session_secret|random_id\.bucket_suffix|random_password\.database'
+          # `// []` matters: terraform omits resource_changes entirely on a
+          # no-op plan, and a bare .resource_changes[] would make jq error —
+          # failing the deploy on precisely the safest possible plan.
+          doomed=$(jq -r --arg p "$protected" '
+            [ (.resource_changes // [])[]
+              | select(.change.actions | index("delete"))
+              | select(.address | test($p))
+              | .address
+            ] | join("\n")
+          ' plan.json)
+          if [ -n "$doomed" ]; then
+            echo "::error::Plan would destroy or replace protected resources:"
+            printf '%s\n' "$doomed"
+            exit 1
+          fi
+          echo "No protected resource is destroyed or replaced."
+
+      # Applying the saved plan file, not a fresh `apply -auto-approve`,
+      # guarantees what the guard inspected is exactly what executes.
+      - name: Terraform apply
+        working-directory: infra
+        run: terraform apply -input=false -lock-timeout=5m tfplan
+
+      - name: Report deployed revision
+        run: |
+          echo "### Deployed \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          gcloud run services list --region="$REGION" \
+            --format='table(metadata.name, status.latestReadyRevisionName)' \
+            >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

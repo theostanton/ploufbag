@@ -3,6 +3,7 @@ import { createPool, Pool } from "generic-pool";
 
 export interface DatabaseConfig {
   host: string;
+  port?: number;
   database: string;
   user: string;
   password: string;
@@ -13,8 +14,15 @@ export interface DatabaseConfig {
 let connectionPool: Pool<Client> | null = null;
 let singletonClient: Client | null = null;
 
+// DATABASE_PORT was plumbed through Terraform and the site Dockerfile but never
+// read here, so connections always went to ts-postgres' default 5432. In
+// production that happened to be correct; against a Testcontainers postgres,
+// which is published on a random host port, it silently pointed the pool at
+// localhost:5432 instead of the container. Left undefined when unset so the
+// driver default still applies.
 const getDbConfig = (): DatabaseConfig => ({
   host: process.env.DATABASE_HOST!,
+  port: process.env.DATABASE_PORT ? Number(process.env.DATABASE_PORT) : undefined,
   database: process.env.DATABASE_NAME!,
   user: process.env.DATABASE_USER!,
   password: process.env.DATABASE_PASSWORD!,
@@ -84,15 +92,30 @@ export function setTestClient(client: Client) {
   singletonClient = client;
 }
 
+// Module state is cleared before anything is awaited, and each teardown is
+// isolated. Previously a throw from singletonClient.end() — "Connection already
+// closed", easy to hit when the server is gone — returned early and left
+// connectionPool cached, so getPool() went on handing out dead clients.
 export async function closeAllConnections() {
-  if (singletonClient) {
-    await singletonClient.end();
-    singletonClient = null;
+  const client = singletonClient;
+  const pool = connectionPool;
+  singletonClient = null;
+  connectionPool = null;
+
+  if (client) {
+    try {
+      await client.end();
+    } catch {
+      // Already closed; nothing left to release.
+    }
   }
-  if (connectionPool) {
-    await connectionPool.drain();
-    await connectionPool.clear();
-    connectionPool = null;
+  if (pool) {
+    try {
+      await pool.drain();
+      await pool.clear();
+    } catch {
+      // Underlying connections are already gone.
+    }
   }
 }
 

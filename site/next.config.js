@@ -4,9 +4,6 @@ const nextConfig = {
     experimental: {
         externalDir: true,
     },
-    compiler: {
-        styledComponents: true,
-    },
 };
 
 module.exports = nextConfig;

@@ -10,12 +10,7 @@ tasks:
         docker build -f site/prod.Dockerfile \
         -t europe-west1-docker.pkg.dev/para-stats/parastats/parastats-site:{{.TAG}} \
         --platform linux/amd64 \
-        --build-arg DATABASE_HOST={{.DATABASE_HOST}} \
-        --build-arg DATABASE_NAME={{.DATABASE_NAME}} \
-        --build-arg DATABASE_PASSWORD={{.DATABASE_PASSWORD}} \
-        --build-arg DATABASE_PORT={{.DATABASE_PORT}} \
         --build-arg NEXT_PUBLIC_MAPBOX_TOKEN={{.NEXT_PUBLIC_MAPBOX_TOKEN}} \
-        --build-arg DATABASE_USER={{.DATABASE_USER}} \
         .
 
   push:
@@ -27,28 +22,18 @@ tasks:
     cmds:
       - docker push europe-west1-docker.pkg.dev/para-stats/parastats/parastats-site:{{.TAG}}
 
-  update-version:
-    desc: Update versions in file
-    internal: true
-    requires:
-      vars: [ TAG ]
-    cmds:
-      - sed -i '' 's/^site_tag[[:space:]]*=[[:space:]]*.*/site_tag     = "{{.TAG}}"/' infra/terraform.tfvars
-
   deploy:
     desc: Deploy site image
+    # TAG defaults here so `task site:deploy` still works standalone, but the
+    # root `deploy` task passes one in so the same tag reaches infra:apply.
     vars:
-      TAG: '{{now | unixEpoch}}'
+      TAG: '{{.TAG | default (now | unixEpoch)}}'
     cmds:
       - task: build
         vars:
           TAG:
             ref: .TAG
       - task: push
-        vars:
-          TAG:
-            ref: .TAG
-      - task: update-version
         vars:
           TAG:
             ref: .TAG

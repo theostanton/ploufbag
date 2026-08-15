@@ -1,7 +1,10 @@
 import {afterAll, afterEach, beforeAll, beforeEach, expect, it, test} from "vitest";
 import {TestContainer} from "../../model/database/generateContainer.test";
 import {StartedPostgreSqlContainer} from "@testcontainers/postgresql";
-import {end} from "@parastats/common";
+// `end` is not exported by @parastats/common — it is the local alias for
+// closeAllConnections, re-exported from model/database/client, which is how the
+// other test files import it.
+import {end} from "../../model/database/client";
 import {DescriptionPreference, FlightRow, DescriptionFormatter, withPooledClient} from "@parastats/common";
 import {Mocks} from "../../model/database/Mocks.test";
 
@@ -13,7 +16,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await end()
-    await container.stop()
+    await container?.stop()
 })
 
 
@@ -47,7 +50,11 @@ const cases: [
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllEnabled},
         "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
-    ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllDisabled, include_wind: false}},
+    // Spread AllEnabled, not AllDisabled. include_wind was already false in
+    // AllDisabled, so this case was identical to the one below it — which
+    // asserts null — while expecting full output. The expected string here is
+    // AllEnabled minus the wind line, which is what this case is meant to cover.
+    ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllEnabled, include_wind: false}},
         "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllDisabled},

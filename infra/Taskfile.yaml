@@ -1,17 +1,20 @@
 version: "3"
 
 tasks:
+  # SITE_TAG, when passed, overrides site_tag from terraform.tfvars. A CLI -var
+  # takes precedence over -var-file, which is how the image tag built by
+  # site:deploy reaches the apply without anything rewriting a file on disk.
   plan:
     dir: infra/
     desc: Plan
     cmds:
-      - terraform plan -var-file="./terraform.tfvars"
+      - terraform plan {{if .SITE_TAG}}-var="site_tag={{.SITE_TAG}}" {{end}}-var-file="./terraform.tfvars"
 
   apply:
     dir: infra/
     desc: Apply
     cmds:
-      - terraform apply -auto-approve -var-file="./terraform.tfvars"
+      - terraform apply -auto-approve {{if .SITE_TAG}}-var="site_tag={{.SITE_TAG}}" {{end}}-var-file="./terraform.tfvars"
 
   init:
     dir: infra/

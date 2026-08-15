@@ -10,10 +10,20 @@ includes:
 tasks:
   deploy:
     desc: Deploy
+    # One tag generated here and threaded through both steps, so the image that
+    # gets pushed is exactly the one the apply deploys.
+    vars:
+      TAG: '{{now | unixEpoch}}'
     cmds:
       - task: functions:build
       - task: site:deploy
+        vars:
+          TAG:
+            ref: .TAG
       - task: infra:apply
+        vars:
+          SITE_TAG:
+            ref: .TAG
 
 
   local-build:

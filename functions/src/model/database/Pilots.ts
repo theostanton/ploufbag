@@ -13,7 +13,9 @@ export namespace Pilots {
     export async function insert(pilot: PilotRowFull): Promise<void> {
         return withPooledClient(async (database) => {
             await database.query("INSERT into pilots (pilot_id, first_name, strava_access_token, strava_refresh_token, strava_expires_at, profile_image_url) values ($1, $2, $3,$4, $5, $6)",
-                [pilot.pilot_id, pilot.first_name, pilot.strava_access_token, pilot.strava_refresh_token, pilot.strava_expires_at, pilot.profile_image_url]);
+                // ?? null: an undefined profile_image_url was reaching postgres
+                // as the literal string "undefined" rather than NULL.
+                [pilot.pilot_id, pilot.first_name, pilot.strava_access_token, pilot.strava_refresh_token, pilot.strava_expires_at, pilot.profile_image_url ?? null]);
         });
     }
 
