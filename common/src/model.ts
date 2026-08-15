@@ -109,6 +109,20 @@ export type FlightRow = {
     landing_id: string | undefined
     takeoff_id: string | undefined
     description_preferences_snapshot?: DescriptionPreference
+    /**
+     * Short public handle, e.g. `a45nz`, behind ploufbag.com/a45nz.
+     *
+     * Optional because nothing in application code ever supplies one: the column
+     * has a database default (generate_flight_slug()) that mints it, so rows read
+     * back always carry a slug while rows being written never need to.
+     *
+     * This type is the one `@ploufbag/common` actually exports — index.ts
+     * re-exports ./model, not ./types — so it is the FlightRow that the database
+     * layer and every consumer of the package sees. types.ts declares a second,
+     * near-identical FlightRow used internally by DescriptionFormatter; both need
+     * the field, and they are kept in step by hand.
+     */
+    slug?: string
 }
 
 // UI-friendly flight type with joined site and pilot data
