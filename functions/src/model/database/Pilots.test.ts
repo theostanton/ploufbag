@@ -1,7 +1,7 @@
 import {expect, test} from "vitest";
 import {end} from "./client";
 import {Pilots} from "./Pilots";
-import {PilotRow, PilotRowFull, Success} from "@parastats/common";
+import {PilotRowFull} from "@parastats/common";
 import {TestContainer} from "./generateContainer.test";
 
 test('Test insert() / get() / getToken()', async () => {
@@ -20,13 +20,16 @@ test('Test insert() / get() / getToken()', async () => {
 
     await Pilots.insert(pilot)
 
-    const userResult = await Pilots.getFull(pilot.pilot_id)
-    expect(userResult).toBeInstanceOf(Success<PilotRow>)
-    expect(userResult).toStrictEqual(new Success(pilot))
+    // Either<V> is the tuple [value, error] — Success is a type alias, not a
+    // class, so the old `new Success(...)` / toBeInstanceOf assertions could
+    // never pass.
+    const [fetchedPilot, pilotError] = await Pilots.getFull(pilot.pilot_id)
+    expect(pilotError).toBeUndefined()
+    expect(fetchedPilot).toStrictEqual(pilot)
 
-    const tokenResult = await Pilots.getAccessToken(pilot.pilot_id)
-    expect(userResult).toBeInstanceOf(Success<string>)
-    expect(tokenResult).toStrictEqual(new Success(pilot.strava_access_token))
+    const [accessToken, tokenError] = await Pilots.getAccessToken(pilot.pilot_id)
+    expect(tokenError).toBeUndefined()
+    expect(accessToken).toEqual(pilot.strava_access_token)
 
     await end()
     await container?.stop()

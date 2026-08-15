@@ -98,11 +98,23 @@ export namespace TestContainer {
         for (const pilot of pilots) {
             await Pilots.insert(pilot);
         }
-        const flightsResult = await Flights.upsert(flights)
-        if (flightsResult.success == false) {
-            throw new Error(`Failed to upsert flights error=${flightsResult.error}`);
+        // Either<V> is the tuple [value, error]. The old `.success == false`
+        // check read undefined, so a failed seed passed straight through and
+        // surfaced later as an inscrutable assertion failure.
+        const [, flightsError] = await Flights.upsert(flights)
+        if (flightsError) {
+            throw new Error(`Failed to upsert flights error=${flightsError}`);
         }
-        await Sites.upsert(sites)
+        // Deliberately not fatal. create_sites.sql seeds five fixture sites, and
+        // Mocks.planpraz/forclaz/leSavoy reuse those slugs under different
+        // ffvl_sids — so these upserts collide on the unique `slug` constraint,
+        // which `on conflict(ffvl_sid)` does not cover. Tests that depend on the
+        // seeded rows still pass; surfacing the error beats the previous silent
+        // swallow without breaking every generateFromMocks() caller.
+        const [, sitesError] = await Sites.upsert(sites)
+        if (sitesError) {
+            console.warn(`Seeding sites reported: ${sitesError}`);
+        }
 
         return container
     }

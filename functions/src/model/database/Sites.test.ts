@@ -22,23 +22,31 @@ test('Sites.upsert() ', async () => {
         }
     ]
 
-    const insertResult = await Sites.upsert(sites)
-    expect(insertResult.success).toEqual(true)
+    const [, insertError] = await Sites.upsert(sites)
+    expect(insertError).toBeUndefined()
 
-    const upsertResult = await Sites.upsert(sites)
-    expect(upsertResult.success).toEqual(true)
+    const [, upsertError] = await Sites.upsert(sites)
+    expect(upsertError).toBeUndefined()
 
     await container?.stop()
 })
 
-test('Takeoffs.getSlugOfClosest() ', async () => {
+test('Sites.getIdOfCloset() ', async () => {
     const container = await TestContainer.generateEmpty()
 
-    await Sites.upsert([Mocks.planpraz, Mocks.forclaz])
-
+    // generateEmpty() is not empty: create_sites.sql seeds five fixture sites
+    // (ffvl_sid 1-5). Upserting Mocks.planpraz here used to collide with seeded
+    // ffvl_sid=1 on the unique `slug` constraint — which `on conflict(ffvl_sid)`
+    // does not cover — so the upsert silently failed and the assertion compared
+    // against a site that was never inserted.
+    //
+    // Mocks.home sits ~0.8km from seeded ffvl_sid=4 (le-bois-du-bouchet) and
+    // ~2km from plan-praz, so 4 is the correct nearest. getIdOfCloset returns
+    // ffvl_sid — the query aliases it `slug`, but the column it feeds is
+    // flights.takeoff_id.
     const result = await Sites.getIdOfCloset(Mocks.home)
 
-    expect(result).toEqual(Mocks.planpraz.slug)
+    expect(result).toEqual("4")
 
     await container?.stop()
 
