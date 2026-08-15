@@ -15,6 +15,20 @@ export async function getAll(): Promise<Either<Pilot[]>> {
     });
 }
 
+/**
+ * Number of connected pilots, which is what the signup capacity gate compares
+ * against. Counted rather than derived from getAll() so the gate does not pull
+ * every pilot row on every home page render.
+ */
+export async function getCount(): Promise<number> {
+    return withPooledClient(async (database) => {
+        const result = await database.query<{ count: number }>(`
+            select count(1)::int as count
+            from pilots`)
+        return result.rows[0].reify().count
+    });
+}
+
 export async function get(pilotId: number): Promise<Either<Pilot>> {
     return withPooledClient(async (database) => {
         const result = await database.query<Pilot>(`
