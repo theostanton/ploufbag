@@ -41,6 +41,14 @@ const AllDisabled: DescriptionPreference = {
     include_sites: false,
     include_all_time_aggregate: false
 }
+// With include_sites, appendSites joins flights.takeoff_id/landing_id against
+// sites.ffvl_sid. Every mock flight carries takeoff_id "456" and landing_id
+// "123" — Mocks.forclaz and Mocks.planpraz — so each expectation below is
+// prefixed with the same two lines. They were absent before only because those
+// two mock sites lost the slug collision in Sites.upsert and were never
+// inserted, so the join matched nothing. No aggregate figure changes.
+const siteLines = "↗️ Col de la Forclaz - Montmin\n↘️ Chamonix - Plan Praz - Brevent\n"
+
 const cases: [
     title: string,
     input: Input,
@@ -48,23 +56,25 @@ const cases: [
 ][] = [
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllEnabled},
-        "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
     // Spread AllEnabled, not AllDisabled. include_wind was already false in
     // AllDisabled, so this case was identical to the one below it — which
     // asserts null — while expecting full output. The expected string here is
     // AllEnabled minus the wind line, which is what this case is meant to cover.
+    // The mock sites have no nearest_balise_id, so no wind is appended either
+    // way; this case pins that turning include_wind off changes nothing else.
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllEnabled, include_wind: false}},
-        "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllDisabled},
         null],
 
     ["User 1 Activity 2", {flight: Mocks.user1activity2wing2, preference: AllEnabled},
-        "🪂 Two 1 flight / 1h 0min\n2025 2 flights / 1h 5min\nAll Time 2 flights / 1h 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 Two 1 flight / 1h 0min\n2025 2 flights / 1h 5min\nAll Time 2 flights / 1h 5min\n🌐 paragliderstats.com"],
 
     ["User 1 Activity 3", {flight: Mocks.user1activity3wing1, preference: AllEnabled},
-        "🪂 One 2 flights / 15min\n2025 3 flights / 1h 15min\nAll Time 3 flights / 1h 15min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 2 flights / 15min\n2025 3 flights / 1h 15min\nAll Time 3 flights / 1h 15min\n🌐 paragliderstats.com"],
 ]
 
 test.each(cases)('generateStats(%s)', async (_, input, expected) => {
