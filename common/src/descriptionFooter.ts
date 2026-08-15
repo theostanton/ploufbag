@@ -22,7 +22,13 @@ export const DESCRIPTION_DOMAIN = 'ploufbag.com';
  * a stats block rather than replacing one. The visible symptom is an activity
  * with two stats blocks, and it is not self-healing.
  */
-export const LEGACY_DESCRIPTION_DOMAINS = ['paragliderstats.com'] as const;
+export const LEGACY_DESCRIPTION_DOMAINS = [
+    'paragliderstats.com',
+    // Predates paragliderstats.com. Missing from this list until 2026-08-15, which
+    // is why 5 live flights carry it — 4 cleanly, and 1 with two stacked stats
+    // blocks, the exact corruption described above from the previous migration.
+    'parastats.info',
+] as const;
 
 export const DESCRIPTION_FOOTER = `🌐 ${DESCRIPTION_DOMAIN}`;
 
@@ -37,15 +43,24 @@ const DOMAIN_ALTERNATION = ALL_DESCRIPTION_DOMAINS
  * Matches an existing stats block: from the first stats glyph through to the
  * footer domain.
  *
- * The character class is carried over verbatim from the original expression.
- * These glyphs are not single UTF-16 code units — 🪂 is a surrogate pair and
- * ↗️/↘️ are a base arrow plus U+FE0F — so without the `u` flag the class matches
- * their constituent units rather than the glyphs as such. That is loose, but it
- * is the behaviour that has been matching real descriptions in production, and a
- * domain migration is the wrong moment to also tighten it.
+ * The `u` flag is load-bearing and must not be dropped. Without it the character
+ * class is a set of UTF-16 *code units*, not characters: 🪂 is U+1FA82, i.e. the
+ * surrogate pair 🪂, so an unflagged class contains the bare lead
+ * surrogate \uD83E. That lead is shared by every emoji in U+1F900–U+1FAFF — 🦋,
+ * 🥇, 🧗 and hundreds more — so the class matched the first half of whichever
+ * emoji a pilot had opened their own text with. Combined with the greedy
+ * `[\s\S]*`, the match then began at the pilot's prose instead of at our stats
+ * block, and replacing it silently deleted what they had written.
+ *
+ * That stayed invisible while such descriptions took the *append* branch. Adding
+ * their footer domain to the legacy list routes them to this replace branch,
+ * which is what turned latent looseness into data loss.
+ *
+ * With `u`, the class is three characters (plus the U+FE0F variation selectors
+ * that follow ↗/↘), and matching starts at a real stats glyph.
  */
 export function formattedStatsPattern(): RegExp {
-    return new RegExp(`[🪂↗️↘️][\\s\\S]*(?:${DOMAIN_ALTERNATION})`);
+    return new RegExp(`[🪂↗️↘️][\\s\\S]*(?:${DOMAIN_ALTERNATION})`, 'u');
 }
 
 /**
