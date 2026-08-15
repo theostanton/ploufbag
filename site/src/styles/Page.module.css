@@ -162,6 +162,18 @@
     color: var(--color-text-inverse);
 }
 
+/*
+ * Banner-sized variant. The upsell sits above content the visitor actually came
+ * for, so the button has to read as an offer rather than as the page's subject —
+ * hence no min-width, which is what makes the full-size button dominate a row.
+ */
+.stravaButtonCompact {
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--font-size-sm);
+    min-width: 0;
+    white-space: nowrap;
+}
+
 .stravaButton:hover {
     background-color: var(--color-strava-hover);
     text-decoration: none;

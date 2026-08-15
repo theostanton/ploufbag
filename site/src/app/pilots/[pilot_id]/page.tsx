@@ -9,6 +9,7 @@ import FlightItem from "@ui/FlightItem";
 import Link from "next/link";
 import {Sites} from "@database/Sites";
 import PilotMap from "@ui/PilotMap";
+import SignupBanner from "@ui/SignupBanner";
 import mapStyles from "@ui/FlightMap.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
 
@@ -76,6 +77,7 @@ export default async function PagePilot({params}: {
 
     return <div className={styles.page}>
         <div className={styles.container}>
+            <SignupBanner from="pilot"/>
             {/* Header Section */}
             <header className={styles.pageHeaderWithProfile}>
                 {pilot.profile_image_url && (

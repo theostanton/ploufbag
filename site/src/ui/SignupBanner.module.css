@@ -1,0 +1,75 @@
+/*
+ * The upsell banner. Deliberately quieter than .alert: this is an offer sitting
+ * above content the visitor came for, not a status message about their request,
+ * so it uses the surface/border pair rather than a semantic warning colour.
+ *
+ * The Strava orange appears only on the button and the accent rule, which keeps
+ * the one saturated colour on the page pointing at the one thing to click.
+ */
+.banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+
+    margin-bottom: var(--space-8);
+    padding: var(--space-5) var(--space-6);
+
+    background-color: var(--color-surface-elevated);
+    border: 1px solid var(--color-border-light);
+    border-left: 3px solid var(--color-strava);
+    border-radius: var(--border-radius-md);
+}
+
+.text {
+    /* Lets the copy take the slack while the button keeps its intrinsic width. */
+    flex: 1 1 20rem;
+}
+
+.headline {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.body {
+    margin: var(--space-2) 0 0 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.spots {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/*
+ * Below the wrap point the two columns are already stacked by flex-wrap; this
+ * just stops the action column sitting centred under left-aligned copy, and
+ * lets the button span the width the way the rest of the mobile layout does.
+ */
+@media (max-width: 30rem) {
+    .banner {
+        gap: var(--space-5);
+    }
+
+    .action {
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .spots {
+        text-align: center;
+    }
+}
