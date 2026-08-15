@@ -1,0 +1,53 @@
+.controls {
+    pointer-events: auto;
+    position: absolute;
+    right: var(--chrome-gap);
+    bottom: var(--chrome-gap);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-radius: calc(var(--chrome-radius) - 4px);
+    overflow: hidden;
+    border: 1px solid var(--chrome-border);
+    box-shadow: var(--chrome-shadow);
+    /* The gap between buttons is a hairline of the border colour showing
+       through, rather than a border on each button -- that way the stack reads
+       as one control. */
+    background-color: var(--chrome-border);
+}
+
+.button {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    color: var(--color-text-primary);
+    background-color: var(--chrome-bg-strong);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
+    transition: background-color var(--transition-fast);
+}
+
+.button:hover {
+    background-color: var(--color-surface-elevated);
+}
+
+.button:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: -2px;
+}
+
+/*
+ * On a phone the bottom-right corner is behind the sheet, so lift the stack to
+ * sit just above it.
+ */
+@media (max-width: 1023px) {
+    .controls {
+        bottom: calc(min(52dvh, calc(100dvh - var(--chrome-top) - var(--chrome-gap))) + var(--chrome-gap) * 2);
+    }
+}

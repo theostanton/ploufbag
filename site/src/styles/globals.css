@@ -97,7 +97,29 @@
   /* Layout */
   --container-max-width: 1200px;
   --header-height: 4rem;
-  
+
+  /*
+   * Chrome: the panels floating over the full-bleed map.
+   *
+   * Light glass rather than dark. Satellite imagery is busy and mostly
+   * mid-to-dark, so a light panel separates from it more reliably than a dark
+   * one, and it lets the existing card and type styles keep working unchanged.
+   * The opacity is high on purpose -- pretty is worth less here than being able
+   * to read a flight list over a glacier.
+   */
+  --chrome-bg: rgba(245, 245, 240, 0.86);
+  --chrome-bg-strong: rgba(245, 245, 240, 0.94);
+  --chrome-border: rgba(26, 26, 26, 0.10);
+  --chrome-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  --chrome-blur: 20px;
+  --chrome-radius: 16px;
+  --chrome-gap: 12px;
+  --topbar-height: 52px;
+  --sheet-width: 420px;
+  /* Where panels below the top bar begin: the bar plus its padding above and
+     below. Shared so the sheet and the map controls agree. */
+  --chrome-top: calc(var(--topbar-height) + var(--chrome-gap) * 2);
+
   /* Breakpoints */
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
@@ -153,6 +175,15 @@ body {
   background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /*
+   * The document itself never scrolls. The map is fixed to the viewport and the
+   * chrome panels scroll their own contents, so a scrolling body would only
+   * produce a second, competing scroll axis -- and on iOS, address-bar
+   * collapse that resizes the map mid-gesture.
+   */
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* Typography */

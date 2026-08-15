@@ -89,6 +89,22 @@ const TOUR = [
         path: '/flights',
     },
     {
+        name: '02b-nav-keeps-map',
+        path: '/flights',
+        // The weaker of the two persistence checks, but it needs no map data, so
+        // it catches a regression (a raw <a href> creeping back into the nav, a
+        // second layout appearing) long before the click tour can run.
+        act: async (page, { expect, mapCanvasId }) => {
+            const before = await mapCanvasId();
+            if (before === null) return { skipped: 'no map instance (Mapbox token missing?)' };
+            await page.getByRole('link', { name: 'Sites', exact: true }).click();
+            await page.waitForURL(/\/sites\/?$/, { timeout: options.timeout });
+            const after = await mapCanvasId();
+            expect(before === after, 'top-bar navigation rebuilt the map instance');
+            return {};
+        },
+    },
+    {
         name: '03-flight-detail-via-map-click',
         path: '/flights',
         // The premise of the redesign: clicking a track on the map navigates,
