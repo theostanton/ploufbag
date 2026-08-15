@@ -1,8 +1,9 @@
 import {expect, test} from "vitest";
 import {TestContainer} from "./generateContainer.test";
-import {Site, isSuccess} from "@parastats/common";
+import {Site} from "@parastats/common";
 import {Sites} from "./Sites";
 import {Mocks} from "./Mocks.test";
+import {end, withPooledClient} from "./client";
 
 
 test('Sites.upsert() ', async () => {
@@ -31,14 +32,50 @@ test('Sites.upsert() ', async () => {
     await container?.stop()
 })
 
+test('Sites.upsert() disambiguates a slug already held by another site', async () => {
+    const container = await TestContainer.generateEmpty()
+
+    // create_sites.sql seeds ffvl_sid=1 with slug chamonix---plan-praz---brevent.
+    // Mocks.planpraz carries that same slug under a different ffvl_sid (123) —
+    // the shape real FFVL data produces when two sites share a toponym, since
+    // slug is slugify(toponym). This used to raise sites_slug_key and drop the
+    // site entirely.
+    const [, upsertError] = await Sites.upsert([Mocks.planpraz])
+    expect(upsertError).toBeUndefined()
+
+    const rows = await withPooledClient(async (client) =>
+        (await client.query<{ ffvl_sid: string, slug: string }>(
+            "select ffvl_sid, slug from sites where ffvl_sid in ('1', $1) order by ffvl_sid",
+            [Mocks.planpraz.ffvl_sid]
+        )).rows.map(row => row.reify())
+    )
+
+    // The incumbent keeps the clean URL; the newcomer is suffixed with its id.
+    expect(rows).toStrictEqual([
+        {ffvl_sid: "1", slug: "chamonix---plan-praz---brevent"},
+        {ffvl_sid: "123", slug: "chamonix---plan-praz---brevent-123"},
+    ])
+
+    // Re-running the sync must be idempotent, not append another suffix.
+    const [, repeatError] = await Sites.upsert([Mocks.planpraz])
+    expect(repeatError).toBeUndefined()
+
+    const repeated = await withPooledClient(async (client) =>
+        (await client.query<{ slug: string }>(
+            "select slug from sites where ffvl_sid = $1", [Mocks.planpraz.ffvl_sid]
+        )).rows.map(row => row.reify().slug)
+    )
+    expect(repeated).toStrictEqual(["chamonix---plan-praz---brevent-123"])
+
+    await end()
+    await container?.stop()
+})
+
 test('Sites.getIdOfCloset() ', async () => {
     const container = await TestContainer.generateEmpty()
 
     // generateEmpty() is not empty: create_sites.sql seeds five fixture sites
-    // (ffvl_sid 1-5). Upserting Mocks.planpraz here used to collide with seeded
-    // ffvl_sid=1 on the unique `slug` constraint — which `on conflict(ffvl_sid)`
-    // does not cover — so the upsert silently failed and the assertion compared
-    // against a site that was never inserted.
+    // (ffvl_sid 1-5).
     //
     // Mocks.home sits ~0.8km from seeded ffvl_sid=4 (le-bois-du-bouchet) and
     // ~2km from plan-praz, so 4 is the correct nearest. getIdOfCloset returns
