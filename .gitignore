@@ -60,3 +60,8 @@ tfplan
 # file and is meant to be committed. Ignoring it is why provider versions
 # floated (a bare init pulled google 7.x over the 6.x that built this infra).
 coverage/
+
+# Local development harness (dev/). The Postgres data directory lives outside
+# the repo by default; these are the bits that can land inside it.
+dev/.env.local
+dev/shots/
