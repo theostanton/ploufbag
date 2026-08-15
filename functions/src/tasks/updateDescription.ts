@@ -1,4 +1,12 @@
-import {isSuccess, UpdateDescriptionTask, TaskResult, StravaActivityId, FlightRow} from "@parastats/common";
+import {
+    isSuccess,
+    UpdateDescriptionTask,
+    TaskResult,
+    StravaActivityId,
+    FlightRow,
+    isFormattedDescription,
+    formattedStatsPattern
+} from "@parastats/common";
 import {Pilots} from '@/database/Pilots';
 import {Flights} from '@/database/Flights';
 import {StravaApi} from '@/stravaApi';
@@ -34,14 +42,17 @@ export async function executeUpdateDescriptionTask(
         };
     }
 
-    // Check if description is already formatted
-    const alreadyFormatted = flight.description.includes("🌐 paragliderstats.com");
+    // Check if description is already formatted. Recognises legacy domains as well
+    // as the current one — activities published before the ploufbag.com migration
+    // still carry the old footer, and misreading those as unformatted would send
+    // them down the append path below and give them a second stats block.
+    const alreadyFormatted = isFormattedDescription(flight.description);
 
     // Generate the new description
     let updatedDescription: string;
     if (alreadyFormatted) {
         console.log("Updating existing formatted description");
-        updatedDescription = flight.description.replace(/(?:[🪂↘️↗️])[\s\S]*paragliderstats.com/, newStats);
+        updatedDescription = flight.description.replace(formattedStatsPattern(), newStats);
     } else {
         console.log("Appending stats to description");
         updatedDescription = flight.description.replace(`🪂 ${flight.wing}`, newStats);

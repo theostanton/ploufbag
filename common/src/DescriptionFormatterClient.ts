@@ -4,6 +4,7 @@ import {
     SiteType 
 } from './types';
 import { formatSiteName, formatAggregationResult } from './utils';
+import { DESCRIPTION_FOOTER } from './descriptionFooter';
 
 // Client-side only version of DescriptionFormatter for previews
 export class DescriptionFormatterClient {
@@ -80,6 +81,6 @@ export class DescriptionFormatterClient {
             return 'No preview available with current preferences';
         }
 
-        return [...lines, '🌐 paragliderstats.com'].join('\n');
+        return [...lines, DESCRIPTION_FOOTER].join('\n');
     }
 }

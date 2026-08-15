@@ -109,7 +109,7 @@ export default function Login() {
 
             <div style={{ marginBottom: 'var(--space-6)' }}>
                 <a className={styles.stravaButton}
-                   href="https://www.strava.com/oauth/authorize?client_id=155420&redirect_uri=https%3A%2F%2Fwebhooks.paragliderstats.com&response_type=code&approval_prompt=force&scope=read_all,activity:write,activity:read_all">
+                   href="https://www.strava.com/oauth/authorize?client_id=155420&redirect_uri=https%3A%2F%2Fwebhooks.ploufbag.com&response_type=code&approval_prompt=force&scope=read_all,activity:write,activity:read_all">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.599h4.172L10.463 0l-7 13.828h4.172"/>
                     </svg>

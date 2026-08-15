@@ -16,8 +16,17 @@ export function sign(userId: number, res: Response): string {
     console.log(`sign process.env.SESSION_SECRET=${process.env.SESSION_SECRET}`)
 
     const jwtToken = generateJwt(userId)
+
+    // Scoped to the apex domain, not the subdomain that sets it: this runs on
+    // webhooks.<domain> but the cookie has to be readable by the site on the apex.
+    //
+    // Empty/unset means omit the Domain attribute entirely, producing a host-only
+    // cookie. That is required for localhost, which browsers refuse to accept as a
+    // Domain value — passing domain: "" to res.cookie would send `Domain=`, so the
+    // property has to be absent rather than blank.
+    const cookieDomain = process.env.COOKIE_DOMAIN;
     res.cookie('sid', jwtToken, {
-        domain: "paragliderstats.com",
+        ...(cookieDomain ? {domain: cookieDomain} : {}),
         httpOnly: false,
         secure: true,
         sameSite: 'lax',

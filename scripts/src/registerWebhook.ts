@@ -14,7 +14,7 @@ interface WebhookSubscription {
 async function registerWebhook() {
     const clientId = process.env.STRAVA_CLIENT_ID;
     const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-    const callbackUrl = process.env.WEBHOOK_CALLBACK_URL || 'https://webhooks.paragliderstats.com';
+    const callbackUrl = process.env.WEBHOOK_CALLBACK_URL || 'https://webhooks.ploufbag.com';
     const verifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;
 
     if (!clientId || !clientSecret || !verifyToken) {
@@ -163,7 +163,7 @@ const command = process.argv[2];
                 console.log("  STRAVA_CLIENT_ID");
                 console.log("  STRAVA_CLIENT_SECRET");
                 console.log("  STRAVA_WEBHOOK_VERIFY_TOKEN");
-                console.log("  WEBHOOK_CALLBACK_URL (optional, defaults to https://webhooks.paragliderstats.com)");
+                console.log("  WEBHOOK_CALLBACK_URL (optional, defaults to https://webhooks.ploufbag.com)");
                 process.exit(1);
         }
     } catch (error) {

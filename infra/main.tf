@@ -1,7 +1,7 @@
 locals {
   project_id = "para-stats"
   region     = "europe-west1"
-  domain     = "paragliderstats.com"
+  domain     = "ploufbag.com"
 }
 
 provider "google" {

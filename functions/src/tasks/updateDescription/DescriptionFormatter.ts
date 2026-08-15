@@ -1,4 +1,4 @@
-import {DescriptionPreference, FlightRow, isSuccess, SiteType, WindDirection} from "@parastats/common";
+import {DESCRIPTION_FOOTER, DescriptionPreference, FlightRow, isSuccess, SiteType, WindDirection} from "@parastats/common";
 import {withPooledClient, Client} from "@parastats/common";
 import {FFVL} from "@/ffvlApi";
 import {DescriptionPreferences} from "@parastats/common";
@@ -173,7 +173,7 @@ export class DescriptionFormatter {
                 return null;
             }
 
-            return [...this.lines, '🌐 paragliderstats.com'].join('\n')
+            return [...this.lines, DESCRIPTION_FOOTER].join('\n')
         });
     }
 }
