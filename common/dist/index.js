@@ -17,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskExecutions = exports.WebhookEvents = exports.DescriptionPreferences = exports.Windsocks = exports.Sites = exports.Flights = exports.Pilots = void 0;
 __exportStar(require("./database"), exports);
 __exportStar(require("./utils"), exports);
+__exportStar(require("./descriptionFooter"), exports);
 __exportStar(require("./DescriptionFormatter"), exports);
 __exportStar(require("./DescriptionFormatterClient"), exports);
 __exportStar(require("./model"), exports);

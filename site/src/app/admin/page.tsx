@@ -1,15 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { WebhookEvent, TaskExecution, MonitoringStats } from '@model/admin';
+import { WebhookEvent, TaskExecution, MonitoringStats, AnalyticsSummary } from '@model/admin';
+import { ATHLETE_CAPACITY } from '@model/signup';
+
+/** Percentage of `total`, or an em dash when there is nothing to divide by. */
+function formatRate(part: number, total: number): string {
+    if (!total) return '—';
+    return `${Math.round((part / total) * 100)}%`;
+}
 
 export default function AdminMonitoringPage() {
     const [stats, setStats] = useState<MonitoringStats | null>(null);
     const [webhooks, setWebhooks] = useState<WebhookEvent[]>([]);
     const [tasks, setTasks] = useState<TaskExecution[]>([]);
+    const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+    const [analyticsError, setAnalyticsError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'webhooks' | 'tasks'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'webhooks' | 'tasks'>('overview');
 
     useEffect(() => {
         fetchMonitoringData();
@@ -43,6 +52,21 @@ export default function AdminMonitoringPage() {
             setStats(statsData);
             setWebhooks(webhooksData.webhooks);
             setTasks(tasksData.tasks);
+
+            // Fetched separately and never allowed to fail the page. Analytics
+            // depends on a table that is applied by hand (see
+            // create_analytics_events.sql); until that migration is run the
+            // route 500s, and webhook/task monitoring is more important than
+            // the signup funnel.
+            try {
+                const analyticsRes = await fetch('/api/admin/analytics?hours=168');
+                if (!analyticsRes.ok) throw new Error(`HTTP ${analyticsRes.status}`);
+                setAnalytics(await analyticsRes.json());
+                setAnalyticsError(null);
+            } catch (analyticsErr) {
+                setAnalytics(null);
+                setAnalyticsError(analyticsErr instanceof Error ? analyticsErr.message : 'Unknown error');
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
@@ -180,6 +204,7 @@ export default function AdminMonitoringPage() {
                     <nav className="-mb-px flex space-x-8">
                         {[
                             { id: 'overview', label: 'Overview' },
+                            { id: 'analytics', label: 'Analytics' },
                             { id: 'webhooks', label: 'Webhooks' },
                             { id: 'tasks', label: 'Tasks' }
                         ].map((tab) => (
@@ -197,6 +222,83 @@ export default function AdminMonitoringPage() {
                         ))}
                     </nav>
                 </div>
+
+                {/* Analytics Tab */}
+                {activeTab === 'analytics' && (
+                    <div className="space-y-8">
+                        {analyticsError && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
+                                <p className="font-medium">Analytics unavailable: {analyticsError}</p>
+                                <p className="mt-1">
+                                    If this is the first deploy, apply
+                                    <code className="mx-1 px-1 bg-yellow-100 rounded">
+                                        functions/src/model/database/scripts/create_analytics_events.sql
+                                    </code>
+                                    and
+                                    <code className="mx-1 px-1 bg-yellow-100 rounded">
+                                        add_created_at_to_pilots.sql
+                                    </code>
+                                    to the database.
+                                </p>
+                            </div>
+                        )}
+
+                        {analytics && (
+                            <>
+                                <div>
+                                    <h2 className="text-lg font-medium text-gray-900">Signup funnel</h2>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        Last {analytics.period_hours} hours. Landings are home page visits;
+                                        the Strava description footer is a bare domain, so every click from
+                                        an activity arrives here indistinguishable from direct traffic.
+                                        Bots excluded.
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
+                                        <dt className="text-sm font-medium text-gray-500 truncate">Landings</dt>
+                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.unique_landings}</dd>
+                                        <div className="mt-2 text-sm text-gray-500">
+                                            {analytics.landings} views &middot; {analytics.bot_landings} bot
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
+                                        <dt className="text-sm font-medium text-gray-500 truncate">Signup attempts</dt>
+                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.unique_signup_clicks}</dd>
+                                        <div className="mt-2 text-sm text-gray-500">
+                                            {analytics.signup_clicks} clicks &middot; {formatRate(analytics.unique_signup_clicks, analytics.unique_landings)} of landings
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
+                                        <dt className="text-sm font-medium text-gray-500 truncate">Signups completed</dt>
+                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.signups_completed}</dd>
+                                        <div className="mt-2 text-sm text-gray-500">
+                                            {formatRate(analytics.signups_completed, analytics.unique_signup_clicks)} of attempts
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
+                                        <dt className="text-sm font-medium text-gray-500 truncate">Capacity</dt>
+                                        <dd className="text-3xl font-semibold text-gray-900">
+                                            {analytics.pilots_total}<span className="text-lg text-gray-400">/{ATHLETE_CAPACITY}</span>
+                                        </dd>
+                                        <div className="mt-2 text-sm text-gray-500">
+                                            {Math.max(0, ATHLETE_CAPACITY - analytics.pilots_total)} spots left
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p className="text-sm text-gray-500">
+                                    Pilots who connected before signup timestamps were recorded have no
+                                    created_at and are counted in Capacity but never in Signups completed.
+                                </p>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 {/* Overview Tab */}
                 {activeTab === 'overview' && stats && (

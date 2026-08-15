@@ -25,6 +25,22 @@ export interface TaskExecution {
     retry_count: number;
 }
 
+/**
+ * Mirrors AnalyticsSummary in src/data/database/analytics.ts, which is where
+ * the field docs live. Restated here because this module is imported by the
+ * client-side admin page and must not pull in the database layer.
+ */
+export interface AnalyticsSummary {
+    period_hours: number;
+    landings: number;
+    unique_landings: number;
+    signup_clicks: number;
+    unique_signup_clicks: number;
+    signups_completed: number;
+    pilots_total: number;
+    bot_landings: number;
+}
+
 export interface MonitoringStats {
     period_hours: number;
     webhooks: {

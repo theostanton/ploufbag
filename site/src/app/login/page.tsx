@@ -2,10 +2,27 @@ import styles from "@styles/Page.module.css";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import {BRAND_NAME} from "@ui/brand";
+import ConnectWithStrava from "@ui/ConnectWithStrava";
+import {getCount} from "@database/pilots";
+import {signupState} from "@model/signup";
 
 export const metadata: Metadata = createMetadata('Login')
 
-export default function Login() {
+/**
+ * Reads the live pilot count for the capacity gate, so it must not be cached
+ * into a page that keeps offering a full signup.
+ */
+export const dynamic = 'force-dynamic';
+
+export default async function Login() {
+    // Fail open, matching / and /connect: a database blip should not hide the
+    // only way in. Strava still enforces the real athlete cap.
+    const pilotCount = await getCount().catch(error => {
+        console.error('login: pilot count failed, showing signup anyway:', error);
+        return 0;
+    });
+    const state = signupState(pilotCount);
+
     return <div className={styles.loginPageContainer}>
         <div className={styles.loginContent}>
             <div style={{ marginBottom: 'var(--space-6)' }}>
@@ -109,13 +126,21 @@ export default function Login() {
             </div>
 
             <div style={{ marginBottom: 'var(--space-6)' }}>
-                <a className={styles.stravaButton}
-                   href="https://www.strava.com/oauth/authorize?client_id=155420&redirect_uri=https%3A%2F%2Fwebhooks.ploufbag.com&response_type=code&approval_prompt=force&scope=read_all,activity:write,activity:read_all">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.599h4.172L10.463 0l-7 13.828h4.172"/>
-                    </svg>
-                    Connect with Strava
-                </a>
+                {state.isOpen
+                    ? <>
+                        <ConnectWithStrava/>
+                        <p className={styles.description}
+                           style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--space-3)', marginBottom: 0 }}>
+                            Early access &mdash; {state.spotsRemaining} of {state.capacity} spots left.
+                        </p>
+                    </>
+                    : <div className={`${styles.alert} ${styles.alertWarning}`}>
+                        <strong>All {state.capacity} spots are taken.</strong>
+                        <p style={{ margin: 'var(--space-2) 0 0 0' }}>
+                            Strava caps how many athletes can connect to {BRAND_NAME} while it is in
+                            early access. Check back once the cap is raised.
+                        </p>
+                    </div>}
             </div>
 
             <div className={styles.loginFeatures}>
