@@ -46,7 +46,7 @@ app.get('/', (req, res) => {
     
     res.status(200).json({
         status: 'OK',
-        message: 'Parastats webhook endpoint',
+        message: 'Plouf Bag webhook endpoint',
         endpoints: {
             subscription: 'GET with hub.mode=subscribe&hub.challenge=<challenge>',
             events: 'POST with Strava webhook payload'

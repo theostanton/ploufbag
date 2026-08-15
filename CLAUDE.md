@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Parastats is a paragliding flight tracking application that integrates with Strava to analyze and display flight statistics. The project uses a microservices architecture with a Next.js frontend, Express.js backend services, and PostgreSQL database, all deployed on Google Cloud Platform.
+Plouf Bag is a paragliding flight tracking application that integrates with Strava to analyze and display flight statistics. The project uses a microservices architecture with a Next.js frontend, Express.js backend services, and PostgreSQL database, all deployed on Google Cloud Platform.
 
 ## Architecture
 

@@ -1,5 +1,5 @@
 ### Hello
-POST {{parastats_base_url}}
+POST {{ploufbag_base_url}}
 User-Agent: insomnia/11.0.2
 Content-Type: application/json
 
@@ -8,7 +8,7 @@ Content-Type: application/json
 }
 
 ### Convert code
-POST {{parastats_base_url}}?code=123
+POST {{ploufbag_base_url}}?code=123
 User-Agent: insomnia/11.0.2
 Content-Type: application/json
 

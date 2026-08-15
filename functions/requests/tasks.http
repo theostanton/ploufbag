@@ -1,5 +1,5 @@
 ### Hello functions
-POST {{parastats_tasks_base_url}}
+POST {{ploufbag_tasks_base_url}}
 Content-Type: application/json
 
 {
@@ -11,7 +11,7 @@ Content-Type: application/json
 
 
 ### FetchAllActivities
-POST {{parastats_tasks_base_url}}
+POST {{ploufbag_tasks_base_url}}
 Content-Type: application/json
 
 {
@@ -20,7 +20,7 @@ Content-Type: application/json
 }
 
 ### SyncSites
-POST {{parastats_tasks_base_url}}
+POST {{ploufbag_tasks_base_url}}
 Content-Type: application/json
 
 {
@@ -28,7 +28,7 @@ Content-Type: application/json
 }
 
 ### UpdateDescription
-POST {{parastats_tasks_base_url}}
+POST {{ploufbag_tasks_base_url}}
 Content-Type: application/json
 
 {
