@@ -1,9 +1,9 @@
 import {PostgreSqlContainer, StartedPostgreSqlContainer} from "@testcontainers/postgresql";
 import {connect} from "ts-postgres";
-import {setClient} from "./client";
+import {end, setClient} from "./client";
 import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess} from "@parastats/common";
 import {Pilots} from "./Pilots";
-import {test} from "vitest";
+import {afterEach, test} from "vitest";
 import {Flights} from "./Flights";
 import * as fs from "node:fs";
 import {Mocks} from "./Mocks.test";
@@ -41,7 +41,8 @@ export namespace TestContainer {
                                          flights: FlightRow[] = [],
                                          sites: Site[] = []
     ): Promise<StartedPostgreSqlContainer> {
-        return generateCustom(pilots, flights, sites)
+        // Was `return generateCustom(...)` — unbounded self-recursion.
+        return generateContainer(pilots, flights, sites)
     }
 
     async function generateContainer(
@@ -51,10 +52,26 @@ export namespace TestContainer {
         descriptionPreferences: DescriptionPreference[] = []
     ): Promise<StartedPostgreSqlContainer> {
 
-        const container = await new PostgreSqlContainer("postgres")
+        // Pinned to the major version production runs (POSTGRES_14). This was
+        // bare "postgres", i.e. :latest, so the suite silently re-targeted a new
+        // major whenever one shipped.
+        const container = await new PostgreSqlContainer("postgres:14")
             .start();
 
-        console.log(`port=${container.getPort()}`)
+        // The seeding below goes through Pilots.insert / Flights.upsert /
+        // Sites.upsert, all of which use withPooledClient — and getPool() builds
+        // its config from DATABASE_* env vars, not from setClient(). Without
+        // these the pool targets localhost:5432 rather than the container, the
+        // seed fails, beforeAll throws, and afterAll then dies on an undefined
+        // container. Env must be set before anything acquires a pool, and any
+        // pool left over from an earlier container must be discarded.
+        process.env.DATABASE_HOST = container.getHost()
+        process.env.DATABASE_PORT = String(container.getPort())
+        process.env.DATABASE_NAME = container.getDatabase()
+        process.env.DATABASE_USER = container.getUsername()
+        process.env.DATABASE_PASSWORD = container.getPassword()
+        await end()
+
         const client = await connect({
             host: container.getHost(),
             database: container.getDatabase(),
@@ -92,10 +109,20 @@ export namespace TestContainer {
 }
 
 
+// These two smoke tests started containers and never stopped them, leaking a
+// postgres per test for the lifetime of the run.
+let started: StartedPostgreSqlContainer | undefined
+
+afterEach(async () => {
+    await end()
+    await started?.stop()
+    started = undefined
+})
+
 test("generateEmpty()", async () => {
-    await TestContainer.generateEmpty()
+    started = await TestContainer.generateEmpty()
 })
 
 test("generateFromMocks()", async () => {
-    await TestContainer.generateFromMocks()
+    started = await TestContainer.generateFromMocks()
 })

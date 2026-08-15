@@ -23,7 +23,7 @@ test('Pilots.upsert()', async () => {
     expect(result).toStrictEqual(new Success(activity1))
 
     await end()
-    await container.stop()
+    await container?.stop()
 })
 //
 // test('Pilots.upsert()', async () => {
@@ -42,5 +42,5 @@ test('Pilots.upsert()', async () => {
 //     expect(result).toStrictEqual(new Success(activity1))
 //
 //     await end()
-//     await container.stop()
+//     await container?.stop()
 // })

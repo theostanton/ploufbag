@@ -29,5 +29,5 @@ test('Test insert() / get() / getToken()', async () => {
     expect(tokenResult).toStrictEqual(new Success(pilot.strava_access_token))
 
     await end()
-    await container.stop()
+    await container?.stop()
 })

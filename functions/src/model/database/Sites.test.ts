@@ -28,7 +28,7 @@ test('Sites.upsert() ', async () => {
     const upsertResult = await Sites.upsert(sites)
     expect(upsertResult.success).toEqual(true)
 
-    await container.stop()
+    await container?.stop()
 })
 
 test('Takeoffs.getSlugOfClosest() ', async () => {
@@ -40,6 +40,6 @@ test('Takeoffs.getSlugOfClosest() ', async () => {
 
     expect(result).toEqual(Mocks.planpraz.slug)
 
-    await container.stop()
+    await container?.stop()
 
 })

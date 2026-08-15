@@ -44,7 +44,7 @@ test('StravaActivityToFlightConverter.convert() ', async () => {
         expect(value.landing_id).toEqual(Mocks.leBoisDuBouchet.slug)
     }
 
-    await container.stop()
+    await container?.stop()
 })
 
 const polylinePlanprazBoisDuBouchet: string = "i}jwGqbyh@lB_@Xc@P_@ZgARa@n@k@T]L]PYPEt@XLCFG^gANWDEVMRERDZf@z@vBJLVFdCSTa@ZkARe@n@eFPmCx@gGDi@RqFF[h@{@Pg@P}@Dm@@YEoAJgCMkBCgCPiBBoB?k@McEI_AE]GMMBIZ@RFJHBLAZu@NcBBcAAsBQyDKaJB_A^{DFsCCMKG[GGKBM^e@p@m@jDuCXSl@[r@OLFDNCD_@?y@JQAICFSZc@nEqEdA}@tA}@ZYfAaBXg@HWDq@CwBo@yBqAwDc@gBM_@Ya@_@]c@Ue@Os@CYD]No@n@u@tAg@b@y@l@GHQb@E^D`@\\\\\\\\h@P`AB\\\\H"

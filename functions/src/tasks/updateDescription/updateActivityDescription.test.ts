@@ -16,7 +16,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await end()
-    await container.stop()
+    await container?.stop()
 })
 
 
