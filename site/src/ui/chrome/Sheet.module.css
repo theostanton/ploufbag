@@ -39,12 +39,20 @@
     height: var(--sheet-height-mobile);
 }
 
+/*
+ * Glass and opaque panels grow to their content and stop, rather than filling
+ * the viewport. A sign-in form stretched to full height is mostly empty panel,
+ * and on the glass routes that empty panel is covering the map it exists to sit
+ * on. `bottom: auto` with a max-height keeps short content compact and long
+ * content scrollable.
+ */
 .sheet[data-mode='glass'],
 .sheet[data-mode='opaque'] {
     left: var(--chrome-gap);
     right: var(--chrome-gap);
     top: var(--chrome-top);
-    bottom: var(--chrome-gap);
+    bottom: auto;
+    max-height: calc(100dvh - var(--chrome-top) - var(--chrome-gap));
 }
 
 .sheet[data-mode='opaque'] {

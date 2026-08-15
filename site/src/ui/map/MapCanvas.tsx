@@ -8,6 +8,7 @@ import styles from './MapCanvas.module.css'
 import { setHoveredFlight, setHoveredSite, useScene } from './store'
 import { useBaseData } from './useBaseData'
 import { useMapScene } from './useMapScene'
+import { useAmbientDrift } from './useAmbientDrift'
 import {
     FLIGHTS_SOURCE_ID,
     SITES_SOURCE_ID,
@@ -91,6 +92,7 @@ export default function MapCanvas() {
     const [isHoveringFeature, setIsHoveringFeature] = useState(false)
 
     useMapScene(baseData, isReady)
+    useAmbientDrift(Boolean(scene.ambient) && isReady)
 
     /**
      * The focused site's outline, lifted out of that site's own feature.

@@ -83,6 +83,9 @@ const TOUR = [
     {
         name: '01-home',
         path: '/',
+        // The camera drifts here by design, so this frame is caught mid-rotation
+        // and the bearing differs between runs.
+        ambient: true,
     },
     {
         name: '02-flights',
@@ -171,6 +174,7 @@ const TOUR = [
     {
         name: '10-login',
         path: '/login',
+        ambient: true,
     },
 ];
 
@@ -208,8 +212,11 @@ async function hideDevOverlay(page) {
 const IGNORED_CONSOLE_ERRORS = [
     /fonts\.googleapis\.com/,
     /ERR_CONNECTION_RESET/,
-    /Failed to fetch.*\/api\/dev\/mapbox/,
-    /^Error: Failed to fetch$/,
+    /Failed to fetch[\s\S]*\/api\/dev\/mapbox/,
+    // An aborted tile request, identified by the stack pointing into
+    // mapbox-gl. Matched on the stack rather than on the message alone so a
+    // "Failed to fetch" from our own code still fails the run.
+    /Failed to fetch[\s\S]*mapbox-gl/,
     /AbortError/,
 ]
 
@@ -354,7 +361,7 @@ function makeHelpers(page, failures, stepName) {
     // checking for one and giving up is how this captured "Loading map..."
     // on every frame. Every route has a map now (it lives in the root layout),
     // so a map that never appears is a real failure, not a page without one.
-    const waitForMapIdle = async () => {
+    const waitForMapIdle = async (ambient = false) => {
         const appeared = await page
             .waitForFunction(() => Boolean(window.__ploufbagMap), { timeout: options.timeout })
             .then(() => true)
@@ -365,12 +372,18 @@ function makeHelpers(page, failures, stepName) {
             return;
         }
 
+        // On ambient routes the camera never stops -- that is the feature -- so
+        // waiting for the map to stop moving would always time out. Wait for the
+        // tiles instead and accept a frame mid-rotation.
         await page
             .waitForFunction(
-                () => {
+                (isAmbient) => {
                     const map = window.__ploufbagMap;
-                    return map && map.loaded() && !map.isMoving() && !map.isZooming();
+                    if (!map) return false;
+                    if (isAmbient) return map.isStyleLoaded() && map.areTilesLoaded();
+                    return map.loaded() && !map.isMoving() && !map.isZooming();
                 },
+                ambient,
                 { timeout: options.timeout }
             )
             .catch(() => {
@@ -448,7 +461,7 @@ async function runViewport(browser, viewportName, outDir, failures) {
             }
         }
 
-        await helpers.waitForMapIdle();
+        await helpers.waitForMapIdle(Boolean(step.ambient));
         await hideDevOverlay(page);
 
         const file = path.join(outDir, `${step.name}.${viewportName}.png`);
