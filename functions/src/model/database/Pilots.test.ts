@@ -8,7 +8,11 @@ test('Test insert() / get() / getToken()', async () => {
 
     const container = await TestContainer.generateEmpty()
 
-    const expiresAt = new Date(2000, 1, 2, 3, 4)
+    // Must be in the future. getAccessToken refreshes an expired token against
+    // the live Strava API using process.env.CLIENT_ID, which is unset under test
+    // — so a past expiry made this throw on `undefined.toString()` rather than
+    // exercising the stored-token path this test is asserting.
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     const pilot: PilotRowFull = {
         pilot_id: 123,

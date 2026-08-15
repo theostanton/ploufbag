@@ -69,7 +69,14 @@ export namespace TestContainer {
         process.env.DATABASE_NAME = container.getDatabase()
         process.env.DATABASE_USER = container.getUsername()
         process.env.DATABASE_PASSWORD = container.getPassword()
-        await end()
+        // Tolerate a pool whose container is already gone: a suite that stops its
+        // container without calling end() leaves closed clients behind, and
+        // closeAllConnections then throws "Connection already closed".
+        try {
+            await end()
+        } catch (error) {
+            console.warn(`Discarding stale connections: ${error}`)
+        }
 
         const client = await connect({
             host: container.getHost(),
