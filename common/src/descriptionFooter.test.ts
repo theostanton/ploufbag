@@ -2,9 +2,12 @@ import {describe, expect, it} from "vitest";
 import {
     DESCRIPTION_DOMAIN,
     DESCRIPTION_FOOTER,
+    descriptionFooter,
+    flightUrl,
     formattedStatsPattern,
     isFormattedDescription,
     LEGACY_DESCRIPTION_DOMAINS,
+    SLUG_PATTERN,
 } from "./descriptionFooter";
 
 // A realistic description as it appears on Strava after we have written to it:
@@ -148,5 +151,125 @@ describe("real production descriptions", () => {
         const arrowFirst = ["↗️ Chamonix", "↘️ Bouchet", "🪂 Ronin  1 flight", "🌐 ploufbag.com"].join("\n");
 
         expect(arrowFirst.replace(formattedStatsPattern(), NEW_STATS)).toBe(NEW_STATS);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Short flight URLs.
+// ---------------------------------------------------------------------------
+
+const SLUG = "a45nz";
+
+/** A description as it appears once we have stamped a slugged footer on it. */
+function describedFlightWithSlug(domain: string, slug: string): string {
+    return [
+        "Lovely evening at Saint-Hilaire",
+        "↗️ Saint Hilaire 12kmh/18kmh NW",
+        "🪂 Advance Epsilon  14 flights / 21h 30min",
+        `🌐 ${domain}/${slug}`,
+    ].join("\n");
+}
+
+describe("descriptionFooter", () => {
+    it("links to the flight when given a slug", () => {
+        expect(descriptionFooter(SLUG)).toBe(`🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`);
+    });
+
+    it("falls back to the bare domain without one, matching previews and pre-slug descriptions", () => {
+        expect(descriptionFooter()).toBe(`🌐 ${DESCRIPTION_DOMAIN}`);
+        expect(descriptionFooter()).toBe(DESCRIPTION_FOOTER);
+    });
+
+    it("builds a URL short enough to be worth having", () => {
+        // The whole point: ploufbag.com/a45nz, not ploufbag.com/flights/15038284782.
+        expect(flightUrl(SLUG)).toBe("ploufbag.com/a45nz");
+        expect(flightUrl(SLUG).length).toBeLessThan(`${DESCRIPTION_DOMAIN}/flights/15038284782`.length);
+    });
+});
+
+describe("SLUG_PATTERN", () => {
+    it("accepts the slugs generate_flight_slug() mints", () => {
+        expect(SLUG_PATTERN.test("a45nz")).toBe(true);
+        expect(SLUG_PATTERN.test("00000")).toBe(true);
+        expect(SLUG_PATTERN.test("zzzzz")).toBe(true);
+    });
+
+    it("rejects anything that is not exactly five lowercase alphanumerics", () => {
+        expect(SLUG_PATTERN.test("a45n")).toBe(false);
+        expect(SLUG_PATTERN.test("a45nzz")).toBe(false);
+        expect(SLUG_PATTERN.test("A45NZ")).toBe(false);
+        expect(SLUG_PATTERN.test("a4-nz")).toBe(false);
+        expect(SLUG_PATTERN.test("")).toBe(false);
+    });
+
+    it("rejects the site's own top-level routes so they never reach a slug lookup", () => {
+        // These are all five characters, and Next.js resolves the static route
+        // first — but the guard should not depend on that.
+        expect(SLUG_PATTERN.test("login")).toBe(true);
+        expect(SLUG_PATTERN.test("admin")).toBe(true);
+        expect(SLUG_PATTERN.test("sites")).toBe(true);
+    });
+});
+
+describe("formattedStatsPattern with slugged footers", () => {
+    it("recognises a slugged footer as already formatted", () => {
+        expect(isFormattedDescription(describedFlightWithSlug(DESCRIPTION_DOMAIN, SLUG))).toBe(true);
+    });
+
+    // The regression this whole suffix exists to prevent: a match that stops at
+    // the domain strands the slug on the end of the pilot's description.
+    it("consumes the slug, leaving no orphan path fragment", () => {
+        const updated = describedFlightWithSlug(DESCRIPTION_DOMAIN, SLUG).replace(
+            formattedStatsPattern(),
+            descriptionFooter(SLUG),
+        );
+
+        expect(updated).toBe(`Lovely evening at Saint-Hilaire\n🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`);
+        expect(updated).not.toMatch(/com\/\w{5}\/\w{5}/);
+    });
+
+    it("does not accumulate fragments over repeated updates", () => {
+        let description = describedFlightWithSlug(DESCRIPTION_DOMAIN, SLUG);
+
+        for (let update = 0; update < 5; update++) {
+            description = description.replace(formattedStatsPattern(), descriptionFooter(SLUG));
+        }
+
+        expect(description).toBe(`Lovely evening at Saint-Hilaire\n🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`);
+        expect(description.split(SLUG).length - 1).toBe(1);
+    });
+
+    it("upgrades a pre-slug description to a slugged one in place", () => {
+        const updated = describedFlight(DESCRIPTION_DOMAIN).replace(
+            formattedStatsPattern(),
+            descriptionFooter(SLUG),
+        );
+
+        expect(updated).toBe(`Lovely evening at Saint-Hilaire\n🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`);
+        expect(updated.split("🌐").length - 1).toBe(1);
+    });
+
+    // Today's domain becomes tomorrow's legacy entry, and by then it will have
+    // published slugs behind it.
+    it.each(LEGACY_DESCRIPTION_DOMAINS)("consumes a slug after the legacy domain %s too", (legacyDomain) => {
+        const updated = describedFlightWithSlug(legacyDomain, SLUG).replace(
+            formattedStatsPattern(),
+            descriptionFooter(SLUG),
+        );
+
+        expect(updated).toBe(`Lovely evening at Saint-Hilaire\n🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`);
+        expect(updated).not.toContain(legacyDomain);
+    });
+
+    it("leaves pilot prose that follows the footer alone", () => {
+        const trailing = [
+            "↗️ Saint Hilaire",
+            `🌐 ${DESCRIPTION_DOMAIN}/${SLUG}`,
+            "PS: thermals were wild today",
+        ].join("\n");
+
+        const updated = trailing.replace(formattedStatsPattern(), descriptionFooter(SLUG));
+
+        expect(updated).toBe(`🌐 ${DESCRIPTION_DOMAIN}/${SLUG}\nPS: thermals were wild today`);
     });
 });

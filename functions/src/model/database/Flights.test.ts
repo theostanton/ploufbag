@@ -3,6 +3,7 @@ import {end} from "./client";
 import {TestContainer} from "./generateContainer.test";
 import {Mocks} from "./Mocks.test";
 import {Flights} from "./Flights";
+import {SLUG_PATTERN} from "@ploufbag/common";
 
 test('Pilots.upsert()', async () => {
 
@@ -17,7 +18,23 @@ test('Pilots.upsert()', async () => {
 
     const [flight, getError] = await Flights.get(activity1.strava_activity_id)
     expect(getError).toBeUndefined()
-    expect(flight).toStrictEqual(activity1)
+
+    // slug is minted by the database default (generate_flight_slug()) rather
+    // than supplied by the caller, so it is on the row read back but not on the
+    // mock. Assert it separately, then compare everything that was written.
+    expect(flight!.slug).toMatch(SLUG_PATTERN)
+
+    const {slug, ...writtenFields} = flight!
+    expect(writtenFields).toStrictEqual(activity1)
+
+    // The slug is published to Strava, so re-syncing the activity must not
+    // change it. Flights.upsert's on-conflict branch leaves the column alone.
+    const [, reUpsertError] = await Flights.upsert([{...activity1, wing: 'A Different Wing'}])
+    expect(reUpsertError).toBeUndefined()
+
+    const [reFetched] = await Flights.get(activity1.strava_activity_id)
+    expect(reFetched!.wing).toBe('A Different Wing')
+    expect(reFetched!.slug).toBe(slug)
 
     await end()
     await container?.stop()

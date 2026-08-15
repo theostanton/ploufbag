@@ -86,6 +86,27 @@ export namespace Flights {
         });
     }
 
+    /**
+     * Resolves the short public slug published on Strava (ploufbag.com/a45nz)
+     * back to the activity id, for the redirect in app/[slug].
+     *
+     * Deliberately narrower than get(): the caller only needs the id to redirect
+     * to, so this skips the site and pilot joins entirely.
+     */
+    export async function getIdForSlug(slug: string): Promise<Either<StravaActivityId>> {
+        return withPooledClient(async (database: Client) => {
+            const result = await database.query<{ strava_activity_id: StravaActivityId }>(
+                "select strava_activity_id from flights where slug = $1",
+                [slug]
+            )
+            if (result.rows.length === 1) {
+                return success(result.rows[0].reify().strava_activity_id)
+            } else {
+                return failure(`No flight for slug=${slug}`)
+            }
+        });
+    }
+
     export async function getPilotFlightCount(pilotId: StravaAthleteId): Promise<Either<number>> {
         return withPooledClient(async (database: Client) => {
             const result = await database.query<{ count: string }>(
