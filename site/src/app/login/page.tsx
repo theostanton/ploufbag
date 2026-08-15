@@ -1,6 +1,7 @@
 import styles from "@styles/Page.module.css";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
+import {BRAND_NAME} from "@ui/brand";
 
 export const metadata: Metadata = createMetadata('Login')
 
@@ -10,7 +11,7 @@ export default function Login() {
             <div style={{ marginBottom: 'var(--space-6)' }}>
                 <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🪂</div>
                 <h1 className={styles.title} style={{ fontSize: 'var(--font-size-3xl)', marginBottom: 'var(--space-3)' }}>
-                    Welcome to Paraglider Stats
+                    Welcome to {BRAND_NAME}
                 </h1>
                 <p className={styles.subtitle} style={{ fontSize: 'var(--font-size-lg)', marginBottom: '0' }}>
                     Track your paragliding adventures with data from Strava
@@ -26,7 +27,7 @@ export default function Login() {
 
             <div className={styles.loginFeatures} style={{ marginBottom: 'var(--space-6)' }}>
                 <h3 style={{ marginBottom: 'var(--space-3)', fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-semibold)' }}>
-                    How Parastats enhances your Strava activities:
+                    How {BRAND_NAME} enhances your Strava activities:
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>

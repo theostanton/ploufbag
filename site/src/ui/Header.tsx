@@ -2,6 +2,7 @@ import {Auth} from "@auth/index";
 import styles from "@styles/Header.module.css";
 import {SignOut} from "@ui/SignOut";
 import {headers} from "next/headers";
+import {BRAND_NAME} from "@ui/brand";
 
 
 enum AuthRequired {
@@ -50,7 +51,7 @@ export default async function Header() {
         <div className={styles.content}>
             <a href="/" className={styles.headerTitle}>
                 <span>🪂</span>
-                <span>Paraglider Stats</span>
+                <span>{BRAND_NAME}</span>
             </a>
             {!isHomePage && (
                 <nav className={styles.nav}>

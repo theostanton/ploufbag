@@ -1,12 +1,13 @@
 'use client';
 
 import styles from './StyleGuide.module.css';
+import {BRAND_NAME} from '@ui/brand';
 
 export default function StyleGuidePage() {
   return (
     <div className={styles.styleguide}>
       <header className={styles.header}>
-        <h1>Parastats Design System</h1>
+        <h1>{BRAND_NAME} Design System</h1>
         <p>Living style guide for ploufbag.com</p>
       </header>
 
