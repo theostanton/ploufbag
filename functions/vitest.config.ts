@@ -25,7 +25,16 @@ export default defineConfig({
     test: {
         disableConsoleIntercept: true,
         silent: false,
-        exclude: ['**/node_modules/**', '**/dist/**', '**/.{idea,git,cache,output,temp}/**'],
+        exclude: [
+            '**/node_modules/**', '**/dist/**', '**/.{idea,git,cache,output,temp}/**',
+            // Helpers, not suites — they contain no tests, and vitest fails a
+            // collected file with none ("No test suite found in file"). They
+            // must keep the .test.ts suffix regardless: tsconfig.json excludes
+            // src/**/*.test.ts, which is what keeps @testcontainers out of the
+            // bundle yarn buildProd ships to Cloud Functions.
+            '**/Mocks.test.ts',
+            '**/generateContainer.test.ts',
+        ],
         env: {
             FFVL_KEY: ""
         },
