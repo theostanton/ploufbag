@@ -1,4 +1,4 @@
-import {StravaActivityId} from "@parastats/common";
+import {StravaActivityId} from "@ploufbag/common";
 
 export type TaskBody = WingActivityTask
 

@@ -1,4 +1,4 @@
-import {TaskBody, TaskName, failed, Either, success} from "@parastats/common";
+import {TaskBody, TaskName, failed, Either, success} from "@ploufbag/common";
 
 const {CloudTasksClient} = require('@google-cloud/tasks').v2;
 

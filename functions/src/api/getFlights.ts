@@ -1,6 +1,6 @@
 import {Request, Response} from "express";
 import {extractPilotFromJwt} from "@/jwt";
-import {Flights, isSuccess} from "@parastats/common";
+import {Flights, isSuccess} from "@ploufbag/common";
 
 export async function getFlights(req: Request, res: Response) {
 

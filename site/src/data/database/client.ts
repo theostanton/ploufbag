@@ -5,4 +5,4 @@ export {
   withPooledClient, 
   closeAllConnections,
   type Client 
-} from '@parastats/common';
+} from '@ploufbag/common';

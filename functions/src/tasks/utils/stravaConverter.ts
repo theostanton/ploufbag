@@ -1,4 +1,4 @@
-import {Either, failed, FlightRow, Polyline, success} from '@parastats/common';
+import {Either, failed, FlightRow, Polyline, success} from '@ploufbag/common';
 import { Sites } from '@/database/Sites';
 import { StravaActivity } from '@/stravaApi/model';
 import { decode, LatLngTuple } from '@googlemaps/polyline-codec';

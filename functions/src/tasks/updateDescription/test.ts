@@ -1,7 +1,7 @@
-import {isSuccess} from "@parastats/common";
+import {isSuccess} from "@ploufbag/common";
 import {expect, test} from "vitest";
 import handler from "./index";
-import {FetchAllActivitiesTask, UpdateDescriptionTask} from "@parastats/common";
+import {FetchAllActivitiesTask, UpdateDescriptionTask} from "@ploufbag/common";
 
 test("updateDescription success", async () => {
     const input: UpdateDescriptionTask = {

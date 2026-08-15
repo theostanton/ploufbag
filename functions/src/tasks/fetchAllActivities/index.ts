@@ -1,6 +1,6 @@
 import {TaskBody, TaskResult} from "@/tasks/model";
 import {StravaApi} from "@/stravaApi";
-import {withPooledClient, Pilots, Flights, FlightRow, isSuccess} from "@parastats/common";
+import {withPooledClient, Pilots, Flights, FlightRow, isSuccess} from "@ploufbag/common";
 import {StravaActivity, StravaActivityId} from "@/stravaApi/model";
 import axios, {AxiosHeaders} from "axios";
 import {StravaActivityToFlightConverter} from "./StravaActivityToFlightConverter";

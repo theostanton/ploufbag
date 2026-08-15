@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { FlightWithSites, Site } from '@parastats/common';
+import { FlightWithSites, Site } from '@ploufbag/common';
 import BaseMap from './BaseMap';
 import {formatSiteName} from '../utils/formatSiteName';
 

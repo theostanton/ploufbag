@@ -1,6 +1,6 @@
 'use client'
 
-import {Site} from "@parastats/common";
+import {Site} from "@ploufbag/common";
 import SiteItem from "@ui/SiteItem";
 import {useState} from "react";
 import styles from "@styles/Page.module.css";

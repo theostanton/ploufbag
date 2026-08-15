@@ -8,7 +8,7 @@ WORKDIR /app
 COPY site/package.json .
 COPY site/yarn.lock .
 # Remove common package dependency for development
-RUN sed -i '/"@parastats\/common":/d' package.json
+RUN sed -i '/"@ploufbag\/common":/d' package.json
 RUN yarn install
 
 COPY site/src ./src

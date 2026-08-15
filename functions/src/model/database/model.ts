@@ -1,5 +1,5 @@
 import {StravaActivityId, StravaAthleteId} from "@/stravaApi/model";
-import {LatLng, Polyline, SiteType} from '@parastats/common';
+import {LatLng, Polyline, SiteType} from '@ploufbag/common';
 
 export {LatLng, Polyline, SiteType};
 

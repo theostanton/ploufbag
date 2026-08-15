@@ -1,5 +1,5 @@
 import {TaskResult, TaskBody} from "@/tasks/model";
-import {Pilots, Flights, isSuccess, isFormattedDescription, formattedStatsPattern} from "@parastats/common";
+import {Pilots, Flights, isSuccess, isFormattedDescription, formattedStatsPattern} from "@ploufbag/common";
 import {StravaApi} from "@/stravaApi";
 import {StravaActivityId} from "@/stravaApi/model";
 import {generateStats} from "./updateActivityDescription";

@@ -1,4 +1,4 @@
-import {Site} from "@parastats/common";
+import {Site} from "@ploufbag/common";
 import Link from "next/link";
 import styles from "./SiteItem.module.css";
 import {formatSiteName} from "../utils/formatSiteName";

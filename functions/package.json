@@ -17,7 +17,7 @@
   "dependencies": {
     "@google-cloud/tasks": "^6.2.1",
     "@googlemaps/polyline-codec": "^1.0.28",
-    "@parastats/common": "file:../common",
+    "@ploufbag/common": "file:../common",
     "@turf/distance": "^7.3.1",
     "@turf/helpers": "^7.3.1",
     "@types/generic-pool": "^3.8.3",

@@ -1,4 +1,4 @@
-import {FlightRow} from "@parastats/common";
+import {FlightRow} from "@ploufbag/common";
 import {DescriptionFormatter} from "./DescriptionFormatterAdapter";
 
 

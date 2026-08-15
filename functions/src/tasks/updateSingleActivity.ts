@@ -1,5 +1,5 @@
-import {isSuccess} from "@parastats/common";
-import {UpdateSingleActivityTask, TaskResult} from '@parastats/common';
+import {isSuccess} from "@ploufbag/common";
+import {UpdateSingleActivityTask, TaskResult} from '@ploufbag/common';
 import {Pilots} from '@/database/Pilots';
 import {Flights} from '@/database/Flights';
 import {StravaApi} from '@/stravaApi';

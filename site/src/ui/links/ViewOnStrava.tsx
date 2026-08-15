@@ -1,4 +1,4 @@
-import {StravaAthleteId, StravaActivityId} from "@parastats/common";
+import {StravaAthleteId, StravaActivityId} from "@ploufbag/common";
 import Link from "next/link";
 import styles from "./Links.module.css"
 

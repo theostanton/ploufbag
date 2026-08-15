@@ -2,7 +2,7 @@ import {Flights} from "@database/flights";
 import styles from "@styles/Page.module.css";
 import detailStyles from "@ui/DetailPages.module.css";
 import {Stat} from "@ui/stats/model";
-import {StravaActivityId} from "@parastats/common";
+import {StravaActivityId} from "@ploufbag/common";
 import Stats from "@ui/stats/Stats";
 import ViewOnStrava from "@ui/links/ViewOnStrava";
 import ClientOnlyDate from "@ui/ClientOnlyDate";

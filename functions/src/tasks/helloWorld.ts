@@ -1,4 +1,4 @@
-import { HelloWorldTask, TaskResult } from '@parastats/common';
+import { HelloWorldTask, TaskResult } from '@ploufbag/common';
 
 export async function executeHelloWorldTask(
     task: HelloWorldTask

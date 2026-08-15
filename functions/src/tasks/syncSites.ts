@@ -1,4 +1,4 @@
-import {Either, failed, isSuccess, success, SyncSitesTask} from "@parastats/common";
+import {Either, failed, isSuccess, success, SyncSitesTask} from "@ploufbag/common";
 import {Site, SiteType, Windsock, LatLng} from '@/database/model';
 import {Flights} from '@/database/Flights';
 import {Sites} from '@/database/Sites';

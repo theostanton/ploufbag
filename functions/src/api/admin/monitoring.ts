@@ -5,7 +5,7 @@ import {
     WebhookEvents,
     TaskExecutions,
     withPooledClient
-} from "@parastats/common";
+} from "@ploufbag/common";
 import { retryFailedTasks } from "../../tasks/monitoredTaskExecutor";
 
 /**

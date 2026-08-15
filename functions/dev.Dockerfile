@@ -21,12 +21,12 @@ WORKDIR /app
 COPY functions/package.json ./
 COPY functions/yarn.lock ./
 # Remove common package dependency for development and install
-RUN sed -i '/"@parastats\/common":/d' package.json
+RUN sed -i '/"@ploufbag\/common":/d' package.json
 RUN yarn install
 
 # Create node_modules symlink to built common package
-RUN mkdir -p node_modules/@parastats
-RUN ln -sf /app/common node_modules/@parastats/common
+RUN mkdir -p node_modules/@ploufbag
+RUN ln -sf /app/common node_modules/@ploufbag/common
 
 # Copy source files
 COPY functions/src ./src

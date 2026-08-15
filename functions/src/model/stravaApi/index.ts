@@ -1,5 +1,5 @@
 import axios, {AxiosHeaders} from "axios";
-import {StravaActivityId, failed, Either, success, Pilots, isSuccess} from "@parastats/common";
+import {StravaActivityId, failed, Either, success, Pilots, isSuccess} from "@ploufbag/common";
 import {StravaActivity, StravaActivitySummary, StravaAthlete, isRelevantActivityType} from "@/stravaApi/model";
 
 export class StravaApi {

@@ -240,7 +240,7 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@parastats/common@file:../common":
+"@ploufbag/common@file:../common":
   version "0.1.0"
   dependencies:
     axios "^1.13.2"

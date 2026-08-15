@@ -6,7 +6,7 @@ import {
     PilotRowFull,
     StravaAthleteId,
     Either, failure
-} from "@parastats/common";
+} from "@ploufbag/common";
 import axios from "axios";
 
 export namespace Pilots {

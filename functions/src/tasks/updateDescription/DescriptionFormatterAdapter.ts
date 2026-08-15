@@ -7,7 +7,7 @@ import {
     DescriptionPreferences,
     isSuccess,
     WindReport
-} from "@parastats/common";
+} from "@ploufbag/common";
 import {FFVL} from "@/ffvlApi";
 
 // Adapter to bridge DescriptionPreferences to common PreferencesProvider interface

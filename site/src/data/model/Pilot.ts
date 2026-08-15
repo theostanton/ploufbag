@@ -1,4 +1,4 @@
-import { StravaAthleteId } from '@parastats/common';
+import { StravaAthleteId } from '@ploufbag/common';
 
 export type { StravaAthleteId };
 

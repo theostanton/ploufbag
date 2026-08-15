@@ -1,5 +1,5 @@
 import {StravaActivity, StravaAthleteId} from "@/stravaApi/model";
-import {FlightRow, LatLng, Polyline, isSuccess, Either, Sites, failure, isFailure, success} from "@parastats/common";
+import {FlightRow, LatLng, Polyline, isSuccess, Either, Sites, failure, isFailure, success} from "@ploufbag/common";
 import {decode, LatLngTuple} from "@googlemaps/polyline-codec";
 
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>

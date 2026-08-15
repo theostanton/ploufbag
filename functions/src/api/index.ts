@@ -1,4 +1,4 @@
-import {isSuccess} from "@parastats/common";
+import {isSuccess} from "@ploufbag/common";
 import express, {Request, Response} from "express";
 import {verifyJwt} from "@/jwt";
 import bodyParser from "body-parser";

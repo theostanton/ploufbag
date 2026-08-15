@@ -1,6 +1,6 @@
-import {isSuccess} from "@parastats/common";
-import { FetchAllActivitiesTask, TaskResult, StravaActivityId, StravaAthleteId, FlightRow } from '@parastats/common';
-import { withPooledClient } from '@parastats/common';
+import {isSuccess} from "@ploufbag/common";
+import { FetchAllActivitiesTask, TaskResult, StravaActivityId, StravaAthleteId, FlightRow } from '@ploufbag/common';
+import { withPooledClient } from '@ploufbag/common';
 import { Pilots } from '@/database/Pilots';
 import { Flights } from '@/database/Flights';
 import { StravaApi } from '@/stravaApi';

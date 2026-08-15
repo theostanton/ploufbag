@@ -1,4 +1,4 @@
-import {FlightRow, LatLng, PilotRowFull, Site} from "@parastats/common";
+import {FlightRow, LatLng, PilotRowFull, Site} from "@ploufbag/common";
 
 function randomBigInt(): number {
     return Math.floor(Math.random() * 100000);

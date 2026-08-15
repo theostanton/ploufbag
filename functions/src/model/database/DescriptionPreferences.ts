@@ -1,7 +1,7 @@
-import {Either, failed, failure, success} from "@parastats/common";
+import {Either, failed, failure, success} from "@ploufbag/common";
 import {withPooledClient} from "./client";
-import {DescriptionPreference, PilotRow} from "@parastats/common";
-import {StravaAthleteId} from "@parastats/common";
+import {DescriptionPreference, PilotRow} from "@ploufbag/common";
+import {StravaAthleteId} from "@ploufbag/common";
 
 export namespace DescriptionPreferences {
 

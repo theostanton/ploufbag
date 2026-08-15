@@ -21,10 +21,10 @@
     "jsx": "react-jsx",
     "incremental": true,
     "paths": {
-      "@parastats/common": [
+      "@ploufbag/common": [
         "../common/src/index.ts"
       ],
-      "@parastats/common/*": [
+      "@ploufbag/common/*": [
         "../common/src/*"
       ],
       "@model/*": [
