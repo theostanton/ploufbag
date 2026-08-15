@@ -9,8 +9,10 @@ export default async function middleware(req: NextRequest) {
     const isProtectedRoute = path.startsWith('/dashboard') || path.startsWith('/welcome')
     const isPublicRoute = !isProtectedRoute
 
+    // x-pathname was set here purely so Header could tell whether it was on the
+    // home page and hide its nav there. The nav is unconditional now, and Header
+    // was the only reader, so the header itself went with it.
     const response = NextResponse.next()
-    response.headers.set('x-pathname', path)
 
     if (isPublicRoute) {
         console.log('middleware() isPublicRoute')

@@ -1,7 +1,6 @@
 import {Auth} from "@auth/index";
 import styles from "@styles/Header.module.css";
 import {SignOut} from "@ui/SignOut";
-import {headers} from "next/headers";
 import {BRAND_NAME} from "@ui/brand";
 
 
@@ -32,12 +31,17 @@ function NavItem(props: { text: string, path: string }) {
     </a>
 }
 
+/**
+ * The nav is shown on every page, the home page included.
+ *
+ * It used to be hidden there, from when the home page was a signup wall with
+ * nothing behind it to navigate to. Flights, pilots and sites are public now, so
+ * hiding the nav on the one page a new visitor is most likely to land on was
+ * hiding the site from exactly the person who had not seen it yet.
+ */
 export default async function Header() {
     const isAuthed = await Auth.checkIsAuthed()
-    const headersList = await headers()
-    const pathname = headersList.get('x-pathname') || '/'
-    const isHomePage = pathname === '/'
-    
+
     const navItems: NavItem[] = [
         {text: "Home", path: "/", auth: AuthRequired.Always},
         {text: "Dashboard", path: "/dashboard", auth: AuthRequired.Authed},
@@ -53,17 +57,15 @@ export default async function Header() {
                 <span>🪂</span>
                 <span>{BRAND_NAME}</span>
             </a>
-            {!isHomePage && (
-                <nav className={styles.nav}>
-                    <div className={styles.mobileNav}>
-                        {navItems.filter((item) => shouldShow(item.auth, isAuthed))
-                            .map((item) => <NavItem key={item.text} {...item}/>
-                            )
-                        }
-                        {isAuthed && <SignOut/>}
-                    </div>
-                </nav>
-            )}
+            <nav className={styles.nav}>
+                <div className={styles.mobileNav}>
+                    {navItems.filter((item) => shouldShow(item.auth, isAuthed))
+                        .map((item) => <NavItem key={item.text} {...item}/>
+                        )
+                    }
+                    {isAuthed && <SignOut/>}
+                </div>
+            </nav>
         </div>
     </div>
 }
