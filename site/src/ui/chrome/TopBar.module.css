@@ -10,7 +10,6 @@
     border: 1px solid var(--chrome-border);
     box-shadow: var(--chrome-shadow);
     backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
-    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
 }
 
 .brand {

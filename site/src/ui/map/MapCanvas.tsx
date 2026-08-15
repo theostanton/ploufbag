@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Map, { Layer, MapEvent, MapMouseEvent, Source } from 'react-map-gl/mapbox'
+import Map, { AttributionControl, Layer, MapEvent, MapMouseEvent, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import styles from './MapCanvas.module.css'
 import { setHoveredFlight, setHoveredSite, useScene } from './store'
@@ -21,6 +21,34 @@ import {
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
 /**
+ * See app/api/dev/mapbox/route.ts. In sandboxes where the browser has no
+ * outbound HTTPS but the server does, this sends Mapbox's own requests through
+ * the dev server so the map renders. Off unless explicitly enabled.
+ */
+const DEV_MAP_PROXY = process.env.NEXT_PUBLIC_DEV_MAP_PROXY === '1'
+
+const PROXIED_HOSTS = /(^|\.)((api|[a-d]?\.?tiles)\.)?mapbox\.com$/
+
+function transformRequest(url: string) {
+    if (!DEV_MAP_PROXY) return { url }
+    try {
+        const parsed = new URL(url)
+        // Telemetry is deliberately left to fail: it is not needed to render a
+        // map, and forwarding usage pings through a dev box is not something to
+        // do by accident.
+        if (parsed.hostname === 'events.mapbox.com') return { url }
+        if (!PROXIED_HOSTS.test(parsed.hostname)) return { url }
+        // Absolute, not relative: mapbox-gl fetches tiles from a Web Worker
+        // created from a blob URL, where a root-relative path does not resolve
+        // against the page origin and every request fails.
+        const origin = typeof window === 'undefined' ? '' : window.location.origin
+        return { url: `${origin}/api/dev/mapbox?u=${encodeURIComponent(url)}` }
+    } catch {
+        return { url }
+    }
+}
+
+/**
  * Opening view: the western Alps, wide enough to hold Annecy, Chamonix and
  * Grenoble at once. Every route that has content to frame overrides this
  * immediately; it is what a visitor sees for the moment before data arrives,
@@ -30,7 +58,9 @@ const INITIAL_VIEW_STATE = {
     longitude: 6.6,
     latitude: 45.7,
     zoom: 7.4,
-    pitch: 45,
+    // Flat, like every other wide view -- see pitchForZoom in camera.ts. The
+    // camera tilts in as the view closes on a single flight.
+    pitch: 0,
     bearing: 0,
 }
 
@@ -125,7 +155,7 @@ export default function MapCanvas() {
     }
 
     return (
-        <div className={styles.canvas} data-chrome={scene.chrome} aria-hidden="true">
+        <div className={styles.canvas} data-chrome={scene.chrome}>
             <Map
                 id="main"
                 mapboxAccessToken={MAPBOX_TOKEN}
@@ -135,17 +165,22 @@ export default function MapCanvas() {
                 // run reads as a ridge run only in relief.
                 terrain={{ source: 'terrain-dem', exaggeration: 1.15 }}
                 onLoad={onLoad}
+                transformRequest={transformRequest}
                 interactiveLayerIds={INTERACTIVE_LAYER_IDS}
                 onClick={onClick}
                 onMouseMove={onMouseMove}
                 onMouseOut={onMouseLeave}
                 cursor={isHoveringFeature ? 'pointer' : 'grab'}
-                // The chrome supplies its own controls, positioned to avoid the
-                // sheet; Mapbox's default attribution overlaps the mobile sheet.
+                // The default attribution control is replaced below, not
+                // removed: Mapbox's terms require the wordmark and the
+                // attribution to stay visible. This only takes control of where
+                // they sit, so the chrome can lay out around them instead of
+                // burying them under a panel.
                 attributionControl={false}
                 logoPosition="bottom-right"
                 style={{ width: '100%', height: '100%' }}
             >
+                <AttributionControl compact position="bottom-right" />
                 <Source
                     id="terrain-dem"
                     type="raster-dem"

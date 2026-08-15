@@ -2,7 +2,9 @@
     pointer-events: auto;
     position: absolute;
     right: var(--chrome-gap);
-    bottom: var(--chrome-gap);
+    /* Clear of the Mapbox wordmark and attribution, which are pinned to the same
+       corner and must stay visible under Mapbox's terms. */
+    bottom: calc(var(--chrome-gap) + 26px);
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -29,7 +31,6 @@
     color: var(--color-text-primary);
     background-color: var(--chrome-bg-strong);
     backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
-    -webkit-backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
     transition: background-color var(--transition-fast);
 }
 
@@ -48,6 +49,6 @@
  */
 @media (max-width: 1023px) {
     .controls {
-        bottom: calc(min(52dvh, calc(100dvh - var(--chrome-top) - var(--chrome-gap))) + var(--chrome-gap) * 2);
+        bottom: calc(var(--sheet-height-mobile) + var(--chrome-gap) * 2 + 26px);
     }
 }

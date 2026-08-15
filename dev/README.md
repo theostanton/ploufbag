@@ -60,6 +60,19 @@ The five fixture sites seeded by `create_sites.sql` are deliberately left in
 place — they are sites with no flights, which is what the `/sites` "only with
 flights" filter needs in order to have something to filter.
 
+## What the screenshots cannot show
+
+`backdrop-filter` does not work in this headless Chromium — it computes to
+`none` regardless of the GL backend — so the chrome panels appear without their
+blur. What you see is the `@supports not (backdrop-filter: ...)` fallback in
+`globals.css`, which raises the panel opacity to near-solid.
+
+That is a real appearance for real users (older Firefox, GPU-less machines,
+browsers that disable the effect for performance), so it is worth reviewing.
+But it is not what the design looks like on a normal desktop or phone, where
+the panels are translucent and the map blurs behind them. Judge blur-dependent
+decisions on a real browser, not on these PNGs.
+
 ## The tour
 
 `dev/shots.mjs` is a camera and a regression check. Beyond the screenshots it

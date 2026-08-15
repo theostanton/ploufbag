@@ -27,6 +27,17 @@
     visibility: hidden;
 }
 
+/*
+ * The Mapbox wordmark and attribution are required to stay visible, so they are
+ * repositioned rather than hidden: on a phone the bottom-right corner they
+ * default to is underneath the sheet.
+ */
+@media (max-width: 1023px) {
+    .canvas :global(.mapboxgl-ctrl-bottom-right) {
+        bottom: calc(var(--sheet-height-mobile) + var(--chrome-gap));
+    }
+}
+
 .loading {
     position: absolute;
     inset: 0;

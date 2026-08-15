@@ -35,6 +35,16 @@ if [ -z "${NEXT_PUBLIC_MAPBOX_TOKEN:-}" ]; then
     echo >&2
 fi
 
+# Some sandboxes allow outbound HTTPS from Node but not from the browser, so
+# Mapbox tiles fail with a connection reset and the map renders blank. Setting
+# both halves of the flag routes them through the dev server instead. See
+# site/src/app/api/dev/mapbox/route.ts; harmless when the browser can reach
+# Mapbox directly.
+if [ "${PLOUFBAG_DEV_MAP_PROXY:-1}" = "1" ]; then
+    export PLOUFBAG_DEV_MAP_PROXY=1
+    export NEXT_PUBLIC_DEV_MAP_PROXY=1
+fi
+
 if ! ./dev/db.sh status | grep -q running; then
     echo "==> database is not running; starting it"
     ./dev/db.sh up >/dev/null

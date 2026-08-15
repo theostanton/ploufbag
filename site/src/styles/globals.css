@@ -104,11 +104,14 @@
    * Light glass rather than dark. Satellite imagery is busy and mostly
    * mid-to-dark, so a light panel separates from it more reliably than a dark
    * one, and it lets the existing card and type styles keep working unchanged.
-   * The opacity is high on purpose -- pretty is worth less here than being able
-   * to read a flight list over a glacier.
+   *
+   * The opacity is high on purpose. At 0.86 the terrain was legible *through*
+   * a flight list -- satellite imagery has far more local contrast than a page
+   * background ever does. The blur still reads as glass; this is a surface you
+   * can read on rather than a tint.
    */
-  --chrome-bg: rgba(245, 245, 240, 0.86);
-  --chrome-bg-strong: rgba(245, 245, 240, 0.94);
+  --chrome-bg: rgba(245, 245, 240, 0.94);
+  --chrome-bg-strong: rgba(245, 245, 240, 0.97);
   --chrome-border: rgba(26, 26, 26, 0.10);
   --chrome-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
   --chrome-blur: 20px;
@@ -116,6 +119,10 @@
   --chrome-gap: 12px;
   --topbar-height: 52px;
   --sheet-width: 420px;
+  /* The bottom sheet's height on small screens. Defined once because the map
+     controls and the Mapbox attribution both have to sit clear of it, and three
+     copies of this expression would drift apart. */
+  --sheet-height-mobile: min(44dvh, calc(100dvh - var(--chrome-top) - var(--chrome-gap)));
   /* Where panels below the top bar begin: the bar plus its padding above and
      below. Shared so the sheet and the map controls agree. */
   --chrome-top: calc(var(--topbar-height) + var(--chrome-gap) * 2);
@@ -130,6 +137,27 @@
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 300ms ease;
+}
+
+/*
+ * Where backdrop-filter is unavailable, the panels have to carry legibility on
+ * their own.
+ *
+ * The blur is doing real work: it destroys the high-frequency detail in
+ * satellite imagery, which is what lets a 94%-opaque panel still read as glass
+ * and still be readable. Without it, the remaining 6% is sharp terrain and
+ * sharp map labels showing through the text, and a flight list over a city
+ * becomes genuinely hard to read.
+ *
+ * So this is not a cosmetic downgrade -- it is the accessible floor. It also
+ * covers older Firefox, and browsers where the effect is disabled for
+ * performance or because there is no GPU.
+ */
+@supports not (backdrop-filter: blur(4px)) {
+  :root {
+    --chrome-bg: rgba(245, 245, 240, 0.985);
+    --chrome-bg-strong: rgba(245, 245, 240, 1);
+  }
 }
 
 /* Dark mode support */
