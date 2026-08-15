@@ -1,27 +1,79 @@
 import {get} from "@database/pilots";
 import {Flights} from "@database/flights";
-import styles from "@styles/Page.module.css";
-import FlightItem from "@ui/FlightItem";
+import MapScene from "@ui/map/MapScene";
+import {getFlightColor} from "@ui/map/colors";
+import FlightRow from "@ui/chrome/FlightRow";
+import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 
-export default async function PagePilot({params}: {
+/**
+ * One pilot, one wing.
+ *
+ * This is where colour-by-pilot-and-wing pays off: every track in this view is
+ * the same colour, because that colour is derived from exactly this pair. The
+ * accent bar in the header is the same value, so the panel and the map are
+ * visibly about the same thing.
+ */
+export default async function PilotWingPage({params}: {
     params: Promise<{ pilot_id: string, wing: string }>
 }) {
-    const {pilot_id: pilotIdStr, wing} = await params
-    const pilot_id = parseInt(pilotIdStr)
-    console.log('pilot_id', pilot_id, 'wing', wing)
-    const [pilot, pilotErrorMessage] = await get(pilot_id);
-    if (pilotErrorMessage) {
-        return <h1>pilotErrorMessage={pilotErrorMessage}</h1>
+    const {pilot_id: pilotIdParam, wing} = await params
+    const pilotId = parseInt(pilotIdParam)
+
+    const [pilot, pilotErrorMessage] = await get(pilotId);
+    if (!pilot) {
+        return (
+            <>
+                <MapScene chrome="sheet"/>
+                <PanelHeader title="Pilot not found" back={{href: '/pilots', label: 'All pilots'}}/>
+                <PanelEmpty title="We could not load that pilot" detail={pilotErrorMessage}/>
+            </>
+        );
     }
 
-    const [flights, flightsErrorMessage] = await Flights.getForPilotAndWing(pilot_id, wing);
-    if (flightsErrorMessage) {
-        return <h1>flightsErrorMessage={flightsErrorMessage}</h1>
+    const [flights, flightsErrorMessage] = await Flights.getForPilotAndWing(pilotId, wing);
+
+    if (!flights) {
+        return (
+            <>
+                <MapScene chrome="sheet"/>
+                <PanelHeader
+                    title={pilot.first_name}
+                    back={{href: `/pilots/${pilotId}`, label: pilot.first_name}}
+                />
+                <PanelEmpty title="Could not load these flights" detail={flightsErrorMessage}/>
+            </>
+        );
     }
 
-    return <div className={styles.page}>
-        <h1>{pilot.first_name} • {wing}</h1>
-        <h3>{flights.length} flights</h3>
-        {flights.map(flight => <FlightItem key={flight.strava_activity_id} flight={flight}/>)}
-    </div>
+    // The wing as the pilot spells it, rather than the lowercased URL segment.
+    const wingName = flights[0]?.wing ?? decodeURIComponent(wing);
+
+    return (
+        <>
+            <MapScene
+                chrome="sheet"
+                emphasis={{
+                    flights: flights.map(flight => String(flight.strava_activity_id)),
+                    dimOthers: true,
+                }}
+            />
+
+            <PanelHeader
+                back={{href: `/pilots/${pilotId}`, label: pilot.first_name}}
+                accent={getFlightColor(String(pilotId), wingName)}
+                title={wingName}
+                subtitle={`${pilot.first_name} · ${flights.length} ${flights.length === 1 ? 'flight' : 'flights'}`}
+            />
+
+            {flights.length > 0 ? (
+                <PanelSection>
+                    {flights.map(flight => (
+                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                    ))}
+                </PanelSection>
+            ) : (
+                <PanelEmpty title="No flights on this wing yet"/>
+            )}
+        </>
+    );
 }

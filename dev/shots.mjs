@@ -154,6 +154,13 @@ const TOUR = [
         path: '/sites/col-de-la-forclaz',
     },
     {
+        // A landing field, which is where site polygons actually exist -- the
+        // FFVL data (and the fixtures) carry outlines for landings, not
+        // takeoffs, so the takeoff above never exercises that layer.
+        name: '07b-landing-site-polygon',
+        path: '/sites/doussard',
+    },
+    {
         name: '08-pilots',
         path: '/pilots',
     },

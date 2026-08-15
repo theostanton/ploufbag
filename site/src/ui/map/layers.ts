@@ -12,6 +12,7 @@ import type { LayerProps } from 'react-map-gl/mapbox'
 
 export const FLIGHTS_SOURCE_ID = 'flights'
 export const SITES_SOURCE_ID = 'sites'
+export const SITE_POLYGON_SOURCE_ID = 'site-polygon'
 
 /**
  * Opacity ramp shared by the casing, the line and the site markers.
@@ -115,6 +116,40 @@ export const flightHitLayer: LayerProps = {
     paint: {
         'line-color': 'rgba(0, 0, 0, 0)',
         'line-width': 22,
+    },
+}
+
+/**
+ * The outline of the site currently in focus.
+ *
+ * `sites.polygon` has been in the schema, fetched by the site route and typed in
+ * the common package all along, and drawn nowhere. It is the actual extent of a
+ * landing field or a takeoff, which is worth far more than a pin once you are
+ * zoomed in on one -- a landing field is a place you have to fit into, not a
+ * point.
+ *
+ * Only the focused site's polygon is ever in the source, so these layers are
+ * empty on every other view rather than filtering a collection of all of them.
+ */
+export const sitePolygonFillLayer: LayerProps = {
+    id: 'site-polygon-fill',
+    type: 'fill',
+    source: SITE_POLYGON_SOURCE_ID,
+    paint: {
+        'fill-color': ['get', 'color'],
+        'fill-opacity': 0.22,
+    },
+}
+
+export const sitePolygonLineLayer: LayerProps = {
+    id: 'site-polygon-line',
+    type: 'line',
+    source: SITE_POLYGON_SOURCE_ID,
+    layout: { 'line-join': 'round' },
+    paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 2,
+        'line-opacity': 0.9,
     },
 }
 

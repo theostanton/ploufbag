@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Map, { AttributionControl, Layer, MapEvent, MapMouseEvent, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -11,11 +11,14 @@ import { useMapScene } from './useMapScene'
 import {
     FLIGHTS_SOURCE_ID,
     SITES_SOURCE_ID,
+    SITE_POLYGON_SOURCE_ID,
     flightCasingLayer,
     flightHitLayer,
     flightLineLayer,
     siteCircleLayer,
     siteLabelLayer,
+    sitePolygonFillLayer,
+    sitePolygonLineLayer,
 } from './layers'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -88,6 +91,39 @@ export default function MapCanvas() {
     const [isHoveringFeature, setIsHoveringFeature] = useState(false)
 
     useMapScene(baseData, isReady)
+
+    /**
+     * The focused site's outline, lifted out of that site's own feature.
+     *
+     * Polygons ride along on the point features rather than travelling as a
+     * second collection, because at most one is ever drawn and shipping every
+     * site's outline to render one would be waste.
+     */
+    const sitePolygon = useMemo(() => {
+        const empty = { type: 'FeatureCollection' as const, features: [] }
+        if (!scene.focusSitePolygon) return empty
+        const site = baseData.sites.features.find(
+            (feature) => feature.properties.id === scene.focusSitePolygon
+        )
+        const ring = site?.properties.polygon
+        // A polygon needs three distinct corners; most sites have no outline at
+        // all, which is normal rather than an error.
+        if (!ring || ring.length < 3) return empty
+        return {
+            type: 'FeatureCollection' as const,
+            features: [
+                {
+                    type: 'Feature' as const,
+                    properties: { color: site!.properties.color },
+                    geometry: {
+                        type: 'Polygon' as const,
+                        // GeoJSON requires the ring to be explicitly closed.
+                        coordinates: [[...ring, ring[0]]],
+                    },
+                },
+            ],
+        }
+    }, [scene.focusSitePolygon, baseData.sites])
 
     const onLoad = useCallback((event: MapEvent) => {
         setIsReady(true)
@@ -204,6 +240,13 @@ export default function MapCanvas() {
                     <Layer {...flightCasingLayer} />
                     <Layer {...flightLineLayer} />
                     <Layer {...flightHitLayer} />
+                </Source>
+
+                {/* Under the markers: the outline is context for the pin, not a
+                    replacement for it. */}
+                <Source id={SITE_POLYGON_SOURCE_ID} type="geojson" data={sitePolygon}>
+                    <Layer {...sitePolygonFillLayer} />
+                    <Layer {...sitePolygonLineLayer} />
                 </Source>
 
                 {/* After the tracks, so markers and labels are never buried. */}

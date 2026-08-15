@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Sites } from '@database/Sites'
-import { SITE_COLORS } from '@ui/map/colors'
+import { siteRole, siteRoleColor } from '@ui/map/siteRole'
 import type { SiteCollection, SiteFeature, SiteFeatureProperties } from '@ui/map/geo'
 
 /**
@@ -11,20 +11,6 @@ import type { SiteCollection, SiteFeature, SiteFeatureProperties } from '@ui/map
  * sites, styles from the data, and can be hit-tested and hover-highlighted with
  * the same machinery as the tracks.
  */
-
-/**
- * A site's role from how it is actually used, falling back to the declared
- * type. `sites.type` is nullable and is null for every site the FFVL sync has
- * not classified, including the fixture rows.
- */
-function roleOf(takeoffCount: number, landingCount: number, declared: string | null) {
-    if (takeoffCount > 0 && landingCount > 0) return 'both' as const
-    if (takeoffCount > 0) return 'takeoff' as const
-    if (landingCount > 0) return 'landing' as const
-    if (declared === 'Takeoff') return 'takeoff' as const
-    if (declared === 'Landing') return 'landing' as const
-    return 'unknown' as const
-}
 
 export async function GET() {
     const [sites, errorMessage] = await Sites.getAllForMap()
@@ -41,7 +27,7 @@ export async function GET() {
         if (typeof site.lat !== 'number' || typeof site.lng !== 'number') continue
         if (site.lat === 0 && site.lng === 0) continue
 
-        const role = roleOf(site.takeoffCount, site.landingCount, site.type)
+        const role = siteRole(site.takeoffCount, site.landingCount, site.type)
         const properties: SiteFeatureProperties = {
             id: site.ffvl_sid,
             slug: site.slug,
@@ -49,7 +35,7 @@ export async function GET() {
             alt: site.alt,
             type: site.type as SiteFeatureProperties['type'],
             flightCount: site.takeoffCount + site.landingCount,
-            color: SITE_COLORS[role],
+            color: siteRoleColor(role),
             // Stored [lat, lng] like every other polyline in the schema, flipped
             // here so nothing downstream has to remember which convention it is
             // holding.

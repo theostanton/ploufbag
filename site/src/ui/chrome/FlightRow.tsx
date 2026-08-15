@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { FlightSummary } from '@database/flights'
+import type { FlightSummary } from '@database/flights'
 import styles from './FlightRow.module.css'
 import ClientOnlyDate from '@ui/ClientOnlyDate'
 import { formatSiteNameShort } from '@utils/formatSiteName'

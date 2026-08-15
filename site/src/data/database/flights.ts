@@ -153,27 +153,15 @@ export namespace Flights {
         });
     }
 
-    export async function getAllForPilotWithPolylines(pilotId: StravaAthleteId): Promise<Either<FlightWithSites[]>> {
+    export async function getForSite(siteId: string): Promise<Either<FlightSummary[]>> {
         return withPooledClient(async (database: Client) => {
-            const result = await database.query<FlightWithSites>(
-                generateQuery("where f.pilot_id = $1::integer"),
-                [pilotId]
-            )
-            if (result.rows) {
-                return success(result.rows.map(row => row.reify()))
-            } else {
-                return failure(`No flights for pilot_id=${pilotId}`)
-            }
-        });
-    }
-
-    // Still carries polylines because SiteMap draws them. Becomes a summary
-    // query when the sites route moves onto the shared map.
-    export async function getForSite(siteId: string): Promise<Either<FlightWithSites[]>> {
-        return withPooledClient(async (database: Client) => {
-            const result = await database.query<FlightWithSites>(
-                generateQuery("where f.takeoff_id = $1 OR f.landing_id = $1"),
-                [parseInt(siteId)]
+            const result = await database.query<FlightSummary>(
+                generateQuery("where f.takeoff_id = $1 OR f.landing_id = $1", 9999, false),
+                // Not parseInt: ffvl_sid, takeoff_id and landing_id are all text
+                // columns. Coercing to a number turned any non-numeric FFVL sid
+                // into NaN, and the site simply showed no flights; the numeric
+                // ones only worked because Postgres coerced them back again.
+                [siteId]
             )
             if (result.rows) {
                 return success(result.rows.map(row => row.reify()))

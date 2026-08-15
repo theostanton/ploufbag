@@ -51,7 +51,16 @@ export type Polyline = LatLng[]
 
 export enum SiteType {
     Landing = "Landing",
-    TakeOff = "TakeOff",
+    // "Takeoff", not "TakeOff". These are the values of the site_type Postgres
+    // enum (create_sites.sql), and the lowercase o is what the column actually
+    // accepts. syncSites assigns SiteType.TakeOff straight into Site.type and
+    // upserts it, so with the old spelling every takeoff classification was
+    // rejected by the database while landings went through fine.
+    //
+    // Nothing depended on the old string: the comparisons in DescriptionFormatter
+    // are enum-to-enum, and no row can be holding "TakeOff" because the enum
+    // constraint is what refused it in the first place.
+    TakeOff = "Takeoff",
 }
 
 export type Site = {
