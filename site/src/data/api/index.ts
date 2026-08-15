@@ -10,7 +10,7 @@ type GetSelfResponse = BaseResponse & {
     user: Pilot | undefined
 }
 
-export class ParastatsApi {
+export class PloufbagApi {
 
     jwtToken: string
 

@@ -1,18 +1,18 @@
 ### Get /
-GET {{parastats_api_base_url}}/
+GET {{ploufbag_api_base_url}}/
 Cookie: sid={{jwt}};
 Content-Type: application/json
 
 ### Get /activities
-GET {{parastats_api_base_url}}/activities
+GET {{ploufbag_api_base_url}}/activities
 Cookie: sid={{jwt}};
 Content-Type: application/json
 
 ### Generate token
-GET {{parastats_api_base_url}}/token?pilot_id=4142500
+GET {{ploufbag_api_base_url}}/token?pilot_id=4142500
 Cookie: sid={{jwt}};
 Content-Type: application/json
 
 ### Get /takeoff/[slug]
-GET {{parastats_api_base_url}}/takeoff/123
+GET {{ploufbag_api_base_url}}/takeoff/123
 Content-Type: application/json

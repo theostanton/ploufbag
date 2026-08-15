@@ -1,4 +1,4 @@
-# Claude Commands for Parastats
+# Claude Commands for Plouf Bag
 
 ## Development Workflow
 
@@ -174,9 +174,9 @@ echo "Waiting for services to stabilize..."
 sleep 30
 
 echo "Checking production health endpoints..."
-curl -f https://api.parastats.app/health > /dev/null 2>&1
+curl -f https://api.ploufbag.com/health > /dev/null 2>&1
 prod_api_status=$?
-curl -f https://parastats.app > /dev/null 2>&1  
+curl -f https://ploufbag.com > /dev/null 2>&1  
 prod_site_status=$?
 
 if [ $prod_api_status -eq 0 ] && [ $prod_site_status -eq 0 ]; then
@@ -287,8 +287,8 @@ terraform apply
 Verify deployed services are responding correctly
 ```bash
 # Check production endpoints
-curl -f https://api.parastats.app/health
-curl -f https://parastats.app
+curl -f https://api.ploufbag.com/health
+curl -f https://ploufbag.com
 ```
 
 ## Git Operations

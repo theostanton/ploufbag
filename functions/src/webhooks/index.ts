@@ -39,7 +39,7 @@ export default async function handler(req: Request, res: Response): Promise<void
     // Default response for unhandled requests
     res.status(200).json({
         status: "OK", 
-        message: "Parastats webhook endpoint",
+        message: "Plouf Bag webhook endpoint",
         endpoints: {
             oauth: "?code=<auth_code>",
             subscription: "?hub.mode=subscribe&hub.challenge=<challenge>",

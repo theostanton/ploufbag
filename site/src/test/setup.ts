@@ -23,14 +23,14 @@ export class TestDatabaseSetup {
       });
       
       // Create and connect to a clean test database
-      await this.client.query('DROP DATABASE IF EXISTS test_parastats');
-      await this.client.query('CREATE DATABASE test_parastats');
+      await this.client.query('DROP DATABASE IF EXISTS test_ploufbag');
+      await this.client.query('CREATE DATABASE test_ploufbag');
       await this.client.end();
       
       // Connect to the test database
       this.client = await connect({
         host: 'localhost',
-        database: 'test_parastats',
+        database: 'test_ploufbag',
         user: 'functions',
         password: 'password',
         port: 5432,
