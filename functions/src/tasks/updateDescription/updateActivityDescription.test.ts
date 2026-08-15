@@ -50,7 +50,11 @@ const cases: [
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllEnabled},
         "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
-    ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllDisabled, include_wind: false}},
+    // Spread AllEnabled, not AllDisabled. include_wind was already false in
+    // AllDisabled, so this case was identical to the one below it — which
+    // asserts null — while expecting full output. The expected string here is
+    // AllEnabled minus the wind line, which is what this case is meant to cover.
+    ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllEnabled, include_wind: false}},
         "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllDisabled},

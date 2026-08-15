@@ -92,15 +92,30 @@ export function setTestClient(client: Client) {
   singletonClient = client;
 }
 
+// Module state is cleared before anything is awaited, and each teardown is
+// isolated. Previously a throw from singletonClient.end() — "Connection already
+// closed", easy to hit when the server is gone — returned early and left
+// connectionPool cached, so getPool() went on handing out dead clients.
 export async function closeAllConnections() {
-  if (singletonClient) {
-    await singletonClient.end();
-    singletonClient = null;
+  const client = singletonClient;
+  const pool = connectionPool;
+  singletonClient = null;
+  connectionPool = null;
+
+  if (client) {
+    try {
+      await client.end();
+    } catch {
+      // Already closed; nothing left to release.
+    }
   }
-  if (connectionPool) {
-    await connectionPool.drain();
-    await connectionPool.clear();
-    connectionPool = null;
+  if (pool) {
+    try {
+      await pool.drain();
+      await pool.clear();
+    } catch {
+      // Underlying connections are already gone.
+    }
   }
 }
 
