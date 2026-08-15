@@ -15,7 +15,8 @@ test('Test insert() / get() / getToken()', async () => {
         strava_access_token: "access_token",
         strava_refresh_token: "refresh_token",
         strava_expires_at: expiresAt,
-        first_name: "Some name"
+        first_name: "Some name",
+        profile_image_url: null
     }
 
     await Pilots.insert(pilot)

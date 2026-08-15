@@ -8,7 +8,9 @@ test('StravaActivityToFlightConverter.convert() ', async () => {
 
     const container = await TestContainer.generateEmpty()
 
-    const pilotId: StravaAthleteId = Math.random()
+    // Must be an integer: convert() does parseInt(pilotId.toString()), so a bare
+    // Math.random() fraction was silently converted to 0.
+    const pilotId: StravaAthleteId = Math.floor(Math.random() * 1_000_000)
 
     const input: StravaActivity = {
         id: Math.random().toString(),

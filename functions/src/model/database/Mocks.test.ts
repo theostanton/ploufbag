@@ -32,6 +32,7 @@ export namespace Mocks {
         strava_access_token: "token1",
         strava_refresh_token: "refresh1",
         strava_expires_at: new Date(2050),
+        profile_image_url: null,
     }
     export const userRow2: PilotRowFull = {
         pilot_id: randomBigInt(),
@@ -39,6 +40,7 @@ export namespace Mocks {
         strava_access_token: "token2",
         strava_refresh_token: "refresh2",
         strava_expires_at: new Date(2050),
+        profile_image_url: null,
     }
     export const user1activity1wing1: FlightRow = {
         pilot_id: userRow1.pilot_id,

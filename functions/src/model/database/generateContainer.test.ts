@@ -3,7 +3,6 @@ import {connect} from "ts-postgres";
 import {end, setClient} from "./client";
 import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess} from "@parastats/common";
 import {Pilots} from "./Pilots";
-import {afterEach, test} from "vitest";
 import {Flights} from "./Flights";
 import * as fs from "node:fs";
 import {Mocks} from "./Mocks.test";
@@ -121,20 +120,13 @@ export namespace TestContainer {
 }
 
 
-// These two smoke tests started containers and never stopped them, leaking a
-// postgres per test for the lifetime of the run.
-let started: StartedPostgreSqlContainer | undefined
-
-afterEach(async () => {
-    await end()
-    await started?.stop()
-    started = undefined
-})
-
-test("generateEmpty()", async () => {
-    started = await TestContainer.generateEmpty()
-})
-
-test("generateFromMocks()", async () => {
-    started = await TestContainer.generateFromMocks()
-})
+// This is a helper, not a suite, despite the name — and the name has to stay.
+// tsconfig.json excludes src/**/*.test.ts, which is what keeps @testcontainers
+// out of the production bundle that yarn buildProd ships to Cloud Functions.
+//
+// It previously declared two smoke tests and an afterEach hook. vitest registers
+// hooks and tests from whatever a suite imports, so every file importing
+// TestContainer inherited them: two extra postgres containers per suite, and an
+// afterEach closing the pool between that suite's own tests. That produced the
+// "Connection already closed" errors and the pool acquire timeouts. Hooks belong
+// to the suites that need them.
