@@ -1,10 +1,20 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import Map, { MapEvent, Source } from 'react-map-gl/mapbox'
+import Map, { Layer, MapEvent, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import styles from './MapCanvas.module.css'
 import { useScene } from './store'
+import { useBaseData } from './useBaseData'
+import {
+    FLIGHTS_SOURCE_ID,
+    SITES_SOURCE_ID,
+    flightCasingLayer,
+    flightHitLayer,
+    flightLineLayer,
+    siteCircleLayer,
+    siteLabelLayer,
+} from './layers'
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
@@ -33,6 +43,7 @@ const INITIAL_VIEW_STATE = {
  */
 export default function MapCanvas() {
     const scene = useScene()
+    const baseData = useBaseData()
     const [isReady, setIsReady] = useState(false)
 
     const onLoad = useCallback((event: MapEvent) => {
@@ -86,6 +97,29 @@ export default function MapCanvas() {
                     tileSize={512}
                     maxzoom={14}
                 />
+
+                {/*
+                  * One source for every flight and one for every site, rather
+                  * than a source per feature. promoteId lifts the feature's own
+                  * id into the id slot, which is what setFeatureState needs to
+                  * address a single track for hover, selection or dimming.
+                  */}
+                <Source
+                    id={FLIGHTS_SOURCE_ID}
+                    type="geojson"
+                    data={baseData.flights}
+                    promoteId="id"
+                >
+                    <Layer {...flightCasingLayer} />
+                    <Layer {...flightLineLayer} />
+                    <Layer {...flightHitLayer} />
+                </Source>
+
+                {/* After the tracks, so markers and labels are never buried. */}
+                <Source id={SITES_SOURCE_ID} type="geojson" data={baseData.sites} promoteId="id">
+                    <Layer {...siteCircleLayer} />
+                    <Layer {...siteLabelLayer} />
+                </Source>
             </Map>
             {!isReady && <div className={styles.loading}>Loading map…</div>}
         </div>

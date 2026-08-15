@@ -108,4 +108,45 @@ export namespace Sites {
         });
     }
 
+    export type SiteForMap = Site & { takeoffCount: number, landingCount: number }
+
+    /**
+     * Every site with its takeoff and landing counts kept apart.
+     *
+     * getAllWithFlightCounts sums the two, which is all the /sites list needs.
+     * The map needs them separately: a site's marker colour is its role, and
+     * `sites.type` is nullable and frequently null, so the honest answer comes
+     * from how the site is actually used. A site flown from *and* landed at is a
+     * different thing on the map from one that is only landed at.
+     */
+    export async function getAllForMap(): Promise<Either<SiteForMap[]>> {
+        return withPooledClient(async (database) => {
+            const result = await database.query<Site & { takeoff_count: string, landing_count: string }>(`
+                SELECT s.*,
+                       COALESCE(takeoff_flights.count, 0) as takeoff_count,
+                       COALESCE(landing_flights.count, 0) as landing_count
+                FROM sites s
+                         LEFT JOIN (SELECT takeoff_id, COUNT(*) as count
+                                    FROM flights
+                                    GROUP BY takeoff_id) takeoff_flights ON s.ffvl_sid = takeoff_flights.takeoff_id
+                         LEFT JOIN (SELECT landing_id, COUNT(*) as count
+                                    FROM flights
+                                    GROUP BY landing_id) landing_flights ON s.ffvl_sid = landing_flights.landing_id
+                ORDER BY s.name
+            `);
+            if (result.rows) {
+                return success(result.rows.map(row => {
+                    const site = row.reify();
+                    return {
+                        ...site,
+                        takeoffCount: parseInt(site.takeoff_count),
+                        landingCount: parseInt(site.landing_count),
+                    };
+                }));
+            } else {
+                return failure(`No sites`)
+            }
+        });
+    }
+
 }
