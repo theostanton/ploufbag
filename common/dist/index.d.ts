@@ -1,5 +1,6 @@
 export * from './database';
 export * from './utils';
+export * from './descriptionFooter';
 export * from './DescriptionFormatter';
 export * from './DescriptionFormatterClient';
 export * from './model';
