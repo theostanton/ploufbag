@@ -8,6 +8,7 @@ import {
 import { formatSiteName, formatAggregationResult } from './utils';
 import { Client } from './database';
 import { isSuccess, WindReport, WindDirection } from './model';
+import { DESCRIPTION_FOOTER } from './descriptionFooter';
 
 export interface PreferencesProvider {
     get(pilotId: StravaAthleteId): Promise<{ success: true; value: DescriptionPreference } | { success: false; error: string }>;
@@ -190,7 +191,7 @@ export class DescriptionFormatter {
             return null;
         }
 
-        return [...this.lines, '🌐 paragliderstats.com'].join('\n')
+        return [...this.lines, DESCRIPTION_FOOTER].join('\n')
     }
 
     // Standalone preview generation without database dependencies
@@ -251,6 +252,6 @@ export class DescriptionFormatter {
             return 'No preview available with current preferences';
         }
 
-        return [...lines, '🌐 paragliderstats.com'].join('\n');
+        return [...lines, DESCRIPTION_FOOTER].join('\n');
     }
 }
