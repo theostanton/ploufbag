@@ -1,6 +1,6 @@
 'use server'
 
-import { DescriptionFormatterClient, type DescriptionPreference } from '@parastats/common';
+import { DescriptionFormatterClient, type DescriptionPreference } from '@ploufbag/common';
 
 export async function generateDescriptionPreview(
     preferences: DescriptionPreference,

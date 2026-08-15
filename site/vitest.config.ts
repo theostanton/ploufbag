@@ -7,7 +7,7 @@ export default defineConfig({
       "@database": path.resolve(__dirname, "./src/data/database"),
       "@model": path.resolve(__dirname, "./src/data/model"),
       "@utils": path.resolve(__dirname, "./src/utils"),
-      "@parastats/common": path.resolve(__dirname, "../common/dist"),
+      "@ploufbag/common": path.resolve(__dirname, "../common/dist"),
     }
   },
   test: {

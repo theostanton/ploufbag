@@ -1,5 +1,5 @@
 import {failure, Either, success} from "@model/Either";
-import {StravaAthleteId} from "@parastats/common";
+import {StravaAthleteId} from "@ploufbag/common";
 import {withPooledClient} from "@database/client";
 
 export type PilotWingStats = {

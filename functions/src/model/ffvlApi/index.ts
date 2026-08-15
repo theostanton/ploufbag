@@ -1,4 +1,4 @@
-import {Either, failure, success, WindDirection} from "@parastats/common";
+import {Either, failure, success, WindDirection} from "@ploufbag/common";
 import axios from "axios";
 import {FfvlReport, WindsockReport} from "@/ffvlApi/model";
 

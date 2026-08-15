@@ -1,5 +1,5 @@
 import {withPooledClient} from './client';
-import {createFailure, createSuccess, StravaAthleteId} from '@parastats/common';
+import {createFailure, createSuccess, StravaAthleteId} from '@ploufbag/common';
 import {Either} from "@model/Either";
 
 export type DescriptionPreference = {

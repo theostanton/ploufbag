@@ -1,7 +1,7 @@
 import {PostgreSqlContainer, StartedPostgreSqlContainer} from "@testcontainers/postgresql";
 import {connect} from "ts-postgres";
 import {end, setClient} from "./client";
-import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess} from "@parastats/common";
+import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess} from "@ploufbag/common";
 import {Pilots} from "./Pilots";
 import {Flights} from "./Flights";
 import * as fs from "node:fs";

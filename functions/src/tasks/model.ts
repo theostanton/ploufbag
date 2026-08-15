@@ -3,7 +3,7 @@ import { executeUpdateDescriptionTask } from "./updateDescription";
 import { executeUpdateSingleActivityTask } from "./updateSingleActivity";
 import { executeHelloWorldTask } from "./helloWorld";
 import { executeSyncSitesTask } from "./syncSites";
-import { FetchAllActivitiesTask, UpdateDescriptionTask, UpdateSingleActivityTask, HelloWorldTask, SyncSitesTask } from "@parastats/common";
+import { FetchAllActivitiesTask, UpdateDescriptionTask, UpdateSingleActivityTask, HelloWorldTask, SyncSitesTask } from "@ploufbag/common";
 
 export type TaskResult = TaskSuccess | TaskFailure
 

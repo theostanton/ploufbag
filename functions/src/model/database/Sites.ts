@@ -1,5 +1,5 @@
-import {Either, LatLng, Site} from "@parastats/common";
-import {failed, success} from "@parastats/common";
+import {Either, LatLng, Site} from "@ploufbag/common";
+import {failed, success} from "@ploufbag/common";
 import {withPooledClient, Client} from "./client";
 
 export namespace Sites {

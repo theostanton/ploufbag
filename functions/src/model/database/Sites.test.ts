@@ -1,6 +1,6 @@
 import {expect, test} from "vitest";
 import {TestContainer} from "./generateContainer.test";
-import {Site} from "@parastats/common";
+import {Site} from "@ploufbag/common";
 import {Sites} from "./Sites";
 import {Mocks} from "./Mocks.test";
 import {end, withPooledClient} from "./client";

@@ -1,5 +1,5 @@
 import {Request, Response} from "express";
-import {TaskBody, isSuccess} from "@parastats/common";
+import {TaskBody, isSuccess} from "@ploufbag/common";
 import {taskHandlers} from "@/tasks/model";
 
 export default async function handler(req: Request, res: Response): Promise<void> {

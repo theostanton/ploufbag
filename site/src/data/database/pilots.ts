@@ -1,6 +1,6 @@
 import {failure, Either, success} from "@model/Either";
 import {getDatabase, withPooledClient} from "./client";
-import {Pilot} from "@parastats/common";
+import {Pilot} from "@ploufbag/common";
 
 export async function getAll(): Promise<Either<Pilot[]>> {
     return withPooledClient(async (database) => {

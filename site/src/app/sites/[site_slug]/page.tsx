@@ -5,7 +5,7 @@ import {createMetadata} from "@ui/metadata";
 import {Sites} from "@database/Sites";
 import {Flights} from "@database/flights";
 import FlightItem from "@ui/FlightItem";
-import {StravaAthleteId} from "@parastats/common";
+import {StravaAthleteId} from "@ploufbag/common";
 import SiteMap from "@ui/SiteMap";
 import mapStyles from "@ui/FlightMap.module.css";
 import {formatSiteName} from "../../../utils/formatSiteName";

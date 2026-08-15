@@ -1,6 +1,6 @@
 import {Request, Response} from "express";
 import {extractPilotFromJwt, generateJwt, sign} from "@/jwt";
-import {Pilots, isSuccess} from "@parastats/common";
+import {Pilots, isSuccess} from "@ploufbag/common";
 import {StravaAthleteId} from "@/stravaApi/model";
 
 export async function generateToken(req: Request, res: Response) {

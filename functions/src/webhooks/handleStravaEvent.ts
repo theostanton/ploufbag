@@ -9,7 +9,7 @@ import {
     withPooledClient,
     Pilots as PilotsCommon,
     isSuccess, isFailure
-} from "@parastats/common";
+} from "@ploufbag/common";
 import { executeUpdateSingleActivityTask } from "../tasks/updateSingleActivity";
 import { executeUpdateDescriptionTask } from "../tasks/updateDescription";
 import { Flights } from "../model/database/Flights";

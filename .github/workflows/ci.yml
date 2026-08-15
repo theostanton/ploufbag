@@ -41,7 +41,7 @@ jobs:
           cache: yarn
           cache-dependency-path: functions/yarn.lock
 
-      # functions depends on @parastats/common via file:../common, and its build
+      # functions depends on @ploufbag/common via file:../common, and its build
       # copies ../common/dist wholesale. Without this the tests run against a
       # stale or absent common build.
       - run: yarn install --frozen-lockfile && yarn build

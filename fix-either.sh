@@ -6,14 +6,14 @@ cd /Users/theopersonal/Library/Mobile\ Documents/com~apple~CloudDocs/Code/parast
 
 # Add isSuccess import where needed
 find . -name "*.ts" -exec grep -l "\.success" {} \; | xargs grep -L "isSuccess" | while read file; do
-    # Check if file already imports from @parastats/common
-    if grep -q "from \"@parastats/common\"" "$file"; then
+    # Check if file already imports from @ploufbag/common
+    if grep -q "from \"@ploufbag/common\"" "$file"; then
         # Add isSuccess to existing import
-        sed -i '' 's/} from "@parastats\/common";/, isSuccess} from "@parastats\/common";/g' "$file"
+        sed -i '' 's/} from "@ploufbag\/common";/, isSuccess} from "@ploufbag\/common";/g' "$file"
     else
         # Add new import line
         sed -i '' '1i\
-import {isSuccess} from "@parastats/common";
+import {isSuccess} from "@ploufbag/common";
 ' "$file"
     fi
 done

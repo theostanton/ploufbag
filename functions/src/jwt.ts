@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import {Request, Response} from "express";
-import {Pilots, PilotRow, failed, Either, success, isSuccess} from "@parastats/common";
+import {Pilots, PilotRow, failed, Either, success, isSuccess} from "@ploufbag/common";
 
 export function generateJwt(userId: number): string {
     console.log(`generateJwt process.env.SESSION_SECRET=${process.env.SESSION_SECRET}`)

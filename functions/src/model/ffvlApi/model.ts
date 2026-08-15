@@ -1,4 +1,4 @@
-import {WindDirection} from "@parastats/common";
+import {WindDirection} from "@ploufbag/common";
 
 export type FfvlBalise = {
     nom: string

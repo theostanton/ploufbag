@@ -1,4 +1,4 @@
-import {Pilot} from "@parastats/common";
+import {Pilot} from "@ploufbag/common";
 import Link from "next/link";
 import styles from "./PilotItem.module.css";
 

@@ -1,6 +1,6 @@
 import axios from "axios";
 import {Either} from "@model/Either";
-import {Pilot} from "@parastats/common";
+import {Pilot} from "@ploufbag/common";
 
 type BaseResponse = {
     success: boolean

@@ -1,7 +1,7 @@
 import {withPooledClient, Client} from "./client";
-import {Either, failed, failure, success} from "@parastats/common";
-import {FlightRow} from "@parastats/common";
-import {StravaActivityId, StravaAthleteId} from "@parastats/common";
+import {Either, failed, failure, success} from "@ploufbag/common";
+import {FlightRow} from "@ploufbag/common";
+import {StravaActivityId, StravaAthleteId} from "@ploufbag/common";
 
 export namespace Flights {
     export async function get(flightId: StravaActivityId): Promise<Either<FlightRow>> {

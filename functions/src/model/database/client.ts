@@ -6,4 +6,4 @@ export {
   setTestClient as setClient, 
   closeAllConnections as end,
   type Client 
-} from '@parastats/common';
+} from '@ploufbag/common';

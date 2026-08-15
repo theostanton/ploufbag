@@ -4,7 +4,7 @@ import {
     TaskExecutionStatus,
     TaskExecutions,
     withPooledClient
-, isSuccess} from "@parastats/common";
+, isSuccess} from "@ploufbag/common";
 import { taskHandlers } from "./model";
 
 /**

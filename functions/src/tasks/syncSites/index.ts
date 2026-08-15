@@ -1,12 +1,12 @@
 import {TaskBody, TaskResult} from "@/tasks/model";
 import axios from "axios";
-import {LatLng, Site, SiteType, Windsock, isSuccess, isFailure} from "@parastats/common";
-import {Sites} from "@parastats/common";
-import {Windsocks} from "@parastats/common";
+import {LatLng, Site, SiteType, Windsock, isSuccess, isFailure} from "@ploufbag/common";
+import {Sites} from "@ploufbag/common";
+import {Windsocks} from "@ploufbag/common";
 
 import getDistance from "@turf/distance"
 import {Coord, Units} from "@turf/helpers"
-import {Flights} from "@parastats/common";
+import {Flights} from "@ploufbag/common";
 import {FfvlBalise, FfvlSite} from "@/ffvlApi/model";
 
 export type SyncSitesTask = {

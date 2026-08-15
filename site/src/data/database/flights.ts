@@ -1,6 +1,6 @@
 import {failure, Either, success} from "@model/Either";
 import {withPooledClient, Client} from "./client";
-import {FlightWithSites, StravaActivityId, StravaAthleteId} from "@parastats/common";
+import {FlightWithSites, StravaActivityId, StravaAthleteId} from "@ploufbag/common";
 
 export namespace Flights {
 

@@ -1,4 +1,4 @@
-import {isSuccess} from "@parastats/common";
+import {isSuccess} from "@ploufbag/common";
 import {beforeAll, expect, it, test} from "vitest";
 import {StravaApi} from "./index";
 import {Pilots} from "../database/Pilots";

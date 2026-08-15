@@ -2,7 +2,7 @@
 
 import { Auth } from "@auth/index";
 import { DescriptionPreferences, type DescriptionPreference } from "@database/descriptionPreferences";
-import { type Failure, isSuccess } from '@parastats/common';
+import { type Failure, isSuccess } from '@ploufbag/common';
 import { revalidatePath } from 'next/cache';
 
 export async function updateDescriptionPreferences(formData: FormData) {

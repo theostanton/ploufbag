@@ -1,8 +1,8 @@
-import {DESCRIPTION_FOOTER, DescriptionPreference, FlightRow, isSuccess, SiteType, WindDirection} from "@parastats/common";
-import {withPooledClient, Client} from "@parastats/common";
+import {DESCRIPTION_FOOTER, DescriptionPreference, FlightRow, isSuccess, SiteType, WindDirection} from "@ploufbag/common";
+import {withPooledClient, Client} from "@ploufbag/common";
 import {FFVL} from "@/ffvlApi";
-import {DescriptionPreferences} from "@parastats/common";
-import {StravaAthleteId} from "@parastats/common";
+import {DescriptionPreferences} from "@ploufbag/common";
+import {StravaAthleteId} from "@ploufbag/common";
 import {formatSiteName} from "@/utils/formatSiteName";
 
 export type AggregationResult = {

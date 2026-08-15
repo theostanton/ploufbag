@@ -6,7 +6,7 @@ import {
     FlightRow,
     isFormattedDescription,
     formattedStatsPattern
-} from "@parastats/common";
+} from "@ploufbag/common";
 import {Pilots} from '@/database/Pilots';
 import {Flights} from '@/database/Flights';
 import {StravaApi} from '@/stravaApi';

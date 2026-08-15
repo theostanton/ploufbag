@@ -4,7 +4,7 @@ import {Flights} from "@database/flights";
 import {getPilotWingStats} from "@database/stats";
 import {Sites} from "@database/Sites";
 import {DescriptionPreferences} from "@database/descriptionPreferences";
-import {isSuccess} from "@parastats/common";
+import {isSuccess} from "@ploufbag/common";
 import styles from "@styles/Page.module.css";
 import detailStyles from "@ui/DetailPages.module.css";
 import dashboardStyles from "./Dashboard.module.css";
