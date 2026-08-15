@@ -85,3 +85,68 @@ describe("formattedStatsPattern", () => {
         expect(formattedStatsPattern()).not.toBe(formattedStatsPattern());
     });
 });
+
+// ---------------------------------------------------------------------------
+// Regression cases taken verbatim from production rows, found while preparing
+// the ploufbag.com backfill on 2026-08-15.
+// ---------------------------------------------------------------------------
+
+describe("real production descriptions", () => {
+    // 4 live flights look exactly like this. Before parastats.info was added to
+    // the legacy list these read as unformatted, took the append branch, and
+    // came out with two stacked stats blocks.
+    const PARASTATS_INFO_ONLY = [
+        "🪂 Ronin  14 flights / 1h 43min",
+        "2025        1 flight / 6min",
+        "All Time    106 flights / 24h 40min",
+        "🌐 parastats.info",
+    ].join("\n");
+
+    // 1 live flight, already corrupted by the previous migration: two stats
+    // blocks, two footers, two different legacy domains.
+    const ALREADY_CORRUPTED = [
+        "🦋 Almost caught the metamorphosis of a wingsuiter",
+        "↗️ Plan de l'Aiguille",
+        "↘️ Le Bois du Bouchet",
+        "🪂 Ronin  28 flights / 3h 43min",
+        "All Time    141 flights / 35h 44min",
+        "🌐 paragliderstats.com  28 flights / 3h 43min",
+        "All Time    141 flights / 35h 44min",
+        "🌐 parastats.info",
+    ].join("\n");
+
+    it("recognises a parastats.info footer as formatted", () => {
+        expect(isFormattedDescription(PARASTATS_INFO_ONLY)).toBe(true);
+    });
+
+    it("rewrites a parastats.info description to a single clean block", () => {
+        const updated = PARASTATS_INFO_ONLY.replace(formattedStatsPattern(), NEW_STATS);
+
+        expect(updated).toBe(NEW_STATS);
+        expect(updated.split("🌐").length - 1).toBe(1);
+    });
+
+    it("collapses an already-corrupted description down to one stats block", () => {
+        const updated = ALREADY_CORRUPTED.replace(formattedStatsPattern(), NEW_STATS);
+
+        expect(updated.split("🌐").length - 1).toBe(1);
+        expect(updated).not.toContain("parastats.info");
+        expect(updated).not.toContain("paragliderstats.com");
+    });
+
+    // The data-loss regression. 🦋 (U+1F98B) shares its lead surrogate \uD83E
+    // with 🪂 (U+1FA82), so without the `u` flag the match started at the
+    // pilot's own words and replacing it deleted them.
+    it("preserves pilot prose that opens with an unrelated emoji", () => {
+        const updated = ALREADY_CORRUPTED.replace(formattedStatsPattern(), NEW_STATS);
+
+        expect(updated).toContain("🦋 Almost caught the metamorphosis of a wingsuiter");
+        expect(updated).toBe(`🦋 Almost caught the metamorphosis of a wingsuiter\n${NEW_STATS}`);
+    });
+
+    it("still anchors on a takeoff arrow when there is no prose", () => {
+        const arrowFirst = ["↗️ Chamonix", "↘️ Bouchet", "🪂 Ronin  1 flight", "🌐 ploufbag.com"].join("\n");
+
+        expect(arrowFirst.replace(formattedStatsPattern(), NEW_STATS)).toBe(NEW_STATS);
+    });
+});
