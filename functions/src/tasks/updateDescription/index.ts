@@ -1,5 +1,5 @@
 import {TaskResult, TaskBody} from "@/tasks/model";
-import {Pilots, Flights, isSuccess} from "@parastats/common";
+import {Pilots, Flights, isSuccess, isFormattedDescription, formattedStatsPattern} from "@parastats/common";
 import {StravaApi} from "@/stravaApi";
 import {StravaActivityId} from "@/stravaApi/model";
 import {generateStats} from "./updateActivityDescription";
@@ -44,13 +44,13 @@ export default async function (task: TaskBody): Promise<TaskResult> {
     }
 
     // Check description is already winged
-    const alreadyWinged = activityRow.description.includes("🌐 paragliderstats.com")
+    const alreadyWinged = isFormattedDescription(activityRow.description)
 
     // If winged, replace stats
     let wingedDescription: string
     if (alreadyWinged) {
         console.log("Updating")
-        wingedDescription = activityRow.description.replace(/[🪂↗️↘️][\s\S]*paragliderstats.com/, stats)
+        wingedDescription = activityRow.description.replace(formattedStatsPattern(), stats)
     } else {
         console.log("Appending")
         wingedDescription = activityRow.description.replace(`🪂 ${activityRow.wing}`, stats)

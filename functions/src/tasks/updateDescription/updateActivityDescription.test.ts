@@ -56,7 +56,7 @@ const cases: [
 ][] = [
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllEnabled},
-        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 ploufbag.com"],
 
     // Spread AllEnabled, not AllDisabled. include_wind was already false in
     // AllDisabled, so this case was identical to the one below it — which
@@ -65,16 +65,16 @@ const cases: [
     // The mock sites have no nearest_balise_id, so no wind is appended either
     // way; this case pins that turning include_wind off changes nothing else.
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: {...AllEnabled, include_wind: false}},
-        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 1 flight / 5min \n2025 1 flight / 5min\nAll Time 1 flight / 5min\n🌐 ploufbag.com"],
 
     ["User 1 Activity 1", {flight: Mocks.user1activity1wing1, preference: AllDisabled},
         null],
 
     ["User 1 Activity 2", {flight: Mocks.user1activity2wing2, preference: AllEnabled},
-        siteLines + "🪂 Two 1 flight / 1h 0min\n2025 2 flights / 1h 5min\nAll Time 2 flights / 1h 5min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 Two 1 flight / 1h 0min\n2025 2 flights / 1h 5min\nAll Time 2 flights / 1h 5min\n🌐 ploufbag.com"],
 
     ["User 1 Activity 3", {flight: Mocks.user1activity3wing1, preference: AllEnabled},
-        siteLines + "🪂 One 2 flights / 15min\n2025 3 flights / 1h 15min\nAll Time 3 flights / 1h 15min\n🌐 paragliderstats.com"],
+        siteLines + "🪂 One 2 flights / 15min\n2025 3 flights / 1h 15min\nAll Time 3 flights / 1h 15min\n🌐 ploufbag.com"],
 ]
 
 test.each(cases)('generateStats(%s)', async (_, input, expected) => {

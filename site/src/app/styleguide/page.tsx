@@ -7,7 +7,7 @@ export default function StyleGuidePage() {
     <div className={styles.styleguide}>
       <header className={styles.header}>
         <h1>Parastats Design System</h1>
-        <p>Living style guide for paragliderstats.com</p>
+        <p>Living style guide for ploufbag.com</p>
       </header>
 
       {/* Table of Contents */}
