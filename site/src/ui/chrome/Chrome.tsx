@@ -4,6 +4,7 @@ import { ReactNode, useCallback, useEffect, useRef } from 'react'
 import styles from './Chrome.module.css'
 import Sheet from './Sheet'
 import MapControls from './MapControls'
+import RouteAnnouncer from './RouteAnnouncer'
 import { useScene } from '@ui/map/store'
 import { setInsets } from '@ui/map/store'
 
@@ -71,6 +72,7 @@ export default function Chrome({ topBar, children }: { topBar: ReactNode; childr
                 {children}
             </Sheet>
             {scene.chrome === 'sheet' && <MapControls />}
+            <RouteAnnouncer />
         </div>
     )
 }

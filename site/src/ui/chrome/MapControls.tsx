@@ -2,6 +2,7 @@
 
 import { useMap } from 'react-map-gl/mapbox'
 import styles from './MapControls.module.css'
+import { useInsets } from '@ui/map/store'
 
 /**
  * Zoom and orientation controls, positioned by the chrome rather than by
@@ -11,15 +12,25 @@ import styles from './MapControls.module.css'
  * phone puts it underneath the bottom sheet. These sit inside the chrome layout
  * instead, so they move with the panels.
  */
+/** Height of the Mapbox attribution pill the controls have to clear. */
+const ATTRIBUTION_CLEARANCE = 26
+
 export default function MapControls() {
     const { main: map } = useMap()
+    const insets = useInsets()
 
     if (!map) return null
 
     const isTilted = map.getPitch() !== 0 || map.getBearing() !== 0
 
     return (
-        <div className={styles.controls}>
+        <div
+            className={styles.controls}
+            // Positioned from the measured chrome rather than from a CSS copy of
+            // the sheet height: the sheet is draggable now, so that height is no
+            // longer a constant anything else can assume.
+            style={{ bottom: insets.bottom + 12 + ATTRIBUTION_CLEARANCE }}
+        >
             <button
                 type="button"
                 className={styles.button}

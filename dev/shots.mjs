@@ -112,10 +112,17 @@ const TOUR = [
         path: '/flights',
         // The premise of the redesign: clicking a track on the map navigates,
         // and the map itself is never rebuilt.
-        act: async (page, { clickFirstTrack, expect, mapCanvasId, waitForPath }) => {
+        act: async (page, { clickFirstTrack, expect, mapCanvasId, waitForPath, peekSheet }) => {
             const before = await mapCanvasId();
-            const clicked = await clickFirstTrack();
-            if (!clicked) return { skipped: 'no track-only point visible in the uncovered map area' };
+            let clicked = await clickFirstTrack();
+            if (!clicked) {
+                // On a phone the half-height sheet leaves too little map to hit
+                // a thin track, which is exactly what the peek snap is for.
+                // Collapsing and retrying is the real user flow, so test it
+                // rather than skipping.
+                if (await peekSheet()) clicked = await clickFirstTrack();
+            }
+            if (!clicked) return { skipped: 'no track-only point visible even at the peek snap' };
             await waitForPath(/^\/flights\/\d+/);
             const after = await mapCanvasId();
             expect(
@@ -172,6 +179,28 @@ const TOUR = [
         path: '/pilots/4210001',
     },
     {
+        // The peek snap is the reason snapping exists: at the half height the
+        // sheet leaves too little map to hit a track on a phone. Cycling the
+        // handle to peek should give the map back, and the camera should
+        // re-frame into the space that opens up.
+        name: '09b-sheet-peek',
+        path: '/flights',
+        act: async (page, { expect }) => {
+            const handle = page.getByRole('button', { name: /Resize panel/ });
+            if (!(await handle.isVisible().catch(() => false))) {
+                return { skipped: 'no drag handle (desktop rail)' };
+            }
+            const before = (await page.locator('section[data-mode]').boundingBox())?.height ?? 0;
+            // peek is one step past half in the cycle order.
+            await handle.click();
+            await handle.click();
+            await page.waitForTimeout(600);
+            const after = (await page.locator('section[data-mode]').boundingBox())?.height ?? 0;
+            expect(after < before, `peek did not shrink the sheet (${before} -> ${after})`);
+            return {};
+        },
+    },
+    {
         name: '10-login',
         path: '/login',
         ambient: true,
@@ -219,6 +248,9 @@ const IGNORED_CONSOLE_ERRORS = [
     /Failed to fetch[\s\S]*mapbox-gl/,
     /AbortError/,
 ]
+
+/** Snap points in Sheet.tsx; the handle cycles through them in order. */
+const SNAP_CYCLE_LENGTH = 3;
 
 const isIgnorable = (text) => IGNORED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))
 
@@ -344,6 +376,25 @@ function makeHelpers(page, failures, stepName) {
         return true;
     };
 
+    /**
+     * Collapse the bottom sheet to its smallest snap, the way a user would when
+     * they want the map. Returns false on desktop, where there is no handle and
+     * the rail does not move.
+     */
+    const peekSheet = async () => {
+        const handle = page.getByRole('button', { name: /Resize panel/ });
+        if (!(await handle.isVisible().catch(() => false))) return false;
+        for (let attempt = 0; attempt < SNAP_CYCLE_LENGTH; attempt++) {
+            const label = (await handle.getAttribute('aria-label')) ?? '';
+            if (label.includes('peek')) break;
+            await handle.click();
+            await page.waitForTimeout(320);
+        }
+        // Let the tiles that the newly revealed area needs come in.
+        await page.waitForTimeout(900);
+        return true;
+    };
+
     const firstFlightHref = async () => {
         const href = await page
             .locator('a[href^="/flights/"]')
@@ -395,7 +446,15 @@ function makeHelpers(page, failures, stepName) {
         await page.waitForTimeout(1200);
     };
 
-    return { expect, waitForPath, mapCanvasId, clickFirstTrack, firstFlightHref, waitForMapIdle };
+    return {
+        expect,
+        waitForPath,
+        mapCanvasId,
+        clickFirstTrack,
+        peekSheet,
+        firstFlightHref,
+        waitForMapIdle,
+    };
 }
 
 // ---------------------------------------------------------------------- main

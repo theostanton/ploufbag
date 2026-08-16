@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Map, { AttributionControl, Layer, MapEvent, MapMouseEvent, Source } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import styles from './MapCanvas.module.css'
-import { setHoveredFlight, setHoveredSite, useScene } from './store'
+import { setHoveredFlight, setHoveredSite, useInsets, useScene } from './store'
 import { useBaseData } from './useBaseData'
 import { useMapScene } from './useMapScene'
 import { useAmbientDrift } from './useAmbientDrift'
@@ -87,6 +87,7 @@ const INTERACTIVE_LAYER_IDS = [siteCircleLayer.id!, flightHitLayer.id!]
 export default function MapCanvas() {
     const scene = useScene()
     const baseData = useBaseData()
+    const insets = useInsets()
     const router = useRouter()
     const [isReady, setIsReady] = useState(false)
     const [isHoveringFeature, setIsHoveringFeature] = useState(false)
@@ -193,7 +194,14 @@ export default function MapCanvas() {
     }
 
     return (
-        <div className={styles.canvas} data-chrome={scene.chrome}>
+        <div
+            className={styles.canvas}
+            data-chrome={scene.chrome}
+            // The Mapbox wordmark and attribution are pinned to the canvas
+            // corner by Mapbox's own control. The sheet is draggable, so how far
+            // to lift them is only knowable from the measured chrome.
+            style={{ '--map-bottom-inset': `${insets.bottom}px` } as React.CSSProperties}
+        >
             <Map
                 id="main"
                 mapboxAccessToken={MAPBOX_TOKEN}
