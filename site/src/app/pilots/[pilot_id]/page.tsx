@@ -1,3 +1,4 @@
+import {notFound} from "next/navigation";
 import {get} from "@database/pilots";
 import {Flights} from "@database/flights";
 import {getPilotWingStats} from "@database/stats";
@@ -8,7 +9,7 @@ import Link from "next/link";
 import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import FlightRow from "@ui/chrome/FlightRow";
-import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 import styles from "@ui/chrome/PilotDetail.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
 
@@ -58,13 +59,7 @@ export default async function PilotPage({params}: {
     ]);
 
     if (!pilot) {
-        return (
-            <>
-                <MapScene chrome="sheet"/>
-                <PanelHeader title="Pilot not found" back={{href: '/pilots', label: 'All pilots'}}/>
-                <PanelEmpty title="We could not load that pilot" detail={pilotErrorMessage}/>
-            </>
-        );
+        notFound();
     }
 
     const flights = allFlights ?? [];

@@ -1,12 +1,13 @@
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
+import {notFound} from "next/navigation";
 import {Sites} from "@database/Sites";
 import {Flights} from "@database/flights";
 import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import {siteRole, siteRoleColor} from "@ui/map/siteRole";
 import FlightRow from "@ui/chrome/FlightRow";
-import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 import {formatSiteName} from "@utils/formatSiteName";
 
 export const metadata: Metadata = createMetadata("Site")
@@ -24,16 +25,12 @@ export default async function SiteDetail({params}: {
     params: Promise<{ site_slug: string }>
 }) {
     const slug = (await params).site_slug;
-    const [site, errorMessage] = await Sites.getForSlug(slug);
+    const [site] = await Sites.getForSlug(slug);
 
+    // A real 404 for a slug that does not exist -- see the note in the flight
+    // route.
     if (!site) {
-        return (
-            <>
-                <MapScene chrome="sheet"/>
-                <PanelHeader title="Site not found" back={{href: '/sites', label: 'All sites'}}/>
-                <PanelEmpty title="We could not load that site" detail={errorMessage}/>
-            </>
-        );
+        notFound();
     }
 
     const [siteFlights] = await Flights.getForSite(site.ffvl_sid);

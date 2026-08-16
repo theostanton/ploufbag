@@ -1,3 +1,4 @@
+import {notFound} from "next/navigation";
 import {Flights} from "@database/flights";
 import {StravaActivityId} from "@ploufbag/common";
 import Link from "next/link";
@@ -6,7 +7,7 @@ import ClientOnlyDate from "@ui/ClientOnlyDate";
 import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import {getFlightColor} from "@ui/map/colors";
-import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 import styles from "@ui/chrome/FlightDetail.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
 
@@ -33,16 +34,17 @@ export default async function FlightDetail({params}: {
     params: Promise<{ flight_id: StravaActivityId }>
 }) {
     const flightId = (await params).flight_id;
-    const [flight, errorMessage] = await Flights.get(flightId);
+    const [flight] = await Flights.get(flightId);
 
+    // notFound() rather than a "not found" panel, so the response is an actual
+    // 404. These URLs are published in Strava descriptions and get copied by
+    // hand, so wrong ones are reached often and by crawlers; answering 200 with
+    // apologetic content tells them the page exists.
+    //
+    // A database failure does not land here -- withPooledClient rejects, and the
+    // error boundary catches it -- so this really does mean "no such flight".
     if (!flight) {
-        return (
-            <>
-                <MapScene chrome="sheet"/>
-                <PanelHeader title="Flight not found" back={{href: '/flights', label: 'All flights'}}/>
-                <PanelEmpty title="We could not load that flight" detail={errorMessage}/>
-            </>
-        );
+        notFound();
     }
 
     const siteIds = [flight.takeoff?.ffvl_sid, flight.landing?.ffvl_sid]

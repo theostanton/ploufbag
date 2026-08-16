@@ -1,3 +1,4 @@
+import {notFound} from "next/navigation";
 import {get} from "@database/pilots";
 import {Flights} from "@database/flights";
 import MapScene from "@ui/map/MapScene";
@@ -19,15 +20,9 @@ export default async function PilotWingPage({params}: {
     const {pilot_id: pilotIdParam, wing} = await params
     const pilotId = parseInt(pilotIdParam)
 
-    const [pilot, pilotErrorMessage] = await get(pilotId);
+    const [pilot] = await get(pilotId);
     if (!pilot) {
-        return (
-            <>
-                <MapScene chrome="sheet"/>
-                <PanelHeader title="Pilot not found" back={{href: '/pilots', label: 'All pilots'}}/>
-                <PanelEmpty title="We could not load that pilot" detail={pilotErrorMessage}/>
-            </>
-        );
+        notFound();
     }
 
     const [flights, flightsErrorMessage] = await Flights.getForPilotAndWing(pilotId, wing);
