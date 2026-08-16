@@ -1,0 +1,158 @@
+.sheet {
+    pointer-events: auto;
+    position: absolute;
+    border-radius: var(--chrome-radius);
+    background-color: var(--chrome-bg);
+    border: 1px solid var(--chrome-border);
+    box-shadow: var(--chrome-shadow);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/*
+ * The panel scrolls, never the document. A scrolling body would move the map
+ * container with it, and the map is fixed to the viewport.
+ */
+.scroller {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-6);
+}
+
+/* ------------------------------------------------------------ drag handle */
+
+.handle {
+    /* Full width rather than just the visible bar: a 40px pill is a poor touch
+       target, and the whole strip above the content is dead space otherwise. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: grab;
+    /* Claim the vertical gesture so the drag is not stolen by page scrolling —
+       scoped to the handle, so the sheet body still scrolls normally. */
+    touch-action: none;
+}
+
+.handle:active {
+    cursor: grabbing;
+}
+
+.handle:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: -4px;
+}
+
+.handleBar {
+    width: 40px;
+    height: 4px;
+    border-radius: var(--border-radius-full);
+    background-color: var(--color-border);
+}
+
+/* ---------------------------------------------------------------- mobile */
+
+.sheet[data-mode='sheet'] {
+    left: var(--chrome-gap);
+    right: var(--chrome-gap);
+    bottom: var(--chrome-gap);
+    height: var(--sheet-height-mobile);
+    transition: height var(--transition-base);
+}
+
+/*
+ * Snap heights. Animating height rather than transforming keeps the
+ * ResizeObserver in Chrome.tsx honest: it is what tells the camera how much of
+ * the viewport is covered, and it does not fire for transforms.
+ */
+.sheet[data-mode='sheet'][data-snap='peek'] {
+    height: 12dvh;
+}
+
+.sheet[data-mode='sheet'][data-snap='half'] {
+    height: var(--sheet-height-mobile);
+}
+
+.sheet[data-mode='sheet'][data-snap='full'] {
+    height: 88dvh;
+}
+
+/* Follow the finger exactly; a transition here would lag the drag. */
+.sheet[data-dragging] {
+    height: var(--sheet-drag-height);
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sheet[data-mode='sheet'] {
+        transition: none;
+    }
+}
+
+/*
+ * Glass and opaque panels grow to their content and stop, rather than filling
+ * the viewport. A sign-in form stretched to full height is mostly empty panel,
+ * and on the glass routes that empty panel is covering the map it exists to sit
+ * on. `bottom: auto` with a max-height keeps short content compact and long
+ * content scrollable.
+ */
+.sheet[data-mode='glass'],
+.sheet[data-mode='opaque'] {
+    left: var(--chrome-gap);
+    right: var(--chrome-gap);
+    top: var(--chrome-top);
+    bottom: auto;
+    max-height: calc(100dvh - var(--chrome-top) - var(--chrome-gap));
+}
+
+.sheet[data-mode='opaque'] {
+    background-color: var(--color-background);
+    backdrop-filter: none;
+}
+
+/* --------------------------------------------------------------- desktop */
+
+@media (min-width: 1024px) {
+    /*
+     * Left rail. Chrome.tsx infers "docked to the side" from the sheet being
+     * taller than it is wide, and derives the camera's left padding from its
+     * right edge -- so this rule is what moves the map's centre of attention,
+     * not just the panel.
+     */
+    .sheet[data-mode='sheet'],
+    .sheet[data-mode='sheet'][data-snap='peek'],
+    .sheet[data-mode='sheet'][data-snap='full'] {
+        left: var(--chrome-gap);
+        right: auto;
+        top: var(--chrome-top);
+        bottom: var(--chrome-gap);
+        width: var(--sheet-width);
+        height: auto;
+        transition: none;
+    }
+
+    .sheet[data-mode='glass'],
+    .sheet[data-mode='opaque'] {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        width: min(var(--container-max-width), calc(100vw - var(--space-16)));
+    }
+
+    /* The rail is a fixed width and full height; there is nothing to drag. */
+    .handle {
+        display: none;
+    }
+
+    .scroller {
+        padding: var(--space-8);
+    }
+}

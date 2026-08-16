@@ -1,0 +1,8 @@
+/*
+ * "flights" under the count. FlightRow's numbers column carries a duration, a
+ * distance and a date, each self-describing; a bare number needs a unit.
+ */
+.unit {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}

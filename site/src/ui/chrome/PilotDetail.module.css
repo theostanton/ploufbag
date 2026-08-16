@@ -1,0 +1,45 @@
+/*
+ * Compact tallies -- wings, favourite takeoffs, favourite landings. Each was a
+ * card in a grid before; in a 420px rail a list of name-and-count rows carries
+ * the same information in a third of the height.
+ */
+.tally {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tallyRow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--border-radius-lg);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color var(--transition-fast);
+}
+
+.tallyRow:hover {
+    background-color: rgba(0, 163, 221, 0.10);
+    text-decoration: none;
+    color: inherit;
+}
+
+.tallyName {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tallyCount {
+    flex: none;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}

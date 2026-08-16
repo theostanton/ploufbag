@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import MapScene from "@ui/map/MapScene";
 import { WebhookEvent, TaskExecution, MonitoringStats, AnalyticsSummary } from '@model/admin';
 import { ATHLETE_CAPACITY } from '@model/signup';
 
@@ -169,6 +170,10 @@ export default function AdminMonitoringPage() {
     }
 
     return (
+        <>
+        {/* Opaque: tables this dense are unreadable over imagery, however
+            blurred. The map stays mounted and simply stops painting. */}
+        <MapScene chrome="opaque"/>
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white shadow">
@@ -525,5 +530,6 @@ export default function AdminMonitoringPage() {
                 )}
             </div>
         </div>
+        </>
     );
 }

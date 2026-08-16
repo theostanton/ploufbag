@@ -1,0 +1,78 @@
+'use client'
+
+import { ReactNode, useCallback, useEffect, useRef } from 'react'
+import styles from './Chrome.module.css'
+import Sheet from './Sheet'
+import MapControls from './MapControls'
+import RouteAnnouncer from './RouteAnnouncer'
+import { useScene } from '@ui/map/store'
+import { setInsets } from '@ui/map/store'
+
+/**
+ * Everything that floats over the map.
+ *
+ * The container covers the viewport but is transparent to the pointer; each
+ * panel inside re-enables pointer events for itself. Without that, an invisible
+ * full-screen div would swallow every pan and zoom.
+ *
+ * Chrome also owns the measuring. The camera needs to know how much of the
+ * viewport the panels are covering so it can frame content in the part that is
+ * actually visible, and doing that in one place beats each panel reporting its
+ * own edge and racing the others.
+ */
+export default function Chrome({ topBar, children }: { topBar: ReactNode; children: ReactNode }) {
+    const scene = useScene()
+    const topBarRef = useRef<HTMLDivElement>(null)
+    const sheetRef = useRef<HTMLElement>(null)
+
+    const measure = useCallback(() => {
+        const topBarRect = topBarRef.current?.getBoundingClientRect()
+        const sheetRect = sheetRef.current?.getBoundingClientRect()
+
+        const top = topBarRect ? Math.round(topBarRect.bottom) : 0
+        if (!sheetRect) {
+            setInsets({ top, right: 0, bottom: 0, left: 0 })
+            return
+        }
+
+        // Which edge the sheet is docked to is a layout decision made in CSS, so
+        // infer it from where the sheet actually is rather than duplicating the
+        // breakpoint here and letting the two drift.
+        const isSideRail = sheetRect.height > sheetRect.width
+        if (isSideRail) {
+            setInsets({ top, right: 0, bottom: 0, left: Math.round(sheetRect.right) })
+        } else {
+            setInsets({
+                top,
+                right: 0,
+                bottom: Math.round(window.innerHeight - sheetRect.top),
+                left: 0,
+            })
+        }
+    }, [])
+
+    useEffect(() => {
+        measure()
+        const observer = new ResizeObserver(measure)
+        if (topBarRef.current) observer.observe(topBarRef.current)
+        if (sheetRef.current) observer.observe(sheetRef.current)
+        window.addEventListener('resize', measure)
+        return () => {
+            observer.disconnect()
+            window.removeEventListener('resize', measure)
+        }
+    }, [measure, scene.chrome])
+
+    return (
+        <div className={styles.chrome} data-chrome={scene.chrome}>
+            <div className={styles.topBar} ref={topBarRef}>
+                {topBar}
+            </div>
+            <Sheet ref={sheetRef} mode={scene.chrome}>
+                {children}
+            </Sheet>
+            {scene.chrome === 'sheet' && <MapControls />}
+            <RouteAnnouncer />
+        </div>
+    )
+}

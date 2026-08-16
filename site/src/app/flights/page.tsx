@@ -1,52 +1,47 @@
 import {Flights} from "@database/flights";
-import styles from "@styles/Page.module.css";
-import detailStyles from "@ui/DetailPages.module.css";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
-import FlightItem from "@ui/FlightItem";
-import FlightsMap from "@ui/FlightsMap";
-import mapStyles from "@ui/FlightMap.module.css";
+import MapScene from "@ui/map/MapScene";
+import FlightRow from "@ui/chrome/FlightRow";
+import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 
 export const metadata: Metadata = createMetadata('Flights')
 
-export default async function PageActivities() {
-    const [flights, errorMessage] = await Flights.getAll();
-    if (flights) {
-        const latestFlights = flights.toSpliced(20, Infinity)
-        return <div className={styles.page}>
-            <div className={styles.container}>
-                <header className={styles.pageHeader}>
-                    <h1 className={styles.title}>All Flights</h1>
-                    <p className={styles.description}>
-                        Paragliding flight tracking with detailed statistics and maps.
-                    </p>
-                </header>
+/**
+ * Every flight, on the map and in the panel beside it.
+ *
+ * There is no <FlightsMap> here any more. The map already holds every flight —
+ * it loads /api/geo/flights once — so this route only has to say "show all of
+ * it, nothing emphasised", which is what the empty scene below means. The camera
+ * frames the whole collection.
+ *
+ * The list is the full set rather than the previous first-twenty, because the
+ * list and the map now describe the same thing and it was odd for the map to
+ * show a flight the list denied existed.
+ */
+export default async function FlightsPage() {
+    const [flights, errorMessage] = await Flights.getAllSummaries();
 
-                {/* Flights Overview Map */}
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Flight Paths Overview</h3>
-                    <FlightsMap
-                        flights={flights}
-                        className={mapStyles.mapContainer}
-                    />
-                </div>
-
-                {/* Flights List */}
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Recent Flights</h3>
-                    <div className={detailStyles.flightsList}>
-                        {latestFlights.map(flight =>
-                            <FlightItem key={flight.strava_activity_id} flight={flight}/>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    } else {
-        return <div className={styles.page}>
-            <div className={styles.container}>
-                <h1>{errorMessage}</h1>
-            </div>
-        </div>
-    }
+    return (
+        <>
+            <MapScene chrome="sheet"/>
+            <PanelHeader
+                title="Flights"
+                subtitle={
+                    flights
+                        ? `${flights.length} tracked flights. Pick one here or on the map.`
+                        : undefined
+                }
+            />
+            {flights ? (
+                <PanelSection title={`${flights.length} flights`}>
+                    {flights.map(flight => (
+                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                    ))}
+                </PanelSection>
+            ) : (
+                <PanelEmpty title="Could not load flights" detail={errorMessage}/>
+            )}
+        </>
+    );
 }

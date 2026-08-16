@@ -1,10 +1,15 @@
 'use client';
 
 import styles from './StyleGuide.module.css';
+import MapScene from "@ui/map/MapScene";
 import {BRAND_NAME} from '@ui/brand';
 
 export default function StyleGuidePage() {
   return (
+    <>
+    {/* Opaque: this page is about reading colour and type accurately, which a
+        translucent panel over satellite imagery actively prevents. */}
+    <MapScene chrome="opaque"/>
     <div className={styles.styleguide}>
       <header className={styles.header}>
         <h1>{BRAND_NAME} Design System</h1>
@@ -518,6 +523,7 @@ export default function StyleGuidePage() {
         </div>
       </section>
     </div>
+    </>
   );
 }
 

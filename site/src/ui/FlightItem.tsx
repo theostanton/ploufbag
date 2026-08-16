@@ -1,6 +1,6 @@
 'use client'
 
-import {FlightWithSites} from "@ploufbag/common";
+import {FlightSummary} from "@database/flights";
 import Link from "next/link";
 import Stats from "@ui/stats/Stats";
 import {Stat} from "@ui/stats/model";
@@ -36,7 +36,7 @@ function ClientOnlyDate({date}: {date: Date}) {
     return <span>{formattedDate}</span>;
 }
 
-export default function FlightItem({flight}: { flight: FlightWithSites }) {
+export default function FlightItem({flight}: { flight: FlightSummary }) {
 
     const formatDuration = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);

@@ -14,6 +14,7 @@ import FlightItem from "@ui/FlightItem";
 import DescriptionPreferencesComponent from "@ui/preferences/DescriptionPreferences";
 import Link from "next/link";
 import {formatSiteName} from "@utils/formatSiteName";
+import MapScene from "@ui/map/MapScene";
 
 export const metadata: Metadata = createMetadata('Dashboard')
 
@@ -27,14 +28,18 @@ export default async function Dashboard() {
         [stats, takeoffStatsErrorMessage],
         [recentFlights, flightsErrorMessage],
         [totalFlightCount, flightCountErrorMessage],
-        descriptionPreferencesResult
+        descriptionPreferencesResult,
+        [ownFlights]
     ] = await Promise.all([
         get(pilotId),
         getPilotWingStats(pilotId),
         Sites.getPilotStats(pilotId),
         Flights.getForPilot(pilotId, 3),
         Flights.getPilotFlightCount(pilotId),
-        DescriptionPreferences.get(pilotId)
+        DescriptionPreferences.get(pilotId),
+        // Ids only, to tell the map which tracks are yours. The panel lists
+        // three; the map behind it shows everywhere you have flown.
+        Flights.getForPilot(pilotId)
     ]);
 
     // Check for any errors and display them
@@ -99,12 +104,24 @@ export default async function Dashboard() {
         duration_sec: recentFlights[0].duration_sec,
         distance_meters: recentFlights[0].distance_meters,
         description: recentFlights[0].description,
-        polyline: recentFlights[0].polyline,
+        // The preview formatter renders text from the flight's statistics and
+        // never looks at its geometry; the field exists only to satisfy the
+        // FlightRow shape it takes. The list query no longer fetches polylines,
+        // and adding it back to ship an unread column would be wasteful.
+        polyline: [],
         landing_id: recentFlights[0].landing?.ffvl_sid,
         takeoff_id: recentFlights[0].takeoff?.ffvl_sid
     } : null;
 
-    return <div className={styles.page}>
+    return <>
+        <MapScene
+            chrome="glass"
+            emphasis={{
+                flights: (ownFlights ?? []).map(flight => String(flight.strava_activity_id)),
+                dimOthers: true,
+            }}
+        />
+        <div className={styles.page}>
         <div className={styles.container}>
             {/* Welcome Header */}
             <header className={styles.pageHeaderWithProfile}>
@@ -249,4 +266,5 @@ export default async function Dashboard() {
             )}
         </div>
     </div>
+    </>
 }

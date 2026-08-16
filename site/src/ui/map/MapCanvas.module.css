@@ -1,0 +1,79 @@
+/*
+ * The map fills the viewport and everything else floats over it. Fixed rather
+ * than absolute so it does not participate in document scrolling -- nothing in
+ * the chrome scrolls the page body any more; panels scroll themselves.
+ */
+.canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-color: #0f1310;
+}
+
+/*
+ * On routes where the map is only a backdrop, take it out of the interaction
+ * path entirely. Pointer events are already blocked by the panel over it, but
+ * this also stops a stray scroll from zooming the world behind a form.
+ */
+.canvas[data-chrome='glass'] {
+    pointer-events: none;
+}
+
+.canvas[data-chrome='opaque'] {
+    pointer-events: none;
+    /* Left mounted, not unmounted: rebuilding the instance on the way back to a
+       map view is exactly what this architecture exists to avoid. Hidden costs
+       nothing, because Mapbox stops painting a display:none canvas. */
+    visibility: hidden;
+}
+
+/*
+ * The Mapbox wordmark and attribution are required to stay visible, so they are
+ * repositioned rather than hidden: on a phone the bottom-right corner they
+ * default to is underneath the sheet.
+ */
+.canvas :global(.mapboxgl-ctrl-bottom-right) {
+    bottom: calc(var(--map-bottom-inset, 0px) + var(--chrome-gap));
+}
+
+.loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.02em;
+    background-color: #0f1310;
+}
+
+.fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+    /* A flat error colour over the whole viewport is oppressive; a dim gradient
+       reads as "the map is missing" rather than "the site is broken". */
+    background: radial-gradient(circle at 50% 35%, #1d2620 0%, #0f1310 70%);
+}
+
+.fallbackInner {
+    max-width: 32ch;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.fallbackTitle {
+    font-family: var(--font-family-heading);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-lg);
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: var(--space-3);
+}
+
+.fallbackBody {
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    margin: 0;
+}

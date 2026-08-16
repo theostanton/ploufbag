@@ -1,0 +1,35 @@
+.filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    user-select: none;
+}
+
+.filter input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+.count {
+    /* Pushed to the far edge so the number sits over the counts in the rows
+       below it. */
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.empty {
+    padding: var(--space-8) 0;
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}

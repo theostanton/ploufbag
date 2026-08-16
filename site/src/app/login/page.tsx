@@ -4,7 +4,9 @@ import {createMetadata} from "@ui/metadata";
 import {BRAND_NAME} from "@ui/brand";
 import ConnectWithStrava from "@ui/ConnectWithStrava";
 import {getCount} from "@database/pilots";
+import {Sites} from "@database/Sites";
 import {signupState} from "@model/signup";
+import MapScene from "@ui/map/MapScene";
 
 export const metadata: Metadata = createMetadata('Login')
 
@@ -22,8 +24,11 @@ export default async function Login() {
         return 0;
     });
     const state = signupState(pilotCount);
+    const heroBounds = await Sites.getBusiestBounds();
 
-    return <div className={styles.loginPageContainer}>
+    return <>
+        <MapScene chrome="glass" ambient bounds={heroBounds ?? undefined}/>
+        <div className={styles.loginPageContainer}>
         <div className={styles.loginContent}>
             <div style={{ marginBottom: 'var(--space-6)' }}>
                 <div style={{ fontSize: '3rem', marginBottom: 'var(--space-4)' }}>🪂</div>
@@ -156,4 +161,5 @@ export default async function Login() {
             </div>
         </div>
     </div>
+    </>
 }

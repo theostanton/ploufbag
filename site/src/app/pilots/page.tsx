@@ -1,54 +1,42 @@
 import {getAll} from "@database/pilots";
-import styles from "@styles/Page.module.css";
-import detailStyles from "@ui/DetailPages.module.css";
-import pilotsStyles from "./Pilots.module.css";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
-import PilotItem from "@ui/PilotItem";
+import MapScene from "@ui/map/MapScene";
+import PilotRow from "@ui/chrome/PilotRow";
+import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 
 export const metadata: Metadata = createMetadata('Pilots')
 
-export default async function PagePilots() {
+/**
+ * Everyone flying.
+ *
+ * A pilot list has nothing of its own to put on the map, so the scene stays
+ * empty and the map keeps showing the whole world of flights behind the panel —
+ * which is more useful than blanking it, and is the point of having one map.
+ */
+export default async function PilotsPage() {
     const [pilots, errorMessage] = await getAll();
-    
-    if (errorMessage) {
-        return <div className={styles.page}>
-            <div className={styles.container}>
-                <h1 className={styles.title}>Error loading pilots</h1>
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Failed to load pilot data</h3>
-                    <div className={pilotsStyles.errorPadding}>
-                        <strong>Error:</strong> {errorMessage}
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-    
-    return <div className={styles.page}>
-        <div className={styles.container}>
-            <header className={styles.pageHeader}>
-                <h1 className={styles.title}>Community Pilots</h1>
-                <p className={styles.description}>
-                    Discover the paragliding community and connect with fellow pilots.
-                </p>
-            </header>
 
-            {/* Pilots List */}
-            <div className={detailStyles.infoCard}>
-                <h3 className={detailStyles.infoTitle}>Active Pilots ({pilots.length})</h3>
-                <div className={pilotsStyles.pilotsList}>
-                    {pilots.map(pilot => (
-                        <PilotItem key={pilot.pilot_id} pilot={pilot} />
-                    ))}
-                </div>
-                
-                {pilots.length === 0 && (
-                    <div className={pilotsStyles.noPilotsContainer}>
-                        <p>No pilots found. Be the first to join the community!</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
+    return (
+        <>
+            <MapScene chrome="sheet"/>
+            <PanelHeader
+                title="Pilots"
+                subtitle={pilots ? `${pilots.length} flying with Plouf Bag.` : undefined}
+            />
+            {pilots
+                ? (
+                    <PanelSection>
+                        {pilots.map(pilot => <PilotRow key={pilot.pilot_id} pilot={pilot}/>)}
+                        {pilots.length === 0 && (
+                            <PanelEmpty
+                                title="No pilots yet"
+                                detail="Be the first to connect a Strava account."
+                            />
+                        )}
+                    </PanelSection>
+                )
+                : <PanelEmpty title="Could not load pilots" detail={errorMessage}/>}
+        </>
+    );
 }

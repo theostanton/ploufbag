@@ -1,0 +1,37 @@
+/*
+ * The chrome layer covers the viewport so its children can be positioned
+ * against the edges, but it must not intercept the pointer -- panning the map
+ * has to work everywhere the panels are not. Each panel switches pointer events
+ * back on for itself.
+ */
+.chrome {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    display: grid;
+    /* Rows: the bar, then everything below it. The sheet positions itself within
+       the second row rather than being placed by the grid, because on mobile it
+       is docked to the bottom and on desktop to the left. */
+    grid-template-rows: auto 1fr;
+}
+
+.topBar {
+    pointer-events: auto;
+    padding: var(--chrome-gap);
+    /* The bar is a floating pill, so the container must not stretch it to the
+       full height of its row. */
+    align-self: start;
+    /* The sheet is absolutely positioned and comes later in source order, so
+       without this it paints its glass over the bar. The bar is always on top. */
+    position: relative;
+    z-index: 2;
+}
+
+/*
+ * On opaque routes the panel is the page. Dropping the gap lets the sheet run
+ * edge to edge instead of floating on imagery it is entirely covering anyway.
+ */
+.chrome[data-chrome='opaque'] .topBar {
+    padding-bottom: 0;
+}

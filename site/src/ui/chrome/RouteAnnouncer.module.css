@@ -1,0 +1,16 @@
+/*
+ * Visually hidden, but still rendered and still in the accessibility tree.
+ * `display: none` or `visibility: hidden` would remove it from that tree and
+ * the live region would never fire.
+ */
+.announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

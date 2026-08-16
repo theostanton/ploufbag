@@ -1,199 +1,146 @@
+import {notFound} from "next/navigation";
 import {Flights} from "@database/flights";
-import styles from "@styles/Page.module.css";
-import detailStyles from "@ui/DetailPages.module.css";
-import {Stat} from "@ui/stats/model";
 import {StravaActivityId} from "@ploufbag/common";
-import Stats from "@ui/stats/Stats";
+import Link from "next/link";
 import ViewOnStrava from "@ui/links/ViewOnStrava";
 import ClientOnlyDate from "@ui/ClientOnlyDate";
-import Link from "next/link";
-import FlightMap from "@ui/FlightMap";
 import SignupBanner from "@ui/SignupBanner";
-import mapStyles from "@ui/FlightMap.module.css";
+import MapScene from "@ui/map/MapScene";
+import {getFlightColor} from "@ui/map/colors";
+import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import styles from "@ui/chrome/FlightDetail.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
 
+function formatDuration(seconds: number) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}min`;
+}
 
+/**
+ * One flight.
+ *
+ * The panel describes it; the map shows it. <MapScene> names the flight and its
+ * two sites and asks for everything else to be pushed back — so the track is
+ * framed and highlighted while the surrounding flights stay faintly visible
+ * around it. Dropping the others entirely would leave the flight floating in an
+ * empty world, which tells you nothing about where it happened.
+ *
+ * There is no per-flight map component any more. Arriving here by clicking the
+ * track, by following a link from a list, or cold from a Strava short-link all
+ * produce the same view, because all three end at the same scene.
+ */
 export default async function FlightDetail({params}: {
     params: Promise<{ flight_id: StravaActivityId }>
 }) {
     const flightId = (await params).flight_id;
-    const [flight, errorMessage] = await Flights.get(flightId);
+    const [flight] = await Flights.get(flightId);
 
+    // notFound() rather than a "not found" panel, so the response is an actual
+    // 404. These URLs are published in Strava descriptions and get copied by
+    // hand, so wrong ones are reached often and by crawlers; answering 200 with
+    // apologetic content tells them the page exists.
+    //
+    // A database failure does not land here -- withPooledClient rejects, and the
+    // error boundary catches it -- so this really does mean "no such flight".
     if (!flight) {
-        return <div className={styles.page}>
-            <div className={styles.container}>
-                <h1>{errorMessage}</h1>
-            </div>
-        </div>;
+        notFound();
     }
 
-    const formatDuration = (seconds: number) => {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        }
-        return `${minutes}min`;
-    };
+    const siteIds = [flight.takeoff?.ffvl_sid, flight.landing?.ffvl_sid]
+        .filter((id): id is string => Boolean(id));
 
-    const formatDistance = (meters: number) => {
-        return `${(meters / 1000).toFixed(1)} km`;
-    };
+    return (
+        <>
+            <MapScene
+                chrome="sheet"
+                emphasis={{
+                    flights: [String(flight.strava_activity_id)],
+                    sites: siteIds,
+                    dimOthers: true,
+                }}
+            />
 
-    const formatAltitude = (alt: number) => {
-        return `${alt}m`;
-    };
-
-    const stats: Stat[] = [
-        {label: "Duration", value: formatDuration(flight.duration_sec)},
-        {label: "Distance", value: formatDistance(flight.distance_meters)},
-    ];
-
-    return <div className={styles.page}>
-        <div className={styles.container}>
-            <SignupBanner from="flight"/>
-            {/* Header Section */}
-            <header className={styles.pageHeader}>
-                <h1 className={styles.title}>
-                    {flight.wing} {flight.pilot && `by ${flight.pilot.first_name}`}
-                </h1>
-                <p className={styles.description}>
-                    <ClientOnlyDate date={flight.start_date} format="full"/>
-                </p>
-            </header>
-
-            {/* Stats Section */}
-            <div className={styles.section}>
-                <Stats stats={stats}/>
-            </div>
-
-            {/* Flight Information Grid */}
-            <div className={detailStyles.grid}>
-                {/* Flight Details Card */}
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Flight Details</h3>
-                    <div className={detailStyles.infoGrid}>
-                        <div className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Wing</span>
-                            <Link href={`/pilots/${flight.pilot_id}/${encodeURIComponent(flight.wing.toLowerCase())}`}
-                                  className={detailStyles.infoValue}
-                                  style={{textDecoration: 'none', color: 'var(--color-primary)', cursor: 'pointer'}}>
-                                {flight.wing}
-                            </Link>
-                        </div>
-                        <div className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Duration</span>
-                            <span className={detailStyles.infoValue}>{formatDuration(flight.duration_sec)}</span>
-                        </div>
-                        <div className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Distance</span>
-                            <span className={detailStyles.infoValue}>{formatDistance(flight.distance_meters)}</span>
-                        </div>
-                        <div className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Start Time</span>
-                            <span className={detailStyles.infoValue}>
-                                <ClientOnlyDate date={flight.start_date} format="time"/>
-                            </span>
-                        </div>
+            <PanelHeader
+                back={{href: '/flights', label: 'All flights'}}
+                accent={getFlightColor(String(flight.pilot_id), flight.wing || 'unknown')}
+                title={flight.wing}
+                subtitle={
+                    <>
                         {flight.pilot && (
-                            <div className={detailStyles.infoItem}>
-                                <span className={detailStyles.infoLabel}>Pilot</span>
-                                <Link href={`/pilots/${flight.pilot.pilot_id}`} style={{
-                                    textDecoration: 'none',
-                                    color: 'var(--color-primary)',
-                                    fontWeight: 'var(--font-weight-semibold)'
-                                }}>
+                            <>
+                                <Link href={`/pilots/${flight.pilot.pilot_id}`}>
                                     {flight.pilot.first_name}
                                 </Link>
-                            </div>
+                                {' · '}
+                            </>
                         )}
-                    </div>
-                </div>
+                        <ClientOnlyDate date={flight.start_date} format="date"/>
+                    </>
+                }
+            />
 
-                {/* Sites Information Card */}
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Flight Path</h3>
-                    <div className={detailStyles.siteGrid}>
-                        {flight.takeoff?.slug ? (
-                            <Link href={`/sites/${flight.takeoff.slug}`} className={detailStyles.site}>
-                                <div className={detailStyles.siteIcon}>↗️</div>
-                                <div className={detailStyles.siteLabel}>Takeoff</div>
-                                <div className={detailStyles.siteName}>
-                                    {formatSiteName(flight.takeoff.name)}
-                                </div>
-                                {flight.takeoff.alt && (
-                                    <div className={detailStyles.siteAlt}>
-                                        {formatAltitude(flight.takeoff.alt)}
-                                    </div>
-                                )}
-                            </Link>
-                        ) : (
-                            <div className={detailStyles.site}>
-                                <div className={detailStyles.siteIcon}>↗️</div>
-                                <div className={detailStyles.siteLabel}>Takeoff</div>
-                                <div className={detailStyles.siteName}>Unknown</div>
-                            </div>
-                        )}
-                        <div className={detailStyles.arrow}>→</div>
-                        {flight.landing?.slug ? (
-                            <Link href={`/sites/${flight.landing.slug}`} className={detailStyles.site}>
-                                <div className={detailStyles.siteIcon}>↘️</div>
-                                <div className={detailStyles.siteLabel}>Landing</div>
-                                <div className={detailStyles.siteName}>
-                                    {formatSiteName(flight.landing.name)}
-                                </div>
-                                {flight.landing.alt && (
-                                    <div className={detailStyles.siteAlt}>
-                                        {formatAltitude(flight.landing.alt)}
-                                    </div>
-                                )}
-                            </Link>
-                        ) : (
-                            <div className={detailStyles.site}>
-                                <div className={detailStyles.siteIcon}>↘️</div>
-                                <div className={detailStyles.siteLabel}>Landing</div>
-                                <div className={detailStyles.siteName}>Unknown</div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <SignupBanner from="flight"/>
 
-            {/* Flight Map Section */}
-            <div className={detailStyles.infoCard}>
-                <h3 className={detailStyles.infoTitle}>Flight Map</h3>
-                <FlightMap
-                    polyline={flight.polyline}
-                    takeoffSite={flight.takeoff ? {
-                        name: formatSiteName(flight.takeoff.name),
-                        lat: flight.takeoff.lat,
-                        lng: flight.takeoff.lng
-                    } : null}
-                    landingSite={flight.landing ? {
-                        name: formatSiteName(flight.landing.name),
-                        lat: flight.landing.lat,
-                        lng: flight.landing.lng
-                    } : null}
-                    className={mapStyles.mapContainer}
+            <PanelSection>
+                <PanelFacts
+                    facts={[
+                        {label: 'Duration', value: formatDuration(flight.duration_sec)},
+                        {label: 'Distance', value: `${(flight.distance_meters / 1000).toFixed(1)} km`},
+                        {
+                            label: 'Started',
+                            value: <ClientOnlyDate date={flight.start_date} format="time"/>,
+                        },
+                        {
+                            label: 'Wing',
+                            value: (
+                                <Link
+                                    href={`/pilots/${flight.pilot_id}/${encodeURIComponent(flight.wing.toLowerCase())}`}
+                                >
+                                    {flight.wing}
+                                </Link>
+                            ),
+                        },
+                    ]}
                 />
-            </div>
+            </PanelSection>
 
-            {/* Description Section */}
-            {flight.description && (
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Flight Description</h3>
-                    <div style={{
-                        whiteSpace: 'pre-wrap',
-                        marginBottom: 'var(--space-4)',
-                        lineHeight: 'var(--line-height-relaxed)'
-                    }}>
-                        {flight.description}
-                    </div>
-                    <div className={detailStyles.linksContainer}>
-                        <ViewOnStrava flightId={flight.strava_activity_id}/>
-                    </div>
+            <PanelSection title="Route">
+                <div className={styles.route}>
+                    <SiteEnd role="Takeoff" icon="↗" site={flight.takeoff}/>
+                    <div className={styles.routeArrow} aria-hidden="true">→</div>
+                    <SiteEnd role="Landing" icon="↘" site={flight.landing}/>
                 </div>
+            </PanelSection>
+
+            {flight.description && (
+                <PanelSection title="Description">
+                    <p className={styles.description}>{flight.description}</p>
+                    <ViewOnStrava flightId={flight.strava_activity_id}/>
+                </PanelSection>
             )}
-        </div>
-    </div>;
+        </>
+    );
+}
+
+function SiteEnd({role, icon, site}: {
+    role: string
+    icon: string
+    site: { slug: string, name: string, alt: number } | null
+}) {
+    const body = (
+        <>
+            <span className={styles.endIcon} aria-hidden="true">{icon}</span>
+            <span className={styles.endRole}>{role}</span>
+            <span className={styles.endName}>{site ? formatSiteName(site.name) : 'Unknown'}</span>
+            {site?.alt ? <span className={styles.endAlt}>{site.alt}m</span> : null}
+        </>
+    );
+
+    // An unmatched takeoff or landing is normal — the import only attaches a
+    // site when one is close enough — so the unlinked case is a first-class
+    // rendering, not a fallback.
+    return site?.slug
+        ? <Link href={`/sites/${site.slug}`} className={styles.end}>{body}</Link>
+        : <div className={styles.end}>{body}</div>;
 }

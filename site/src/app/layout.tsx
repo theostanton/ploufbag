@@ -1,13 +1,12 @@
 import "@styles/globals.css";
-import styles from '@styles/Layout.module.css';
-import Header from "@ui/Header";
-import Breadcrumb from "@ui/Breadcrumb";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
+import MapRoot from "@ui/map/MapRoot";
+import TopBar from "@ui/chrome/TopBar";
 
 export const metadata: Metadata = createMetadata()
 
-// Every route is already dynamic at runtime: Header calls Auth.checkIsAuthed(),
+// Every route is already dynamic at runtime: TopBar calls Auth.checkIsAuthed(),
 // which awaits cookies(), and that bails the whole tree out of static rendering.
 // Declaring it explicitly changes no runtime behaviour but stops Next attempting
 // a static render at build time — during which /flights, /pilots and /sites each
@@ -16,23 +15,27 @@ export const metadata: Metadata = createMetadata()
 // it could not run anywhere but an IP-allowlisted developer machine.
 export const dynamic = 'force-dynamic'
 
-
+/**
+ * The whole application is one map with panels floating over it.
+ *
+ * The layout is the mount point because the App Router never remounts it, so
+ * the Mapbox instance inside MapRoot is created once per page load and outlives
+ * every navigation. The four map components this replaced each built their own
+ * instance and destroyed it on the way out.
+ *
+ * `children` is a route's panel content, not a page: it renders inside the
+ * sheet. There is no document flow to lay out here any more and no footer —
+ * nothing scrolls except the panels themselves.
+ */
 export default function Layout({children}: {
     children: React.ReactNode
 }) {
     return (
         <html lang="en">
-        <body className={styles.body}>
-        <Header/>
-        <Breadcrumb/>
-        <div className={styles.container}>
+        <body>
+        <MapRoot topBar={<TopBar/>}>
             {children}
-        </div>
-        <footer className={styles.footer}>
-            <a href="https://theo.dev">
-                Built by theo.dev
-            </a>
-        </footer>
+        </MapRoot>
         </body>
         </html>
     )

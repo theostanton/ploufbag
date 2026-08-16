@@ -4,7 +4,9 @@ import {BRAND_NAME} from "@ui/brand";
 import ConnectWithStrava from "@ui/ConnectWithStrava";
 import {recordEvent} from "@database/analytics";
 import {getCount} from "@database/pilots";
+import {Sites} from "@database/Sites";
 import {SignupState, signupState} from "@model/signup";
+import MapScene from "@ui/map/MapScene";
 
 /**
  * Never statically rendered: this page both records a landing event and reads
@@ -37,7 +39,7 @@ export default async function Home({searchParams}: { searchParams: Promise<Searc
     // Both are awaited before render. The landing insert is a few milliseconds
     // against a warm pool, and doing it inline is more reliable on Cloud Run
     // than deferring it past the response, where CPU is throttled.
-    const [, pilotCount] = await Promise.all([
+    const [, pilotCount, heroBounds] = await Promise.all([
         recordEvent('landing', '/', headersList),
         getCount().catch(error => {
             // Fail open, matching /connect: a database blip should not make the
@@ -45,6 +47,7 @@ export default async function Home({searchParams}: { searchParams: Promise<Searc
             console.error('home: pilot count failed, showing signup anyway:', error);
             return 0;
         }),
+        Sites.getBusiestBounds(),
     ]);
 
     const state = signupState(pilotCount);
@@ -53,6 +56,13 @@ export default async function Home({searchParams}: { searchParams: Promise<Searc
     const wasTurnedAway = (await searchParams).full !== undefined;
 
     return (
+        <>
+            {/*
+              * Nothing to select and nothing to frame, so the map is scenery
+              * here: a translucent panel over a slowly turning view of the Alps.
+              * The drift stops for good the moment anyone touches the map.
+              */}
+            <MapScene chrome="glass" ambient bounds={heroBounds ?? undefined}/>
         <div className={styles.pageCentered}>
 
             <h1 className={styles.title}>
@@ -104,5 +114,6 @@ export default async function Home({searchParams}: { searchParams: Promise<Searc
             </div>
 
         </div>
+        </>
     );
 }
