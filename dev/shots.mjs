@@ -473,6 +473,13 @@ async function hideDevOverlay(page) {
 const IGNORED_CONSOLE_ERRORS = [
     /fonts\.googleapis\.com/,
     /ERR_CONNECTION_RESET/,
+    // Same cause as ERR_CONNECTION_RESET, different symptom: outbound HTTPS
+    // from the browser goes through this container's proxy, whose CA is not in
+    // Chromium's store. Seeded pilots carry Strava CDN avatar URLs, so /pilots
+    // trips this on every run. The site handles the failure -- PilotRow falls
+    // back when the image errors -- which is exactly what a real expired
+    // avatar URL does.
+    /ERR_CERT_AUTHORITY_INVALID/,
     /Failed to fetch[\s\S]*\/api\/dev\/mapbox/,
     // An aborted tile request, identified by the stack pointing into
     // mapbox-gl. Matched on the stack rather than on the message alone so a
