@@ -92,7 +92,12 @@ export namespace Sites {
                          LEFT JOIN (SELECT landing_id, COUNT(*) as count
                                     FROM flights
                                     GROUP BY landing_id) landing_flights ON s.ffvl_sid = landing_flights.landing_id
-                ORDER BY s.name DESC
+                -- Busiest first. This was ORDER BY s.name DESC, so the list opened on
+                -- whichever site happens to sort last in the alphabet; a list
+                -- whose whole point is where people actually fly should lead
+                -- with where people actually fly. Name breaks ties so the order
+                -- is stable across requests.
+                ORDER BY flight_count DESC, s.name ASC
             `);
             if (result.rows) {
                 return success(result.rows.map(row => {

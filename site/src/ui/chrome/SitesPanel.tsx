@@ -13,10 +13,12 @@ type SiteWithFlightCount = Site & { flightCount: number }
 /**
  * The /sites list: search, plus the "only sites we have flights from" toggle.
  *
- * Ordered by how much a site is flown, not alphabetically. The query returns
- * name order, which puts "Aiguillette des Houches" above "Col de la Forclaz"
- * for no reason anyone cares about — the useful question about a list of sites
- * is which ones people actually use.
+ * Ordered by how much a site is flown, not alphabetically: the useful question
+ * about a list of sites is which ones people actually use.
+ *
+ * The query now returns that order too. The sort stays because the filter above
+ * it is client-side and the component should not silently depend on the caller
+ * having ordered its input — it costs one pass over ~40 rows.
  */
 export default function SitesPanel({ sites }: { sites: SiteWithFlightCount[] }) {
     const [onlyWithFlights, setOnlyWithFlights] = useState(false)
