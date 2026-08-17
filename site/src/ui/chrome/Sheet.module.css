@@ -72,23 +72,33 @@
  * Snap heights. Animating height rather than transforming keeps the
  * ResizeObserver in Chrome.tsx honest: it is what tells the camera how much of
  * the viewport is covered, and it does not fire for transforms.
+ *
+ * Scoped to small screens, and that scoping is load-bearing. These selectors
+ * carry an extra attribute over the desktop rule below, so outside a media
+ * query they win on specificity even though the desktop block comes later --
+ * which is exactly what happened: the desktop override listed `peek` and `full`
+ * but not `half`, the default, so the rail rendered ~470px tall on a 900px
+ * screen instead of filling it. Confining them here means desktop cannot see
+ * them at all, whatever the desktop block happens to list.
  */
-.sheet[data-mode='sheet'][data-snap='peek'] {
-    height: 12dvh;
-}
+@media (max-width: 1023px) {
+    .sheet[data-mode='sheet'][data-snap='peek'] {
+        height: 12dvh;
+    }
 
-.sheet[data-mode='sheet'][data-snap='half'] {
-    height: var(--sheet-height-mobile);
-}
+    .sheet[data-mode='sheet'][data-snap='half'] {
+        height: var(--sheet-height-mobile);
+    }
 
-.sheet[data-mode='sheet'][data-snap='full'] {
-    height: 88dvh;
-}
+    .sheet[data-mode='sheet'][data-snap='full'] {
+        height: 88dvh;
+    }
 
-/* Follow the finger exactly; a transition here would lag the drag. */
-.sheet[data-dragging] {
-    height: var(--sheet-drag-height);
-    transition: none;
+    /* Follow the finger exactly; a transition here would lag the drag. */
+    .sheet[data-dragging] {
+        height: var(--sheet-drag-height);
+        transition: none;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -127,9 +137,7 @@
      * right edge -- so this rule is what moves the map's centre of attention,
      * not just the panel.
      */
-    .sheet[data-mode='sheet'],
-    .sheet[data-mode='sheet'][data-snap='peek'],
-    .sheet[data-mode='sheet'][data-snap='full'] {
+    .sheet[data-mode='sheet'] {
         left: var(--chrome-gap);
         right: auto;
         top: var(--chrome-top);

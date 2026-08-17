@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withPooledClient } from '@database/client';
 import { TaskExecution } from '@model/admin';
 
+/**
+ * Timestamps come back as Date from ts-postgres, but a driver or column-type
+ * change turning one into a string should not 500 the endpoint.
+ */
+function toIso(value: unknown): string | null {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
@@ -33,18 +42,28 @@ export async function GET(request: NextRequest) {
 
         const result = await database.query(query, [limit]);
 
-        const executions: TaskExecution[] = result.rows.map((row: any) => ({
-          id: row.id,
-          task_name: row.task_name,
-          triggered_by: row.triggered_by,
-          started_at: row.started_at.toISOString(),
-          completed_at: row.completed_at ? row.completed_at.toISOString() : null,
-          status: row.status,
-          error_message: row.error_message,
-          execution_duration_ms: row.execution_duration_ms,
-          pilot_id: row.pilot_id,
-          retry_count: row.retry_count
-        }));
+        // reify() is what turns a ts-postgres row into an object keyed by
+        // column name; without it a row is an array and every `row.x` is
+        // undefined, so the first `.toISOString()` threw and this endpoint
+        // returned 500 for every request that reached the database. Every
+        // other query in the codebase reifies -- these two admin routes were
+        // the exceptions, and the admin page has never shown a task or a
+        // webhook because of it.
+        const executions: TaskExecution[] = result.rows.map((row) => {
+          const task = row.reify() as any;
+          return {
+            id: String(task.id),
+            task_name: task.task_name,
+            triggered_by: task.triggered_by,
+            started_at: toIso(task.started_at)!,
+            completed_at: toIso(task.completed_at),
+            status: task.status,
+            error_message: task.error_message,
+            execution_duration_ms: task.execution_duration_ms,
+            pilot_id: task.pilot_id,
+            retry_count: task.retry_count
+          };
+        });
 
         return [executions, null];
       } catch (err) {

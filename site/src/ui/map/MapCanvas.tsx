@@ -8,6 +8,7 @@ import styles from './MapCanvas.module.css'
 import { setHoveredFlight, setHoveredSite, useInsets, useScene } from './store'
 import { useBaseData } from './useBaseData'
 import { useMapScene } from './useMapScene'
+import MapHoverCard from './MapHoverCard'
 import { useAmbientDrift } from './useAmbientDrift'
 import {
     FLIGHTS_SOURCE_ID,
@@ -266,6 +267,7 @@ export default function MapCanvas() {
                 </Source>
             </Map>
             {!isReady && <div className={styles.loading}>Loading map…</div>}
+            <MapHoverCard baseData={baseData}/>
         </div>
     )
 }

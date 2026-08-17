@@ -3,7 +3,6 @@ import {createMetadata} from "@ui/metadata";
 import {notFound} from "next/navigation";
 import {Sites} from "@database/Sites";
 import {Flights} from "@database/flights";
-import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import {siteRole, siteRoleColor} from "@ui/map/siteRole";
 import FlightRow from "@ui/chrome/FlightRow";
@@ -53,14 +52,25 @@ export default async function SiteDetail({params}: {
                 focusSitePolygon={site.ffvl_sid}
             />
 
+            {/* The subtitle is deliberately not the altitude and flight count:
+                those are the first two facts immediately below it, and
+                repeating them verbatim wasted the one line that could say what
+                kind of site this is. */}
             <PanelHeader
                 back={{href: '/sites', label: 'All sites'}}
                 accent={accent}
                 title={formatSiteName(site.name)}
-                subtitle={`${site.alt}m · ${flights.length} ${flights.length === 1 ? 'flight' : 'flights'}`}
+                subtitle={
+                    takeoffs > 0 && landings > 0
+                        ? 'Flown from and landed at.'
+                        : landings > 0
+                            ? 'A landing field.'
+                            : takeoffs > 0
+                                ? 'A takeoff.'
+                                : 'No recorded flights here yet.'
+                }
             />
 
-            <SignupBanner from="site"/>
 
             <PanelSection>
                 <PanelFacts

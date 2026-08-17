@@ -6,7 +6,6 @@ import {Sites} from "@database/Sites";
 import {Metadata, ResolvingMetadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import Link from "next/link";
-import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import FlightRow from "@ui/chrome/FlightRow";
 import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
@@ -83,7 +82,6 @@ export default async function PilotPage({params}: {
                 subtitle={`${totalFlightCount ?? flights.length} flights`}
             />
 
-            <SignupBanner from="pilot"/>
 
             <PanelSection>
                 <PanelFacts

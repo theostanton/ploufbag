@@ -47,9 +47,15 @@ export const STRAVA_AUTHORIZE_URL =
  * An allowlist rather than free text because the value arrives as a query
  * parameter and is written straight into analytics_events.path. Without it,
  * anyone could hand-craft /connect?from=... and write arbitrary strings into
- * the analytics table.
+ * the analytics table. Members are therefore added deliberately, one at a time:
+ *
+ *  - flight | pilot | site: the detail routes strangers reach from a Strava
+ *    description.
+ *  - header: the top-bar button, which is on every route.
+ *  - map: the floating upsell on a list or overview route, where there is no
+ *    single entity to attribute the click to.
  */
-export const SIGNUP_SOURCES = ['flight', 'pilot', 'site'] as const;
+export const SIGNUP_SOURCES = ['flight', 'pilot', 'site', 'header', 'map'] as const;
 
 export type SignupSource = typeof SIGNUP_SOURCES[number];
 

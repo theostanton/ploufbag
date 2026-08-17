@@ -45,6 +45,43 @@ if (!chromium) {
     process.exit(1);
 }
 
+// ---------------------------------------------------------------------- auth
+//
+// /dashboard and /welcome are behind middleware, and /admin only has anything
+// to show for a signed-in visitor, so without a session the tour photographed a
+// redirect to /login three times and called it coverage.
+//
+// The session is a plain HS256 JWT with the pilot id in `sub` (see
+// data/auth/index.ts), signed with the same SESSION_SECRET the dev server was
+// started with -- dev/site.sh defaults it, and this defaults it identically. No
+// Strava round trip is involved, and nothing here works against a deployment
+// whose secret we do not have, which is the point.
+
+const DEV_SESSION_SECRET =
+    process.env.SESSION_SECRET || 'dev-session-secret-not-for-any-real-use';
+
+/** The pilot the seed data gives the most flights; see dev/seed.mjs. */
+const TOUR_PILOT_ID = 4210001;
+
+/** jose comes from the site's own node_modules -- it is already a dependency. */
+async function mintSessionCookie() {
+    const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+    const siteRequire = createRequire(path.join(repoRoot, 'site', 'package.json'));
+    let SignJWT;
+    try {
+        ({ SignJWT } = siteRequire('jose'));
+    } catch {
+        return null;
+    }
+    const token = await new SignJWT({})
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject(String(TOUR_PILOT_ID))
+        .setIssuedAt()
+        .setExpirationTime('2h')
+        .sign(new TextEncoder().encode(DEV_SESSION_SECRET));
+    return token;
+}
+
 // ------------------------------------------------------------------- options
 
 function parseArgs(argv) {
@@ -205,6 +242,201 @@ const TOUR = [
         path: '/login',
         ambient: true,
     },
+
+    // ------------------------------------------------------- chrome refinements
+
+    {
+        // The header no longer offers "Login". Everything here is public, so a
+        // visitor reading the nav has no account to sign in to yet -- the offer
+        // is "Connect Strava", and it goes through the same OAuth either way.
+        name: '11-header-connect',
+        path: '/flights',
+        act: async (page, { expect }) => {
+            const login = await page.getByRole('link', { name: 'Login', exact: true }).count();
+            expect(login === 0, 'the Login link is back in the header');
+            const connect = await page
+                .getByRole('link', { name: /Connect Strava/i })
+                .first()
+                .isVisible()
+                .catch(() => false);
+            expect(connect, 'no Connect Strava button in the header');
+            return {};
+        },
+    },
+    {
+        // A1, asserted so it cannot come back: the desktop rail lost its height
+        // to a snap rule leaking out of the mobile block and rendered ~470px
+        // tall on a 900px screen. It should fill the column.
+        name: '11b-rail-height',
+        path: '/flights',
+        act: async (page, { expect }) => {
+            const sheet = page.locator('section[data-mode]');
+            const box = await sheet.boundingBox();
+            if (!box) return { skipped: 'no chrome panel on this route' };
+            const viewport = page.viewportSize();
+            const mode = await sheet.getAttribute('data-mode');
+            if (viewport.width < 1024) {
+                // On a phone the sheet is meant to be short; that is the point.
+                expect(box.height < viewport.height * 0.6, `mobile sheet is ${box.height}px tall`);
+                return {};
+            }
+            expect(mode === 'sheet', `expected the rail on /flights, got data-mode=${mode}`);
+            // Assert the geometry rather than a height in pixels: the rail is
+            // pinned top and bottom, so what matters is that its bottom edge
+            // reaches the bottom of the viewport. (Deriving an expected height
+            // from --chrome-top does not work -- it is a calc() and comes back
+            // as a string.)
+            const bottomGap = viewport.height - (box.y + box.height);
+            expect(
+                bottomGap >= 0 && bottomGap < 24,
+                `desktop rail stops ${Math.round(bottomGap)}px short of the viewport bottom`
+            );
+            expect(
+                box.height > viewport.height * 0.8,
+                `desktop rail is ${Math.round(box.height)}px in a ${viewport.height}px viewport`
+            );
+            return {};
+        },
+    },
+    {
+        // A4. A flight row is one stretched link with several real links on top
+        // of it; the whole point is that the inner ones go somewhere else. This
+        // fails if the stretched link swallows them again.
+        name: '11c-inner-link',
+        path: '/flights',
+        act: async (page, { expect, waitForPath, peekSheet }) => {
+            const inner = page.locator('a[href^="/sites/"]').first();
+            if (!(await inner.isVisible().catch(() => false))) {
+                return { skipped: 'no site link in the list' };
+            }
+            const href = await inner.getAttribute('href');
+            await inner.click();
+            const ok = await waitForPath(/^\/sites\/[^/]+$/)
+                .then(() => true)
+                .catch(() => false);
+            expect(ok, `clicking ${href} inside a flight row did not open the site`);
+            // Leave the browser somewhere predictable for the next step.
+            await peekSheet();
+            return {};
+        },
+    },
+    {
+        // B2. The filter narrows the list already in hand; no query, no request.
+        name: '11d-filter',
+        path: '/flights',
+        act: async (page, { expect }) => {
+            const rows = page.locator('a[href^="/flights/"]');
+            const before = await rows.count();
+            if (before === 0) return { skipped: 'no flights in the list' };
+            const box = page.getByPlaceholder(/Search site, pilot or wing/i);
+            if (!(await box.isVisible().catch(() => false))) {
+                return { skipped: 'no filter input' };
+            }
+            await box.fill('zzzzzz');
+            await page.waitForTimeout(200);
+            const after = await rows.count();
+            expect(after < before, `filter did not reduce the list (${before} -> ${after})`);
+            await box.fill('');
+            await page.waitForTimeout(200);
+            expect(
+                (await rows.count()) === before,
+                'clearing the filter did not restore the list'
+            );
+            return {};
+        },
+    },
+    {
+        // B3. Hovering a track should say what it is, not just thicken a line.
+        name: '11e-hover-card',
+        path: '/flights',
+        act: async (page, { expect, hoverFirstTrack }) => {
+            if (page.viewportSize().width < 1024) {
+                return { skipped: 'the hover card is desktop-only; a phone has no pointer' };
+            }
+            if (!(await hoverFirstTrack())) return { skipped: 'no track-only point to hover' };
+            const shown = await page
+                .locator('[data-hover-card]')
+                .waitFor({ state: 'visible', timeout: 4000 })
+                .then(() => true)
+                .catch(() => false);
+            expect(shown, 'hovering a track did not show the hover card');
+            return {};
+        },
+    },
+    {
+        // A3. The upsell is floating chrome now, dismissible, and the dismissal
+        // has to survive a navigation or it is just an annoyance with a button.
+        name: '11f-signup-chrome',
+        path: '/flights',
+        act: async (page, { expect, waitForPath }) => {
+            const card = page.locator('aside[aria-label="Connect your Strava account"]');
+            // The card renders nothing until its effect has read sessionStorage,
+            // so it is absent for the first moments after domcontentloaded --
+            // checking immediately reported "no signup chrome" on a page that
+            // shows one a beat later.
+            const appeared = await card
+                .waitFor({ state: 'visible', timeout: 8000 })
+                .then(() => true)
+                .catch(() => false);
+            if (!appeared) {
+                return { skipped: 'no signup chrome (signed in, or at capacity)' };
+            }
+            await card.getByRole('button', { name: 'Dismiss' }).click();
+            expect(!(await card.isVisible().catch(() => false)), 'dismiss did not hide the card');
+
+            await page.getByRole('link', { name: 'Sites', exact: true }).click();
+            await waitForPath(/^\/sites\/?$/);
+            await page.waitForTimeout(400);
+            expect(
+                !(await card.isVisible().catch(() => false)),
+                'the signup chrome came back after a navigation'
+            );
+            return {};
+        },
+    },
+
+    // ------------------------------------------------------------ authed routes
+
+    {
+        name: '12-dashboard',
+        path: '/dashboard',
+        authed: true,
+        act: async (page, { expect }) => {
+            expect(
+                new URL(page.url()).pathname.startsWith('/dashboard'),
+                `/dashboard redirected to ${new URL(page.url()).pathname} -- session cookie rejected?`
+            );
+            return {};
+        },
+    },
+    {
+        name: '13-welcome',
+        path: '/welcome',
+        authed: true,
+        ambient: true,
+    },
+    {
+        name: '14-admin',
+        path: '/admin',
+        authed: true,
+        act: async (page, { expect }) => {
+            // The rebuild's whole reason for existing: this page was styled with
+            // Tailwind classes that resolve to nothing, so it rendered as raw
+            // markup. A styled tab strip is the cheapest proof it does not.
+            // The page fetches before it can show anything, so give the tabs
+            // time to replace the loading state rather than checking the frame
+            // straight after domcontentloaded.
+            const tab = page.getByRole('tab', { name: 'Webhooks' });
+            const visible = await tab
+                .waitFor({ state: 'visible', timeout: 15000 })
+                .then(() => true)
+                .catch(() => false);
+            expect(visible, 'no tab strip on /admin');
+            if (visible) await tab.click();
+            await page.waitForTimeout(300);
+            return {};
+        },
+    },
 ];
 
 // ------------------------------------------------------------------- helpers
@@ -241,6 +473,13 @@ async function hideDevOverlay(page) {
 const IGNORED_CONSOLE_ERRORS = [
     /fonts\.googleapis\.com/,
     /ERR_CONNECTION_RESET/,
+    // Same cause as ERR_CONNECTION_RESET, different symptom: outbound HTTPS
+    // from the browser goes through this container's proxy, whose CA is not in
+    // Chromium's store. Seeded pilots carry Strava CDN avatar URLs, so /pilots
+    // trips this on every run. The site handles the failure -- PilotRow falls
+    // back when the image errors -- which is exactly what a real expired
+    // avatar URL does.
+    /ERR_CERT_AUTHORITY_INVALID/,
     /Failed to fetch[\s\S]*\/api\/dev\/mapbox/,
     // An aborted tile request, identified by the stack pointing into
     // mapbox-gl. Matched on the stack rather than on the message alone so a
@@ -297,10 +536,10 @@ function makeHelpers(page, failures, stepName) {
         });
     };
 
-    // Probe the map for a rendered flight track and click it. Returns false when
-    // there is nothing there, so a step can report "skipped" rather than fail
-    // for a reason that is not a regression.
-    const clickFirstTrack = async () => {
+    // Probe the map for a rendered flight track and return a viewport point on
+    // it. Null when there is nothing there, so a step can report "skipped"
+    // rather than fail for a reason that is not a regression.
+    const findTrackPoint = async () => {
         // queryRenderedFeatures only sees what is currently painted, so the
         // tracks have to be on screen before we can aim at one.
         await page
@@ -371,8 +610,28 @@ function makeHelpers(page, failures, stepName) {
             return null;
         });
 
+        return point;
+    };
+
+    const clickFirstTrack = async () => {
+        const point = await findTrackPoint();
         if (!point) return false;
         await page.mouse.click(point.x, point.y);
+        return true;
+    };
+
+    /**
+     * Point at a track without clicking it. Two moves: the map's mousemove
+     * handler compares against the feature it last saw, and a single jump onto
+     * the line from wherever the pointer happened to be can arrive before the
+     * first frame with the track painted under it.
+     */
+    const hoverFirstTrack = async () => {
+        const point = await findTrackPoint();
+        if (!point) return false;
+        await page.mouse.move(point.x + 40, point.y + 40);
+        await page.mouse.move(point.x, point.y, { steps: 8 });
+        await page.waitForTimeout(200);
         return true;
     };
 
@@ -451,6 +710,7 @@ function makeHelpers(page, failures, stepName) {
         waitForPath,
         mapCanvasId,
         clickFirstTrack,
+        hoverFirstTrack,
         peekSheet,
         firstFlightHref,
         waitForMapIdle,
@@ -459,16 +719,18 @@ function makeHelpers(page, failures, stepName) {
 
 // ---------------------------------------------------------------------- main
 
-async function runViewport(browser, viewportName, outDir, failures) {
-    const context = await browser.newContext({
-        viewport: {
-            width: VIEWPORTS[viewportName].width,
-            height: VIEWPORTS[viewportName].height,
-        },
-        isMobile: VIEWPORTS[viewportName].isMobile,
-        deviceScaleFactor: VIEWPORTS[viewportName].deviceScaleFactor ?? 1,
-        hasTouch: VIEWPORTS[viewportName].isMobile,
-    });
+/**
+ * Run a slice of the tour in one browser context.
+ *
+ * The tour is run twice per viewport, in two contexts: once signed out and once
+ * with a session cookie. Two contexts rather than one, because the signed-out
+ * assertions are about things a session removes -- the Connect button in the
+ * header, the floating upsell -- so a single authed context would quietly turn
+ * half the chrome checks into skips.
+ */
+async function runSteps(context, steps, viewportName, outDir, failures, label) {
+    if (steps.length === 0) return;
+
     const page = await context.newPage();
 
     // A React error or a Mapbox style failure will otherwise show up as a
@@ -492,9 +754,7 @@ async function runViewport(browser, viewportName, outDir, failures) {
     // step that merely inherited it.
     const skipped = new Set();
 
-    for (const step of TOUR) {
-        if (options.only && !step.name.includes(options.only)) continue;
-
+    for (const step of steps) {
         const helpers = makeHelpers(page, failures, `${viewportName}/${step.name}`);
         let note = '';
 
@@ -531,11 +791,54 @@ async function runViewport(browser, viewportName, outDir, failures) {
     if (pageErrors.length > 0) {
         // Deduplicate: React logs the same hydration complaint many times.
         for (const error of [...new Set(pageErrors)]) {
-            failures.push(`${viewportName}: page error: ${error.slice(0, 300)}`);
+            failures.push(`${viewportName}${label}: page error: ${error.slice(0, 300)}`);
         }
     }
 
+    await page.close();
+}
+
+async function runViewport(browser, viewportName, outDir, failures, sessionCookie) {
+    const contextOptions = {
+        viewport: {
+            width: VIEWPORTS[viewportName].width,
+            height: VIEWPORTS[viewportName].height,
+        },
+        isMobile: VIEWPORTS[viewportName].isMobile,
+        deviceScaleFactor: VIEWPORTS[viewportName].deviceScaleFactor ?? 1,
+        hasTouch: VIEWPORTS[viewportName].isMobile,
+    };
+
+    const wanted = TOUR.filter((step) => !options.only || step.name.includes(options.only));
+    const anonymous = wanted.filter((step) => !step.authed);
+    const authed = wanted.filter((step) => step.authed);
+
+    const context = await browser.newContext(contextOptions);
+    await runSteps(context, anonymous, viewportName, outDir, failures, '');
     await context.close();
+
+    if (authed.length === 0) return;
+
+    if (!sessionCookie) {
+        for (const step of authed) {
+            console.log(`  ${step.name}.${viewportName}.png (skipped: could not mint a session)`);
+        }
+        return;
+    }
+
+    const authedContext = await browser.newContext(contextOptions);
+    await authedContext.addCookies([
+        {
+            name: 'sid',
+            value: sessionCookie,
+            url: options.base,
+            httpOnly: true,
+            sameSite: 'Lax',
+        },
+    ]);
+    console.log(`  -- signed in as pilot ${TOUR_PILOT_ID}`);
+    await runSteps(authedContext, authed, viewportName, outDir, failures, ' (authed)');
+    await authedContext.close();
 }
 
 async function main() {
@@ -560,6 +863,11 @@ async function main() {
         args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
     });
 
+    const sessionCookie = await mintSessionCookie();
+    if (!sessionCookie) {
+        console.warn('Could not load jose from site/node_modules; authed steps will be skipped.');
+    }
+
     const failures = [];
     const viewports = options.viewport ? [options.viewport] : Object.keys(VIEWPORTS);
     for (const viewportName of viewports) {
@@ -568,7 +876,7 @@ async function main() {
             process.exit(1);
         }
         console.log(`==> ${viewportName}`);
-        await runViewport(browser, viewportName, outDir, failures);
+        await runViewport(browser, viewportName, outDir, failures, sessionCookie);
     }
 
     await browser.close();

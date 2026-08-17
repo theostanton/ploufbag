@@ -3,6 +3,41 @@ import { connect, Client } from "ts-postgres";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+/**
+ * Where to look for an already-running Postgres before reaching for Docker.
+ *
+ * These were hard-coded to localhost:5432 / functions / local, which is the one
+ * arrangement `docker compose up` produces. Anywhere else — including the
+ * dev/db.sh cluster this repo's own harness starts on 5433 — the local attempt
+ * could only fail, and the suite fell through to Testcontainers and died on
+ * machines without a container runtime. Reading the same DATABASE_* variables
+ * the site itself uses means `eval $(dev/db.sh env) && yarn test` just works.
+ *
+ * The defaults are unchanged, so compose-based setups behave exactly as before.
+ */
+const LOCAL_DB = {
+  host: process.env.DATABASE_HOST || 'localhost',
+  port: Number(process.env.DATABASE_PORT || 5432),
+  user: process.env.DATABASE_USER || 'functions',
+  password: process.env.DATABASE_PASSWORD ?? 'password',
+  // The database to connect to in order to issue CREATE DATABASE; the tests
+  // then work inside test_ploufbag regardless.
+  database: process.env.DATABASE_NAME || 'local',
+};
+
+/**
+ * One scratch database per Vitest worker.
+ *
+ * It was a single `test_ploufbag` shared by every test file, and each file
+ * begins by dropping and recreating it. Vitest runs files in parallel workers,
+ * so the second file to start would drop the database the first was connected
+ * to and every subsequent query in that file failed with "Connection is
+ * closed". Naming it per worker makes the drop local to the worker that owns
+ * it; files that share a worker are serialised by Vitest and share the client
+ * via the early return in createTestDatabase.
+ */
+const TEST_DB_NAME = `test_ploufbag_${process.env.VITEST_WORKER_ID ?? '0'}`;
+
 export class TestDatabaseSetup {
   private static container: StartedPostgreSqlContainer | null = null;
   private static client: Client | null = null;
@@ -14,29 +49,19 @@ export class TestDatabaseSetup {
 
     // First try existing database connection for faster testing
     try {
-      this.client = await connect({
-        host: 'localhost',
-        database: 'local',
-        user: 'functions',
-        password: 'password',
-        port: 5432,
-      });
-      
+      this.client = await connect({ ...LOCAL_DB });
+
       // Create and connect to a clean test database
-      await this.client.query('DROP DATABASE IF EXISTS test_ploufbag');
-      await this.client.query('CREATE DATABASE test_ploufbag');
+      await this.client.query(`DROP DATABASE IF EXISTS ${TEST_DB_NAME}`);
+      await this.client.query(`CREATE DATABASE ${TEST_DB_NAME}`);
       await this.client.end();
-      
+
       // Connect to the test database
-      this.client = await connect({
-        host: 'localhost',
-        database: 'test_ploufbag',
-        user: 'functions',
-        password: 'password',
-        port: 5432,
-      });
-      
-      console.log('Using existing PostgreSQL instance on localhost:5432');
+      this.client = await connect({ ...LOCAL_DB, database: TEST_DB_NAME });
+
+      this.pointApplicationAtTestDatabase({ ...LOCAL_DB, database: TEST_DB_NAME });
+
+      console.log(`Using existing PostgreSQL instance on ${LOCAL_DB.host}:${LOCAL_DB.port}`);
       await this.loadSchema();
       
       // Modify tables to use simple IDs for testing (avoid UUID complexity)
@@ -80,8 +105,16 @@ export class TestDatabaseSetup {
           port: this.container.getPort(),
         });
 
+        this.pointApplicationAtTestDatabase({
+          host: this.container.getHost(),
+          port: this.container.getPort(),
+          database: this.container.getDatabase(),
+          user: this.container.getUsername(),
+          password: this.container.getPassword(),
+        });
+
         await this.loadSchema();
-        
+
         // Modify tables to use simple IDs for testing (avoid UUID complexity)
         try {
           await this.client.query(`
@@ -104,6 +137,34 @@ export class TestDatabaseSetup {
         throw new Error(`Both local DB and Testcontainer failed: ${containerError}`);
       }  
     }
+  }
+
+  /**
+   * Point the application's own connection pool at the scratch database.
+   *
+   * The route handlers under test do not take a client — they call
+   * withPooledClient, which builds its config from DATABASE_* at first use
+   * (see common/src/database.ts). Without this the tests inserted fixtures
+   * into the scratch database and the handler read from whatever database the
+   * ambient environment named, which is never the same one: every "happy
+   * path" assertion failed with `relation "task_executions" does not exist`,
+   * or silently read production-shaped data.
+   *
+   * Safe to do here because the pool is created lazily and nothing in a test
+   * process has touched it yet.
+   */
+  private static pointApplicationAtTestDatabase(config: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    password: string;
+  }): void {
+    process.env.DATABASE_HOST = config.host;
+    process.env.DATABASE_PORT = String(config.port);
+    process.env.DATABASE_NAME = config.database;
+    process.env.DATABASE_USER = config.user;
+    process.env.DATABASE_PASSWORD = config.password;
   }
 
   private static async loadSchema(): Promise<void> {
@@ -295,7 +356,14 @@ export class TestDatabaseSetup {
           event_type, object_type, object_id, pilot_id, status, 
           processing_duration_ms, received_at, processed_at, error_message, 
           retry_count, payload
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        )
+        -- Every enum column is bound as text and cast here. The status,
+        -- event_type and object_type columns are user-defined enums, whose
+        -- OIDs differ in every freshly created database; ts-postgres cannot
+        -- bind a type it does not know and failed with "Unsupported data type:
+        -- <some varying number>", which read as a driver bug rather than as
+        -- what it is.
+        VALUES ($1::text::webhook_event_type, $2::text::webhook_object_type, $3, $4, $5::text::webhook_event_status, $6, $7, $8, $9, $10, $11)
       `, [
         event.event_type,
         event.object_type,
@@ -330,7 +398,10 @@ export class TestDatabaseSetup {
         INSERT INTO task_executions (
           task_name, task_payload, triggered_by, pilot_id, status,
           execution_duration_ms, started_at, completed_at, error_message, retry_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        )
+        -- $5 is a user-defined enum; see insertTestWebhookEvents above for why
+        -- it is bound as text and cast.
+        VALUES ($1, $2, $3, $4, $5::text::task_execution_status, $6, $7, $8, $9, $10)
       `, [
         execution.task_name,
         JSON.stringify({ test: true }), // minimal payload

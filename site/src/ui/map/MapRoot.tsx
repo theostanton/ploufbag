@@ -18,11 +18,21 @@ import Chrome from '@ui/chrome/Chrome'
  * else in the chrome) reach the map with useMap().main without a ref being
  * threaded down by hand.
  */
-export default function MapRoot({ topBar, children }: { topBar: ReactNode; children: ReactNode }) {
+export default function MapRoot({
+    topBar,
+    signup,
+    children,
+}: {
+    topBar: ReactNode
+    signup: ReactNode
+    children: ReactNode
+}) {
     return (
         <MapProvider>
             <MapCanvas />
-            <Chrome topBar={topBar}>{children}</Chrome>
+            <Chrome topBar={topBar} signup={signup}>
+                {children}
+            </Chrome>
         </MapProvider>
     )
 }

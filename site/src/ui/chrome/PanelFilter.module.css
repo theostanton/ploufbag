@@ -1,0 +1,70 @@
+.filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* The whole box reacts, not just the bare input inside it. */
+.filter:focus-within {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(0, 163, 221, 0.15);
+}
+
+.icon {
+    flex: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+}
+
+.input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    padding: var(--space-3) 0;
+}
+
+.input:focus {
+    /* The container shows focus; a second ring inside it is noise. */
+    outline: none;
+}
+
+.input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.count {
+    flex: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.visuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.empty {
+    padding: var(--space-8) 0;
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
