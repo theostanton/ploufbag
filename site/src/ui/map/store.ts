@@ -141,3 +141,24 @@ const selectHoveredFlight = (state: MapState) => state.hoveredFlightId
 const selectHoveredSite = (state: MapState) => state.hoveredSiteId
 export const useHoveredFlight = () => useMapStore(selectHoveredFlight)
 export const useHoveredSite = () => useMapStore(selectHoveredSite)
+
+/**
+ * "Is *this* one hovered", for list rows.
+ *
+ * A row must not use useHoveredFlight(). That returns the id, so the snapshot
+ * changes for every row whenever the pointer moves anywhere — and with 165
+ * flights in the panel, moving the mouse across the map re-rendered all 165 on
+ * every frame.
+ *
+ * Selecting a boolean instead means Object.is only reports a change for the two
+ * rows that actually gained or lost the highlight, and React skips the rest.
+ */
+export function useIsFlightHovered(id: string): boolean {
+    const selector = useCallback((state: MapState) => state.hoveredFlightId === id, [id])
+    return useMapStore(selector)
+}
+
+export function useIsSiteHovered(id: string): boolean {
+    const selector = useCallback((state: MapState) => state.hoveredSiteId === id, [id])
+    return useMapStore(selector)
+}

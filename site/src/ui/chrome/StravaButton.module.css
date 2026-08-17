@@ -1,0 +1,67 @@
+/*
+ * The Strava connect button, moved out of Page.module.css so it does not depend
+ * on the document-era stylesheet the chrome is replacing.
+ *
+ * Strava's brand guidelines want their orange and their mark on the connect
+ * action, so this deliberately sits outside the site palette.
+ */
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-8);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    border: none;
+    border-radius: var(--border-radius-lg);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    background-color: var(--color-strava);
+    color: var(--color-text-inverse);
+    transition:
+        background-color var(--transition-fast),
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.button:hover {
+    background-color: var(--color-strava-hover);
+    color: var(--color-text-inverse);
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* A press that visibly gives, so the button feels like a physical control. */
+.button:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.button:focus-visible {
+    outline: 2px solid var(--color-strava);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .button,
+    .button:hover,
+    .button:active {
+        transform: none;
+        transition: background-color var(--transition-fast);
+    }
+}
+
+/*
+ * Compact variant, for the top bar and the floating upsell — places where the
+ * button is an offer rather than the subject of the page.
+ */
+.compact {
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--font-size-sm);
+    gap: var(--space-2);
+    border-radius: calc(var(--chrome-radius) - 6px);
+}

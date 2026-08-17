@@ -33,10 +33,20 @@
     align-items: center;
     gap: var(--space-2);
     /* The nav is the part that has to give when the viewport is narrow; the
-       brand never wraps. */
+       brand and the connect button never wrap. */
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
+    /* Pushed to the right, next to the actions, rather than floating in the
+       middle of a wide bar. */
+    margin-left: auto;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: none;
 }
 
 .nav::-webkit-scrollbar {

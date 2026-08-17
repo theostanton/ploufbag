@@ -3,7 +3,6 @@ import {createMetadata} from "@ui/metadata";
 import {notFound} from "next/navigation";
 import {Sites} from "@database/Sites";
 import {Flights} from "@database/flights";
-import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import {siteRole, siteRoleColor} from "@ui/map/siteRole";
 import FlightRow from "@ui/chrome/FlightRow";
@@ -60,7 +59,6 @@ export default async function SiteDetail({params}: {
                 subtitle={`${site.alt}m · ${flights.length} ${flights.length === 1 ? 'flight' : 'flights'}`}
             />
 
-            <SignupBanner from="site"/>
 
             <PanelSection>
                 <PanelFacts

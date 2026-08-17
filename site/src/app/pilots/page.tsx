@@ -1,9 +1,9 @@
-import {getAll} from "@database/pilots";
+import {getAllWithActivity} from "@database/pilots";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import MapScene from "@ui/map/MapScene";
-import PilotRow from "@ui/chrome/PilotRow";
-import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import PilotsPanel from "@ui/chrome/PilotsPanel";
+import {PanelEmpty, PanelHeader} from "@ui/chrome/Panel";
 
 export const metadata: Metadata = createMetadata('Pilots')
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = createMetadata('Pilots')
  * which is more useful than blanking it, and is the point of having one map.
  */
 export default async function PilotsPage() {
-    const [pilots, errorMessage] = await getAll();
+    const [pilots, errorMessage] = await getAllWithActivity();
 
     return (
         <>
@@ -25,17 +25,12 @@ export default async function PilotsPage() {
                 subtitle={pilots ? `${pilots.length} flying with Plouf Bag.` : undefined}
             />
             {pilots
-                ? (
-                    <PanelSection>
-                        {pilots.map(pilot => <PilotRow key={pilot.pilot_id} pilot={pilot}/>)}
-                        {pilots.length === 0 && (
-                            <PanelEmpty
-                                title="No pilots yet"
-                                detail="Be the first to connect a Strava account."
-                            />
-                        )}
-                    </PanelSection>
-                )
+                ? (pilots.length > 0
+                    ? <PilotsPanel pilots={pilots}/>
+                    : <PanelEmpty
+                        title="No pilots yet"
+                        detail="Be the first to connect a Strava account."
+                    />)
                 : <PanelEmpty title="Could not load pilots" detail={errorMessage}/>}
         </>
     );

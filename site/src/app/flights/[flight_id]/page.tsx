@@ -4,7 +4,6 @@ import {StravaActivityId} from "@ploufbag/common";
 import Link from "next/link";
 import ViewOnStrava from "@ui/links/ViewOnStrava";
 import ClientOnlyDate from "@ui/ClientOnlyDate";
-import SignupBanner from "@ui/SignupBanner";
 import MapScene from "@ui/map/MapScene";
 import {getFlightColor} from "@ui/map/colors";
 import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
@@ -80,7 +79,6 @@ export default async function FlightDetail({params}: {
                 }
             />
 
-            <SignupBanner from="flight"/>
 
             <PanelSection>
                 <PanelFacts

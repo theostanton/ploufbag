@@ -1,0 +1,125 @@
+/*
+ * Bottom-centre on desktop: the rail owns the left edge and the map controls
+ * own the bottom right, so the centre is the only place a floating card can sit
+ * without covering something that was already there.
+ */
+.card {
+    pointer-events: auto;
+    position: absolute;
+    bottom: var(--chrome-gap);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - var(--chrome-gap) * 2));
+    padding: var(--space-5) var(--space-6);
+    border-radius: var(--chrome-radius);
+    background-color: var(--chrome-bg-strong);
+    border: 1px solid var(--chrome-border);
+    box-shadow: var(--chrome-shadow);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
+    /* An orange edge tying it to the Strava action inside, so it reads as an
+       offer rather than as another panel of data. */
+    border-left: 3px solid var(--color-strava);
+    animation: rise var(--transition-slow) ease-out;
+}
+
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 8px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card {
+        animation: none;
+    }
+}
+
+.close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--border-radius-full);
+    background: none;
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    color: var(--color-text-muted);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.close:hover {
+    background-color: rgba(26, 26, 26, 0.08);
+    color: var(--color-text-primary);
+}
+
+.close:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: -2px;
+}
+
+.headline {
+    margin: 0 0 var(--space-2);
+    /* Room for the close button, so a long headline never runs under it. */
+    padding-right: var(--space-8);
+    font-family: var(--font-family-heading);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+}
+
+.body {
+    margin: 0 0 var(--space-5);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-snug);
+    color: var(--color-text-secondary);
+}
+
+.action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.spots {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/*
+ * On a phone the bottom is the sheet's, so the card sits directly above it.
+ * `--map-bottom-inset` is written by MapCanvas from the measured chrome, so
+ * this follows the sheet to whatever snap it is at.
+ */
+@media (max-width: 1023px) {
+    .card {
+        bottom: calc(var(--map-bottom-inset, 0px) + var(--chrome-gap));
+        left: var(--chrome-gap);
+        right: var(--chrome-gap);
+        width: auto;
+        transform: none;
+    }
+
+    @keyframes rise {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}

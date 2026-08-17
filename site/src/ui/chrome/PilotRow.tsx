@@ -1,20 +1,36 @@
 'use client'
 
-import Link from 'next/link'
 import type { Pilot } from '@ploufbag/common'
-import styles from './FlightRow.module.css'
+import styles from './Row.module.css'
 import pilotStyles from './PilotRow.module.css'
+import ClientOnlyDate from '@ui/ClientOnlyDate'
+import { useIsCurrent } from './useIsCurrent'
+import RowLink from './RowLink'
+
+export type PilotListEntry = Pilot & {
+    flightCount: number
+    lastFlight: Date | null
+}
 
 /**
  * A pilot in a chrome panel.
  *
- * No map hover here: a pilot is not a feature on the map, it is a filter over
- * many of them. Highlighting every one of a pilot's tracks on hover was
- * tempting and looks like noise in practice.
+ * No map hover: a pilot is not a feature on the map, it is a filter over many
+ * of them, and lighting up forty tracks because the pointer crossed a row is
+ * noise rather than feedback.
  */
-export default function PilotRow({ pilot, flightCount }: { pilot: Pilot; flightCount?: number }) {
+export default function PilotRow({ pilot }: { pilot: PilotListEntry }) {
+    const href = `/pilots/${pilot.pilot_id}`
+    const isCurrent = useIsCurrent(href)
+
     return (
-        <Link href={`/pilots/${pilot.pilot_id}`} className={styles.row}>
+        <div className={styles.row} data-current={isCurrent || undefined}>
+            <RowLink
+                href={href}
+                label={`${pilot.first_name}, ${pilot.flightCount} flights`}
+                isCurrent={isCurrent}
+            />
+
             {pilot.profile_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- Strava
                 // CDN avatars, not project assets; next/image would need the
@@ -30,17 +46,28 @@ export default function PilotRow({ pilot, flightCount }: { pilot: Pilot; flightC
                     🪂
                 </span>
             )}
+
             <span className={styles.body}>
                 <span className={styles.title}>{pilot.first_name}</span>
-            </span>
-            {flightCount !== undefined && (
-                <span className={styles.numbers}>
-                    <span className={styles.duration}>{flightCount}</span>
-                    <span className={pilotStyles.unit}>
-                        {flightCount === 1 ? 'flight' : 'flights'}
-                    </span>
+                <span className={styles.meta}>
+                    {pilot.lastFlight ? (
+                        <>
+                            Last flew <ClientOnlyDate date={pilot.lastFlight} format="short" />
+                        </>
+                    ) : (
+                        'No flights yet'
+                    )}
                 </span>
-            )}
-        </Link>
+            </span>
+
+            <span className={styles.numbers}>
+                <span className={styles.primaryValue}>{pilot.flightCount}</span>
+                <span className={styles.unit}>
+                    {pilot.flightCount === 1 ? 'flight' : 'flights'}
+                </span>
+            </span>
+
+            <span className={styles.chevron} aria-hidden="true">›</span>
+        </div>
     )
 }

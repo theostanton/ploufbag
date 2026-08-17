@@ -1,0 +1,233 @@
+/*
+ * The shared list row: flights, sites, pilots.
+ *
+ * The row is a <div>, not a link. Its primary target is an absolutely
+ * positioned link stretched across it, which leaves the names inside free to be
+ * real links of their own. Wrapping the row in an <a> — what this replaces —
+ * makes every one of those illegal, because an anchor cannot contain an anchor.
+ * That is the whole reason a flight row used to be a dead end: you could go to
+ * the flight, and nowhere else.
+ */
+.row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-3);
+    border-radius: var(--border-radius-lg);
+    border-bottom: 1px solid var(--color-border-light);
+    transition:
+        background-color var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+.row:last-child {
+    border-bottom: none;
+}
+
+/*
+ * data-hovered is set from the shared store, so pointing at the track on the
+ * map highlights the row exactly as pointing at the row does. :hover alone
+ * would only cover one direction.
+ */
+.row:hover,
+.row[data-hovered] {
+    background-color: rgba(0, 163, 221, 0.10);
+}
+
+/* A small give under the pointer. Enough to feel, not enough to shift the list. */
+.row:hover {
+    transform: translateX(2px);
+}
+
+/*
+ * The row for whatever is currently open. Without this you can be looking at a
+ * flight's detail view with its row in the list styled like every other.
+ */
+.row[data-current] {
+    background-color: rgba(0, 163, 221, 0.14);
+    box-shadow: inset 2px 0 0 var(--color-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .row,
+    .row:hover {
+        transform: none;
+    }
+}
+
+/*
+ * The stretched primary link. Sits under the inline links but over everything
+ * else, so a click anywhere in the row that is not a name opens the row's
+ * subject.
+ */
+.primary {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+}
+
+.primary:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: -2px;
+}
+
+/*
+ * Pending state, driven by useLinkStatus in RowLink.
+ *
+ * A sweeping bar along the top edge of the row you clicked. There is no loading
+ * boundary on these routes (see RowLink), so without this a click is silent
+ * until the new view is ready — and silence reads as a broken link.
+ */
+.pendingFlag {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 2px;
+    width: 0;
+    border-radius: 2px;
+    background-color: var(--color-secondary);
+}
+
+.pendingFlag[data-pending] {
+    animation: sweep 900ms ease-out infinite;
+}
+
+@keyframes sweep {
+    from { width: 0; opacity: 1; }
+    to { width: 100%; opacity: 0.35; }
+}
+
+/* Also tint the row, so the feedback survives at the edge of vision. */
+.row:has(.pendingFlag[data-pending]) {
+    background-color: rgba(0, 163, 221, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pendingFlag[data-pending] {
+        animation: none;
+        width: 100%;
+        opacity: 0.6;
+    }
+}
+
+/*
+ * Names inside the row: pilot, wing, takeoff, landing. Raised above the
+ * stretched link so they take their own clicks.
+ *
+ * Marked with a dotted underline rather than a solid one — solid on four names
+ * in a two-line row is visual noise, but no underline at all is the problem
+ * this set of changes exists to fix. It solidifies on hover.
+ */
+.inline {
+    position: relative;
+    z-index: 2;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--color-text-muted);
+    text-underline-offset: 3px;
+    transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
+}
+
+.inline:hover {
+    color: var(--color-secondary-hover);
+    text-decoration-style: solid;
+    text-decoration-color: currentColor;
+}
+
+.inline:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* The colour the subject is drawn in on the map, so row and line are one thing. */
+.swatch {
+    flex: none;
+    width: 4px;
+    align-self: stretch;
+    min-height: 34px;
+    border-radius: 2px;
+    transition: width var(--transition-fast);
+}
+
+.row:hover .swatch,
+.row[data-hovered] .swatch {
+    width: 6px;
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    /* Site names are long and the rail is narrow; one line, clipped, beats a
+       row whose height depends on the name. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.arrow {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-normal);
+}
+
+.meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.numbers {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    font-variant-numeric: tabular-nums;
+}
+
+.primaryValue {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.secondaryValue,
+.unit {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/*
+ * Slides in on hover. A row that visibly points somewhere reads as clickable
+ * before you touch it, which is the difference between a list and a table.
+ */
+.chevron {
+    flex: none;
+    width: 0;
+    opacity: 0;
+    color: var(--color-secondary);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    transition: width var(--transition-fast), opacity var(--transition-fast);
+}
+
+.row:hover .chevron,
+.row[data-hovered] .chevron,
+.row[data-current] .chevron {
+    width: 12px;
+    opacity: 1;
+}

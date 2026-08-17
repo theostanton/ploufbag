@@ -2,8 +2,8 @@ import {Flights} from "@database/flights";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import MapScene from "@ui/map/MapScene";
-import FlightRow from "@ui/chrome/FlightRow";
-import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import FlightsPanel from "@ui/chrome/FlightsPanel";
+import {PanelEmpty, PanelHeader} from "@ui/chrome/Panel";
 
 export const metadata: Metadata = createMetadata('Flights')
 
@@ -34,11 +34,7 @@ export default async function FlightsPage() {
                 }
             />
             {flights ? (
-                <PanelSection title={`${flights.length} flights`}>
-                    {flights.map(flight => (
-                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
-                    ))}
-                </PanelSection>
+                <FlightsPanel flights={flights}/>
             ) : (
                 <PanelEmpty title="Could not load flights" detail={errorMessage}/>
             )}

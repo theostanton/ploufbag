@@ -3,6 +3,7 @@ import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import MapRoot from "@ui/map/MapRoot";
 import TopBar from "@ui/chrome/TopBar";
+import SignupChrome from "@ui/chrome/SignupChrome";
 
 export const metadata: Metadata = createMetadata()
 
@@ -33,7 +34,7 @@ export default function Layout({children}: {
     return (
         <html lang="en">
         <body>
-        <MapRoot topBar={<TopBar/>}>
+        <MapRoot topBar={<TopBar/>} signup={<SignupChrome/>}>
             {children}
         </MapRoot>
         </body>
