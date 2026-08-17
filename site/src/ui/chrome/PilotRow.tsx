@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Pilot } from '@ploufbag/common'
 import styles from './Row.module.css'
 import pilotStyles from './PilotRow.module.css'
@@ -22,6 +23,12 @@ export type PilotListEntry = Pilot & {
 export default function PilotRow({ pilot }: { pilot: PilotListEntry }) {
     const href = `/pilots/${pilot.pilot_id}`
     const isCurrent = useIsCurrent(href)
+    // Strava's CDN avatars expire and 404, and a browser's broken-image glyph
+    // in a list of six pilots is worse than no avatar at all. There was a
+    // fallback for a missing URL but not for a URL that fails to load, which is
+    // the case that actually happens.
+    const [avatarFailed, setAvatarFailed] = useState(false)
+    const showAvatar = Boolean(pilot.profile_image_url) && !avatarFailed
 
     return (
         <div className={styles.row} data-current={isCurrent || undefined}>
@@ -31,15 +38,16 @@ export default function PilotRow({ pilot }: { pilot: PilotListEntry }) {
                 isCurrent={isCurrent}
             />
 
-            {pilot.profile_image_url ? (
+            {showAvatar ? (
                 // eslint-disable-next-line @next/next/no-img-element -- Strava
                 // CDN avatars, not project assets; next/image would need the
                 // host allowlisted for no benefit at this size.
                 <img
-                    src={pilot.profile_image_url}
+                    src={pilot.profile_image_url!}
                     alt=""
                     className={pilotStyles.avatar}
                     loading="lazy"
+                    onError={() => setAvatarFailed(true)}
                 />
             ) : (
                 <span className={pilotStyles.avatarFallback} aria-hidden="true">
