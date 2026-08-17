@@ -1,0 +1,343 @@
+/*
+ * The admin page was written against Tailwind — 69 utility class names — and
+ * Tailwind is not installed and never was. Every one of those classes resolved
+ * to nothing, so the page has been rendering as raw unstyled markup for its
+ * whole life. This is the replacement: real styles, on the same tokens as the
+ * rest of the chrome.
+ */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-6);
+}
+
+.updated {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.refresh {
+    padding: var(--space-3) var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    font-family: inherit;
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.refresh:hover:not(:disabled) {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.refresh:disabled {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+/* ------------------------------------------------------------------- tabs */
+
+.tabs {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    margin-bottom: var(--space-8);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+}
+
+.tab {
+    flex: 1;
+    padding: var(--space-3) var(--space-4);
+    border: none;
+    border-radius: var(--border-radius-md);
+    background: none;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab:hover {
+    color: var(--color-text-primary);
+}
+
+.tab[aria-selected='true'] {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Count of failures riding on the tab, so a problem is visible without
+   selecting the tab it lives under. */
+.tabBadge {
+    display: inline-block;
+    margin-left: var(--space-3);
+    padding: 0 6px;
+    border-radius: var(--border-radius-full);
+    background-color: var(--color-error);
+    color: var(--color-text-inverse);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ stats */
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-5);
+}
+
+.stat {
+    padding: var(--space-5);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface-elevated);
+    border: 1px solid var(--color-border-light);
+}
+
+.statLabel {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.statValue {
+    margin: var(--space-2) 0 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.statValue[data-tone='bad'] {
+    color: var(--color-error);
+}
+
+.statUnit {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-normal);
+    color: var(--color-text-muted);
+}
+
+.statNote {
+    margin: var(--space-3) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------------ notes */
+
+.note {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.retryNote {
+    composes: note;
+    margin-top: var(--space-5);
+}
+
+.warning {
+    padding: var(--space-5);
+    border-radius: var(--border-radius-lg);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-warning);
+    font-size: var(--font-size-sm);
+}
+
+.warning p {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-secondary);
+}
+
+.warning p:first-child {
+    margin-top: 0;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.warning code {
+    font-family: var(--font-family-mono);
+    font-size: 0.8125em;
+    padding: 1px 4px;
+    border-radius: var(--border-radius-sm);
+    background-color: var(--color-border-light);
+    word-break: break-all;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+/* ------------------------------------------------------------------ event */
+
+.events {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-light);
+    background-color: var(--color-surface-elevated);
+    overflow: hidden;
+}
+
+.event {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.event:first-child {
+    border-top: none;
+}
+
+.eventBody {
+    flex: 1;
+    min-width: 0;
+}
+
+.eventName {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.eventMeta {
+    margin: 2px 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    /* Ids and durations line up column-wise down a list of twenty. */
+    font-variant-numeric: tabular-nums;
+}
+
+.eventError {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3);
+    border-radius: var(--border-radius-md);
+    background-color: var(--color-surface);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
+    /* Stack traces arrive as one long line; wrap rather than overflow the
+       panel, but keep whatever newlines the error did have. */
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.eventWhen {
+    flex: none;
+    text-align: right;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.eventDuration {
+    display: block;
+    margin-top: 2px;
+    color: var(--color-text-secondary);
+}
+
+/* ------------------------------------------------------------------- pill */
+
+.pill {
+    flex: none;
+    display: inline-block;
+    min-width: 72px;
+    padding: 2px var(--space-3);
+    border-radius: var(--border-radius-full);
+    text-align: center;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: capitalize;
+    background-color: var(--color-border-light);
+    color: var(--color-text-secondary);
+}
+
+.pill[data-status='completed'] {
+    background-color: color-mix(in srgb, var(--color-success) 14%, transparent);
+    color: var(--color-success);
+}
+
+.pill[data-status='failed'] {
+    background-color: color-mix(in srgb, var(--color-error) 14%, transparent);
+    color: var(--color-error);
+}
+
+.pill[data-status='running'],
+.pill[data-status='processing'] {
+    background-color: color-mix(in srgb, var(--color-secondary) 16%, transparent);
+    color: var(--color-secondary-hover);
+}
+
+.pill[data-status='pending'] {
+    background-color: color-mix(in srgb, var(--color-warning) 16%, transparent);
+    color: var(--color-warning);
+}
+
+/* --------------------------------------------------------------- loading */
+
+.loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-10) 0;
+    justify-content: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: var(--border-radius-full);
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-secondary);
+    animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: none;
+    }
+}
+
+/* --------------------------------------------------------------- narrow */
+
+@media (max-width: 640px) {
+    .event {
+        flex-wrap: wrap;
+    }
+
+    .eventWhen {
+        text-align: left;
+        width: 100%;
+        padding-left: calc(72px + var(--space-4));
+    }
+}

@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import MapScene from "@ui/map/MapScene";
 import { WebhookEvent, TaskExecution, MonitoringStats, AnalyticsSummary } from '@model/admin';
 import { ATHLETE_CAPACITY } from '@model/signup';
+import { PanelEmpty, PanelHeader, PanelSection } from '@ui/chrome/Panel';
+import styles from './Admin.module.css';
 
 /** Percentage of `total`, or an em dash when there is nothing to divide by. */
 function formatRate(part: number, total: number): string {
@@ -11,6 +13,119 @@ function formatRate(part: number, total: number): string {
     return `${Math.round((part / total) * 100)}%`;
 }
 
+/**
+ * Accept either a bare array or `{ <key>: [...] }`, and never return undefined.
+ * The routes return the former; tolerating the latter costs nothing and means
+ * wrapping the payload later cannot silently blank the page.
+ */
+function asArray<T>(payload: unknown, key: string): T[] {
+    if (Array.isArray(payload)) return payload as T[];
+    const wrapped = (payload as Record<string, unknown> | null)?.[key];
+    return Array.isArray(wrapped) ? (wrapped as T[]) : [];
+}
+
+function formatDuration(ms: number | null): string {
+    if (!ms) return '—';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+}
+
+/**
+ * Rendered only after mount (see `mounted` below). `toLocaleString` reads the
+ * machine's locale and timezone, which differ between the server and the
+ * browser, so calling it during render is a hydration mismatch.
+ */
+function formatDateTime(dateStr: string): string {
+    return new Date(dateStr).toLocaleString();
+}
+
+const TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'webhooks', label: 'Webhooks' },
+    { id: 'tasks', label: 'Tasks' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
+/** One number and its footnote. */
+function Stat({
+    label,
+    value,
+    unit,
+    note,
+    tone,
+}: {
+    label: string;
+    value: number | string;
+    unit?: string;
+    note?: string;
+    tone?: 'bad';
+}) {
+    return (
+        <div className={styles.stat}>
+            <dt className={styles.statLabel}>{label}</dt>
+            <dd className={styles.statValue} data-tone={tone}>
+                {value}
+                {unit && <span className={styles.statUnit}>{unit}</span>}
+            </dd>
+            {note && <p className={styles.statNote}>{note}</p>}
+        </div>
+    );
+}
+
+/**
+ * A webhook event or a task execution. The two shapes carry the same
+ * information under different field names, so the row takes the resolved
+ * values rather than a union it would have to narrow.
+ */
+function EventRow({
+    status,
+    name,
+    meta,
+    when,
+    duration,
+    error,
+}: {
+    status: string;
+    name: string;
+    meta: string;
+    when: string | null;
+    duration: number | null;
+    error: string | null;
+}) {
+    return (
+        <li className={styles.event}>
+            <span className={styles.pill} data-status={status.toLowerCase()}>
+                {status}
+            </span>
+            <div className={styles.eventBody}>
+                <div className={styles.eventName}>{name}</div>
+                <p className={styles.eventMeta}>{meta}</p>
+                {error && <p className={styles.eventError}>{error}</p>}
+            </div>
+            <div className={styles.eventWhen}>
+                {when ?? '—'}
+                <span className={styles.eventDuration}>{formatDuration(duration)}</span>
+            </div>
+        </li>
+    );
+}
+
+/**
+ * Webhook and task monitoring.
+ *
+ * Rebuilt on the panel primitives. It previously wore 69 Tailwind utility class
+ * names and Tailwind is not a dependency of this project, so none of them
+ * resolved: the page rendered as an unstyled stack of divs.
+ *
+ * One thing deliberately *not* rebuilt: the per-row Retry buttons. They POSTed
+ * to /api/admin/webhooks/:id/retry and /api/admin/tasks/:id/retry, and neither
+ * route exists — the only admin routes are analytics, monitoring/stats, tasks
+ * and webhooks, all GET. Every click 404d and surfaced as an `alert()`. Rather
+ * than invent a retry pipeline that would have to reach into Cloud Tasks, the
+ * buttons are gone and the gap is stated on the page.
+ */
 export default function AdminMonitoringPage() {
     const [stats, setStats] = useState<MonitoringStats | null>(null);
     const [webhooks, setWebhooks] = useState<WebhookEvent[]>([]);
@@ -19,16 +134,13 @@ export default function AdminMonitoringPage() {
     const [analyticsError, setAnalyticsError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'webhooks' | 'tasks'>('overview');
+    const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+    const [activeTab, setActiveTab] = useState<TabId>('overview');
+    // Timestamps are locale- and timezone-formatted, so they are held back
+    // until the client has taken over. Server and browser disagree otherwise.
+    const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
-        fetchMonitoringData();
-        // Auto-refresh every 30 seconds
-        const interval = setInterval(fetchMonitoringData, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const fetchMonitoringData = async () => {
+    const fetchMonitoringData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -51,8 +163,13 @@ export default function AdminMonitoringPage() {
             ]);
 
             setStats(statsData);
-            setWebhooks(webhooksData.webhooks);
-            setTasks(tasksData.tasks);
+            // Both routes return a bare array. This read `webhooksData.webhooks`
+            // and `tasksData.tasks`, which are undefined against the routes as
+            // written, so the two lists were always empty and any code that
+            // touched them threw.
+            setWebhooks(asArray<WebhookEvent>(webhooksData, 'webhooks'));
+            setTasks(asArray<TaskExecution>(tasksData, 'tasks'));
+            setUpdatedAt(new Date());
 
             // Fetched separately and never allowed to fail the page. Analytics
             // depends on a table that is applied by hand (see
@@ -73,463 +190,238 @@ export default function AdminMonitoringPage() {
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    useEffect(() => {
+        setMounted(true);
+        fetchMonitoringData();
+        // Auto-refresh every 30 seconds
+        const interval = setInterval(fetchMonitoringData, 30000);
+        return () => clearInterval(interval);
+    }, [fetchMonitoringData]);
+
+    const failedWebhooks = webhooks.filter(webhook => webhook.status === 'failed').length;
+    const failedTasks = tasks.filter(task => task.status === 'failed').length;
+    const badge: Partial<Record<TabId, number>> = {
+        webhooks: failedWebhooks,
+        tasks: failedTasks,
     };
-
-    const retryWebhook = async (webhookId: string) => {
-        try {
-            const response = await fetch(`/api/admin/webhooks/${webhookId}/retry`, {
-                method: 'POST'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to retry webhook');
-            }
-            
-            // Refresh data
-            fetchMonitoringData();
-        } catch (err) {
-            alert(`Error retrying webhook: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
-    };
-
-    const retryTask = async (taskId: string) => {
-        try {
-            const response = await fetch(`/api/admin/tasks/${taskId}/retry`, {
-                method: 'POST'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to retry task');
-            }
-            
-            // Refresh data
-            fetchMonitoringData();
-        } catch (err) {
-            alert(`Error retrying task: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
-    };
-
-    const formatDuration = (ms: number | null) => {
-        if (!ms) return 'N/A';
-        if (ms < 1000) return `${ms}ms`;
-        return `${(ms / 1000).toFixed(2)}s`;
-    };
-
-    const formatDateTime = (dateStr: string) => {
-        return new Date(dateStr).toLocaleString();
-    };
-
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'completed': return 'text-green-600 bg-green-100';
-            case 'failed': return 'text-red-600 bg-red-100';
-            case 'running': case 'processing': return 'text-blue-600 bg-blue-100';
-            case 'pending': return 'text-yellow-600 bg-yellow-100';
-            default: return 'text-gray-600 bg-gray-100';
-        }
-    };
-
-    if (loading && !stats) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                        <p className="mt-4 text-gray-600">Loading monitoring data...</p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                        <div className="flex">
-                            <div className="ml-3">
-                                <h3 className="text-sm font-medium text-red-800">Error loading monitoring data</h3>
-                                <div className="mt-2 text-sm text-red-700">
-                                    <p>{error}</p>
-                                </div>
-                                <div className="mt-4">
-                                    <button
-                                        onClick={fetchMonitoringData}
-                                        className="bg-red-100 px-3 py-2 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
-                                    >
-                                        Retry
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <>
-        {/* Opaque: tables this dense are unreadable over imagery, however
-            blurred. The map stays mounted and simply stops painting. */}
-        <MapScene chrome="opaque"/>
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="py-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className="text-3xl font-bold text-gray-900">Admin Monitoring</h1>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Real-time monitoring of webhooks and task executions
-                                </p>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                                <button
-                                    onClick={fetchMonitoringData}
-                                    disabled={loading}
-                                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-md text-sm font-medium"
-                                >
-                                    {loading ? 'Refreshing...' : 'Refresh'}
-                                </button>
-                                <span className="text-sm text-gray-500">
-                                    Last updated: {new Date().toLocaleTimeString()}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            {/* Opaque: tables this dense are unreadable over imagery, however
+                blurred. The map stays mounted and simply stops painting. */}
+            <MapScene chrome="opaque"/>
+
+            <PanelHeader
+                title="Monitoring"
+                subtitle="Strava webhooks and background task executions, refreshed every 30 seconds."
+            />
+
+            <div className={styles.toolbar}>
+                <button
+                    type="button"
+                    onClick={fetchMonitoringData}
+                    disabled={loading}
+                    className={styles.refresh}
+                >
+                    {loading ? 'Refreshing…' : 'Refresh'}
+                </button>
+                <span className={styles.updated}>
+                    {mounted && updatedAt
+                        ? `Updated ${updatedAt.toLocaleTimeString()}`
+                        : 'Not yet loaded'}
+                </span>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Tabs */}
-                <div className="border-b border-gray-200 mb-8">
-                    <nav className="-mb-px flex space-x-8">
-                        {[
-                            { id: 'overview', label: 'Overview' },
-                            { id: 'analytics', label: 'Analytics' },
-                            { id: 'webhooks', label: 'Webhooks' },
-                            { id: 'tasks', label: 'Tasks' }
-                        ].map((tab) => (
+            {error ? (
+                <PanelEmpty
+                    title="We could not load the monitoring data"
+                    detail={error}
+                />
+            ) : loading && !stats ? (
+                <div className={styles.loading}>
+                    <span className={styles.spinner} aria-hidden="true"/>
+                    Loading monitoring data…
+                </div>
+            ) : (
+                <>
+                    <div className={styles.tabs} role="tablist" aria-label="Monitoring views">
+                        {TABS.map(tab => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id as any)}
-                                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                                    activeTab === tab.id
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
+                                type="button"
+                                role="tab"
+                                id={`admin-tab-${tab.id}`}
+                                aria-selected={activeTab === tab.id}
+                                aria-controls={`admin-panel-${tab.id}`}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={styles.tab}
                             >
                                 {tab.label}
+                                {badge[tab.id] ? (
+                                    <span className={styles.tabBadge}>{badge[tab.id]}</span>
+                                ) : null}
                             </button>
                         ))}
-                    </nav>
-                </div>
+                    </div>
 
-                {/* Analytics Tab */}
-                {activeTab === 'analytics' && (
-                    <div className="space-y-8">
-                        {analyticsError && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
-                                <p className="font-medium">Analytics unavailable: {analyticsError}</p>
-                                <p className="mt-1">
-                                    If this is the first deploy, apply
-                                    <code className="mx-1 px-1 bg-yellow-100 rounded">
-                                        functions/src/model/database/scripts/create_analytics_events.sql
-                                    </code>
-                                    and
-                                    <code className="mx-1 px-1 bg-yellow-100 rounded">
-                                        add_created_at_to_pilots.sql
-                                    </code>
-                                    to the database.
+                    <div
+                        role="tabpanel"
+                        id={`admin-panel-${activeTab}`}
+                        aria-labelledby={`admin-tab-${activeTab}`}
+                    >
+                        {activeTab === 'overview' && stats && (
+                            <div className={styles.stack}>
+                                <dl className={styles.stats}>
+                                    <Stat
+                                        label="Webhook events"
+                                        value={stats.webhooks.total_events}
+                                        note={`${stats.webhooks.success_rate}% succeeded`}
+                                    />
+                                    <Stat
+                                        label="Task executions"
+                                        value={stats.tasks.total_executions}
+                                        note={`${stats.tasks.success_rate}% succeeded`}
+                                    />
+                                    <Stat
+                                        label="Failures"
+                                        value={stats.webhooks.failed_events + stats.tasks.failed_executions}
+                                        tone={
+                                            stats.webhooks.failed_events + stats.tasks.failed_executions > 0
+                                                ? 'bad'
+                                                : undefined
+                                        }
+                                        note={`${stats.webhooks.failed_events} webhook, ${stats.tasks.failed_executions} task`}
+                                    />
+                                    <Stat
+                                        label="Avg webhook time"
+                                        value={formatDuration(stats.webhooks.avg_processing_time_ms)}
+                                        note={`Tasks ${formatDuration(stats.tasks.avg_execution_time_ms)}`}
+                                    />
+                                </dl>
+                                <p className={styles.note}>
+                                    Counted over the last {stats.period_hours} hours.
                                 </p>
                             </div>
                         )}
 
-                        {analytics && (
-                            <>
-                                <div>
-                                    <h2 className="text-lg font-medium text-gray-900">Signup funnel</h2>
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        Last {analytics.period_hours} hours. Landings are home page visits;
-                                        the Strava description footer is a bare domain, so every click from
-                                        an activity arrives here indistinguishable from direct traffic.
-                                        Bots excluded.
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
-                                        <dt className="text-sm font-medium text-gray-500 truncate">Landings</dt>
-                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.unique_landings}</dd>
-                                        <div className="mt-2 text-sm text-gray-500">
-                                            {analytics.landings} views &middot; {analytics.bot_landings} bot
-                                        </div>
+                        {activeTab === 'analytics' && (
+                            <div className={styles.stack}>
+                                {analyticsError && (
+                                    <div className={styles.warning}>
+                                        <p>Analytics unavailable: {analyticsError}</p>
+                                        <p>
+                                            If this is the first deploy, apply{' '}
+                                            <code>functions/src/model/database/scripts/create_analytics_events.sql</code>
+                                            {' '}and <code>add_created_at_to_pilots.sql</code> to the database.
+                                        </p>
                                     </div>
+                                )}
 
-                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
-                                        <dt className="text-sm font-medium text-gray-500 truncate">Signup attempts</dt>
-                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.unique_signup_clicks}</dd>
-                                        <div className="mt-2 text-sm text-gray-500">
-                                            {analytics.signup_clicks} clicks &middot; {formatRate(analytics.unique_signup_clicks, analytics.unique_landings)} of landings
-                                        </div>
-                                    </div>
+                                {analytics && (
+                                    <>
+                                        <p className={styles.note}>
+                                            Last {analytics.period_hours} hours. Landings are home page visits;
+                                            the Strava description footer is a bare domain, so every click from
+                                            an activity arrives here indistinguishable from direct traffic.
+                                            Bots excluded.
+                                        </p>
 
-                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
-                                        <dt className="text-sm font-medium text-gray-500 truncate">Signups completed</dt>
-                                        <dd className="text-3xl font-semibold text-gray-900">{analytics.signups_completed}</dd>
-                                        <div className="mt-2 text-sm text-gray-500">
-                                            {formatRate(analytics.signups_completed, analytics.unique_signup_clicks)} of attempts
-                                        </div>
-                                    </div>
+                                        <dl className={styles.stats}>
+                                            <Stat
+                                                label="Landings"
+                                                value={analytics.unique_landings}
+                                                note={`${analytics.landings} views · ${analytics.bot_landings} bot`}
+                                            />
+                                            <Stat
+                                                label="Signup attempts"
+                                                value={analytics.unique_signup_clicks}
+                                                note={`${analytics.signup_clicks} clicks · ${formatRate(analytics.unique_signup_clicks, analytics.unique_landings)} of landings`}
+                                            />
+                                            <Stat
+                                                label="Signups completed"
+                                                value={analytics.signups_completed}
+                                                note={`${formatRate(analytics.signups_completed, analytics.unique_signup_clicks)} of attempts`}
+                                            />
+                                            <Stat
+                                                label="Capacity"
+                                                value={analytics.pilots_total}
+                                                unit={`/${ATHLETE_CAPACITY}`}
+                                                note={`${Math.max(0, ATHLETE_CAPACITY - analytics.pilots_total)} spots left`}
+                                            />
+                                        </dl>
 
-                                    <div className="bg-white overflow-hidden shadow rounded-lg p-5">
-                                        <dt className="text-sm font-medium text-gray-500 truncate">Capacity</dt>
-                                        <dd className="text-3xl font-semibold text-gray-900">
-                                            {analytics.pilots_total}<span className="text-lg text-gray-400">/{ATHLETE_CAPACITY}</span>
-                                        </dd>
-                                        <div className="mt-2 text-sm text-gray-500">
-                                            {Math.max(0, ATHLETE_CAPACITY - analytics.pilots_total)} spots left
-                                        </div>
-                                    </div>
-                                </div>
+                                        <p className={styles.note}>
+                                            Pilots who connected before signup timestamps were recorded have no
+                                            created_at and are counted in Capacity but never in Signups completed.
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        )}
 
-                                <p className="text-sm text-gray-500">
-                                    Pilots who connected before signup timestamps were recorded have no
-                                    created_at and are counted in Capacity but never in Signups completed.
-                                </p>
-                            </>
+                        {activeTab === 'webhooks' && (
+                            <PanelSection title="Latest 20 webhook events from Strava">
+                                {webhooks.length > 0 ? (
+                                    <ul className={styles.events}>
+                                        {webhooks.map(webhook => (
+                                            <EventRow
+                                                key={webhook.id}
+                                                status={webhook.status}
+                                                name={`${webhook.event_type} ${webhook.object_type}`}
+                                                meta={`Object ${webhook.object_id} · Pilot ${webhook.pilot_id ?? '—'}`}
+                                                when={mounted ? formatDateTime(webhook.received_at) : null}
+                                                duration={webhook.processing_duration_ms}
+                                                error={webhook.error_message}
+                                            />
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <PanelEmpty title="No webhook events recorded"/>
+                                )}
+                                <RetryNote/>
+                            </PanelSection>
+                        )}
+
+                        {activeTab === 'tasks' && (
+                            <PanelSection title="Latest 20 task executions">
+                                {tasks.length > 0 ? (
+                                    <ul className={styles.events}>
+                                        {tasks.map(task => (
+                                            <EventRow
+                                                key={task.id}
+                                                status={task.status}
+                                                name={task.task_name}
+                                                meta={`Triggered by ${task.triggered_by ?? 'unknown'} · Pilot ${task.pilot_id ?? '—'}`}
+                                                when={mounted ? formatDateTime(task.started_at) : null}
+                                                duration={task.execution_duration_ms}
+                                                error={task.error_message}
+                                            />
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <PanelEmpty title="No task executions recorded"/>
+                                )}
+                                <RetryNote/>
+                            </PanelSection>
                         )}
                     </div>
-                )}
-
-                {/* Overview Tab */}
-                {activeTab === 'overview' && stats && (
-                    <div className="space-y-8">
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="bg-white overflow-hidden shadow rounded-lg">
-                                <div className="p-5">
-                                    <div className="flex items-center">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                                                <span className="text-white text-sm font-medium">W</span>
-                                            </div>
-                                        </div>
-                                        <div className="ml-5 w-0 flex-1">
-                                            <dl>
-                                                <dt className="text-sm font-medium text-gray-500 truncate">
-                                                    Webhook Events
-                                                </dt>
-                                                <dd className="text-lg font-medium text-gray-900">
-                                                    {stats.webhooks.total_events}
-                                                </dd>
-                                            </dl>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        {stats.webhooks.success_rate}% success rate
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white overflow-hidden shadow rounded-lg">
-                                <div className="p-5">
-                                    <div className="flex items-center">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
-                                                <span className="text-white text-sm font-medium">T</span>
-                                            </div>
-                                        </div>
-                                        <div className="ml-5 w-0 flex-1">
-                                            <dl>
-                                                <dt className="text-sm font-medium text-gray-500 truncate">
-                                                    Task Executions
-                                                </dt>
-                                                <dd className="text-lg font-medium text-gray-900">
-                                                    {stats.tasks.total_executions}
-                                                </dd>
-                                            </dl>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        {stats.tasks.success_rate}% success rate
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white overflow-hidden shadow rounded-lg">
-                                <div className="p-5">
-                                    <div className="flex items-center">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-8 h-8 bg-red-500 rounded-md flex items-center justify-center">
-                                                <span className="text-white text-sm font-medium">F</span>
-                                            </div>
-                                        </div>
-                                        <div className="ml-5 w-0 flex-1">
-                                            <dl>
-                                                <dt className="text-sm font-medium text-gray-500 truncate">
-                                                    Failed Events
-                                                </dt>
-                                                <dd className="text-lg font-medium text-gray-900">
-                                                    {stats.webhooks.failed_events + stats.tasks.failed_executions}
-                                                </dd>
-                                            </dl>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        Webhooks: {stats.webhooks.failed_events}, Tasks: {stats.tasks.failed_executions}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white overflow-hidden shadow rounded-lg">
-                                <div className="p-5">
-                                    <div className="flex items-center">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-8 h-8 bg-yellow-500 rounded-md flex items-center justify-center">
-                                                <span className="text-white text-sm font-medium">⏱</span>
-                                            </div>
-                                        </div>
-                                        <div className="ml-5 w-0 flex-1">
-                                            <dl>
-                                                <dt className="text-sm font-medium text-gray-500 truncate">
-                                                    Avg Processing Time
-                                                </dt>
-                                                <dd className="text-lg font-medium text-gray-900">
-                                                    {formatDuration(stats.webhooks.avg_processing_time_ms)}
-                                                </dd>
-                                            </dl>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        Tasks: {formatDuration(stats.tasks.avg_execution_time_ms)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Webhooks Tab */}
-                {activeTab === 'webhooks' && (
-                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                        <div className="px-4 py-5 sm:px-6">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Webhook Events</h3>
-                            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                                Latest 20 webhook events received from Strava
-                            </p>
-                        </div>
-                        <ul className="divide-y divide-gray-200">
-                            {webhooks.map((webhook) => (
-                                <li key={webhook.id} className="px-4 py-4 sm:px-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(webhook.status)}`}>
-                                                    {webhook.status}
-                                                </span>
-                                            </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">
-                                                    {webhook.event_type} {webhook.object_type}
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    Object ID: {webhook.object_id} • Pilot ID: {webhook.pilot_id || 'N/A'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <div className="text-right">
-                                                <div className="text-sm text-gray-900">
-                                                    {formatDateTime(webhook.received_at)}
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    {formatDuration(webhook.processing_duration_ms)}
-                                                </div>
-                                            </div>
-                                            {webhook.status === 'failed' && (
-                                                <button
-                                                    onClick={() => retryWebhook(webhook.id)}
-                                                    className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded text-sm"
-                                                >
-                                                    Retry
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {webhook.error_message && (
-                                        <div className="mt-2 text-sm text-red-600">
-                                            Error: {webhook.error_message}
-                                        </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {/* Tasks Tab */}
-                {activeTab === 'tasks' && (
-                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                        <div className="px-4 py-5 sm:px-6">
-                            <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Task Executions</h3>
-                            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                                Latest 20 task executions with their status and duration
-                            </p>
-                        </div>
-                        <ul className="divide-y divide-gray-200">
-                            {tasks.map((task) => (
-                                <li key={task.id} className="px-4 py-4 sm:px-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
-                                                    {task.status}
-                                                </span>
-                                            </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">
-                                                    {task.task_name}
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    Triggered by: {task.triggered_by || 'Unknown'} • Pilot ID: {task.pilot_id || 'N/A'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <div className="text-right">
-                                                <div className="text-sm text-gray-900">
-                                                    {formatDateTime(task.started_at)}
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    {formatDuration(task.execution_duration_ms)}
-                                                </div>
-                                            </div>
-                                            {task.status === 'failed' && (
-                                                <button
-                                                    onClick={() => retryTask(task.id)}
-                                                    className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded text-sm"
-                                                >
-                                                    Retry
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {task.error_message && (
-                                        <div className="mt-2 text-sm text-red-600">
-                                            Error: {task.error_message}
-                                        </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-            </div>
-        </div>
+                </>
+            )}
         </>
+    );
+}
+
+/**
+ * States the missing capability rather than offering a button that 404s.
+ */
+function RetryNote() {
+    return (
+        <p className={styles.retryNote}>
+            Retrying a failed item from here is not implemented — there is no retry
+            endpoint behind it. Re-run the task from Cloud Tasks, or let Strava resend
+            the webhook.
+        </p>
     );
 }
