@@ -49,7 +49,21 @@ export default function Chrome({
         // Which edge the sheet is docked to is a layout decision made in CSS, so
         // infer it from where the sheet actually is rather than duplicating the
         // breakpoint here and letting the two drift.
-        const isSideRail = sheetRect.height > sheetRect.width
+        //
+        // Infer it from how much of the *width* the sheet spans, not from
+        // whether it is taller than it is wide. The aspect-ratio test looked
+        // equivalent and was not: on a 390px phone the sheet is 366 wide and,
+        // at the half snap, 371 tall — taller than wide by five pixels, so
+        // every phone was classified as a desktop rail. Two things broke
+        // quietly as a result. `bottom` stayed 0, so the floating signup card
+        // sat on top of the sheet and covered the list underneath it; and the
+        // camera was told to pad 378px off the left of a 390px viewport, which
+        // is why the mobile map framed the whole of western Europe.
+        //
+        // A rail is narrow and full-height; a sheet spans the width. 0.75 sits
+        // far from both cases (0.29 on a 1440px desktop, 0.94 on a 390px
+        // phone), so a change to either width cannot flip the classification.
+        const isSideRail = sheetRect.width / window.innerWidth < 0.75
         if (isSideRail) {
             setInsets({ top, right: 0, bottom: 0, left: Math.round(sheetRect.right) })
         } else {
