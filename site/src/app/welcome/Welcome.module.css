@@ -1,0 +1,73 @@
+/*
+ * The glass panel is up to 1200px wide, which is right for the dashboard's
+ * tables and much too wide for three short paragraphs — the steps trailed off
+ * across an empty half-metre of panel. Constrained to a reading column.
+ */
+.column {
+    max-width: 68ch;
+    margin: 0 auto;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: center;
+    margin-top: var(--space-8);
+}
+
+.primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--border-radius-md);
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: none;
+    transition: background-color var(--transition-fast);
+}
+
+.primary:hover {
+    background-color: var(--color-primary-hover);
+    text-decoration: none;
+}
+
+.secondary {
+    composes: primary;
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    font-weight: var(--font-weight-medium);
+}
+
+.secondary:hover {
+    background-color: var(--color-border-light);
+}
+
+/*
+ * The count of flights found so far. This is the number the pilot came here to
+ * see, so it gets to be the size of a number worth seeing.
+ */
+.found {
+    text-align: center;
+    padding: var(--space-8) 0;
+}
+
+.foundValue {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-5xl);
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.foundLabel {
+    display: block;
+    margin-top: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
