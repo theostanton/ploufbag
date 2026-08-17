@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { FlightSummary } from '@database/flights'
 import FlightRow from './FlightRow'
+import MapLegend from './MapLegend'
 import PanelFilter from './PanelFilter'
 import { PanelSection } from './Panel'
 import styles from './PanelFilter.module.css'
@@ -42,6 +43,9 @@ export default function FlightsPanel({ flights }: { flights: FlightSummary[] }) 
                 shown={shown.length}
                 total={flights.length}
             />
+            {/* Keyed off the filtered set, so the key describes what is actually
+                on screen rather than what could be. */}
+            <MapLegend flights={shown} query={query} onSelect={setQuery}/>
             <PanelSection>
                 {shown.map((flight) => (
                     <FlightRow key={flight.strava_activity_id} flight={flight} />
