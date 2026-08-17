@@ -64,9 +64,15 @@
     margin: 0;
 }
 
+/*
+ * Two across in the rail, more when there is room. It was a hard `repeat(2)`,
+ * which is right for a 420px rail and wrong for the 1200px glass panel the
+ * dashboard uses -- four stats sat in two rows with half the panel empty
+ * between them.
+ */
 .facts {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: var(--space-4) var(--space-5);
     margin: 0;
 }

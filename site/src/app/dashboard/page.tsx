@@ -5,85 +5,71 @@ import {getPilotWingStats} from "@database/stats";
 import {Sites} from "@database/Sites";
 import {DescriptionPreferences} from "@database/descriptionPreferences";
 import {isSuccess} from "@ploufbag/common";
-import styles from "@styles/Page.module.css";
-import detailStyles from "@ui/DetailPages.module.css";
-import dashboardStyles from "./Dashboard.module.css";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
-import FlightItem from "@ui/FlightItem";
-import DescriptionPreferencesComponent from "@ui/preferences/DescriptionPreferences";
 import Link from "next/link";
-import {formatSiteName} from "@utils/formatSiteName";
+import DescriptionPreferencesComponent from "@ui/preferences/DescriptionPreferences";
 import MapScene from "@ui/map/MapScene";
+import FlightRow from "@ui/chrome/FlightRow";
+import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
+import tally from "@ui/chrome/PilotDetail.module.css";
+import {formatSiteName} from "@utils/formatSiteName";
 
 export const metadata: Metadata = createMetadata('Dashboard')
 
+/**
+ * The signed-in pilot's own view.
+ *
+ * Rebuilt on the panel primitives. It was still wearing the document-era card
+ * grid — four `infoCard`s side by side, sized for a 1200px page — inside a
+ * centred glass panel, which made it the one route that looked like a different
+ * product.
+ *
+ * Glass rather than a rail, and framed on this pilot's own flying: the map
+ * behind your dashboard should be your map. It is not a map *view* though —
+ * there is a form on it — so the panel stays centred and the camera does not
+ * expect to be steered.
+ */
 export default async function Dashboard() {
     const pilotId = await Auth.getSelfPilotId();
 
-    // Run all database calls in parallel to reduce connection time
     const [
         [pilot, pilotErrorMessage],
-        [wingStats, wingStatsErrorMessage],
-        [stats, takeoffStatsErrorMessage],
-        [recentFlights, flightsErrorMessage],
-        [totalFlightCount, flightCountErrorMessage],
+        [wingStats],
+        [stats],
+        [recentFlights],
+        [totalFlightCount],
         descriptionPreferencesResult,
         [ownFlights]
     ] = await Promise.all([
         get(pilotId),
         getPilotWingStats(pilotId),
         Sites.getPilotStats(pilotId),
-        Flights.getForPilot(pilotId, 3),
+        Flights.getForPilot(pilotId, 5),
         Flights.getPilotFlightCount(pilotId),
         DescriptionPreferences.get(pilotId),
-        // Ids only, to tell the map which tracks are yours. The panel lists
-        // three; the map behind it shows everywhere you have flown.
+        // Ids only, to tell the map which tracks are yours.
         Flights.getForPilot(pilotId)
     ]);
 
-    // Check for any errors and display them
-    const errors = [
-        {error: pilotErrorMessage, description: "pilot data"},
-        {error: wingStatsErrorMessage, description: "wing statistics"},
-        {error: takeoffStatsErrorMessage, description: "site statistics"},
-        {error: flightsErrorMessage, description: "recent flights"},
-        {error: flightCountErrorMessage, description: "flight count"}
-    ].filter(item => item.error);
-
-    if (errors.length > 0) {
-        return <div className={styles.page}>
-            <div className={styles.container}>
-                <h1 className={styles.title}>Dashboard Error</h1>
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Failed to load dashboard data</h3>
-                    <div className={dashboardStyles.errorPadding}>
-                        {errors.map((item, index) => (
-                            <div key={index} className={dashboardStyles.errorItem}>
-                                <strong>Error loading {item.description}:</strong> {item.error}
-                            </div>
-                        ))}
-                    </div>
-                    <div className={detailStyles.statsList}>
-                        <Link href="/login" className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>Try logging in again</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                        <Link href="/" className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>Return to home</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        </div>
+    if (!pilot) {
+        return (
+            <>
+                <MapScene chrome="glass"/>
+                <PanelHeader title="Dashboard"/>
+                <PanelEmpty
+                    title="We could not load your dashboard"
+                    detail={pilotErrorMessage}
+                />
+            </>
+        );
     }
 
-    const totalWings = wingStats.wingStats.length;
-    const totalTakeoffs = stats.takeoffs.filter(item => item.site).length;
-    const totalLandings = stats.landings.filter(item => item.site).length;
+    const flights = recentFlights ?? [];
+    const wings = wingStats?.wingStats ?? [];
+    const takeoffs = stats?.takeoffs.filter(item => item.site) ?? [];
+    const landings = stats?.landings.filter(item => item.site) ?? [];
 
-    // Get description preferences (with defaults if not found)
     const preferences = isSuccess(descriptionPreferencesResult) ? descriptionPreferencesResult[0] : {
         pilot_id: pilotId,
         include_sites: true,
@@ -93,178 +79,115 @@ export default async function Dashboard() {
         include_all_time_aggregate: true
     };
 
-    // Create sample flight data for preview
-    const sampleFlight = recentFlights.length > 0 ? {
-        wing: recentFlights[0].wing,
-        start_date: recentFlights[0].start_date,
-        takeoff_name: recentFlights[0].takeoff?.name || 'Unknown Takeoff',
-        landing_name: recentFlights[0].landing?.name || 'Unknown Landing',
+    const sampleFlight = flights.length > 0 ? {
+        wing: flights[0].wing,
+        start_date: flights[0].start_date,
+        takeoff_name: flights[0].takeoff?.name || 'Unknown Takeoff',
+        landing_name: flights[0].landing?.name || 'Unknown Landing',
         pilot_id: pilotId,
-        strava_activity_id: recentFlights[0].strava_activity_id,
-        duration_sec: recentFlights[0].duration_sec,
-        distance_meters: recentFlights[0].distance_meters,
-        description: recentFlights[0].description,
+        strava_activity_id: flights[0].strava_activity_id,
+        duration_sec: flights[0].duration_sec,
+        distance_meters: flights[0].distance_meters,
+        description: flights[0].description,
         // The preview formatter renders text from the flight's statistics and
         // never looks at its geometry; the field exists only to satisfy the
-        // FlightRow shape it takes. The list query no longer fetches polylines,
-        // and adding it back to ship an unread column would be wasteful.
+        // FlightRow shape it takes. The list query no longer fetches polylines.
         polyline: [],
-        landing_id: recentFlights[0].landing?.ffvl_sid,
-        takeoff_id: recentFlights[0].takeoff?.ffvl_sid
+        landing_id: flights[0].landing?.ffvl_sid,
+        takeoff_id: flights[0].takeoff?.ffvl_sid
     } : null;
 
-    return <>
-        <MapScene
-            chrome="glass"
-            emphasis={{
-                flights: (ownFlights ?? []).map(flight => String(flight.strava_activity_id)),
-                dimOthers: true,
-            }}
-        />
-        <div className={styles.page}>
-        <div className={styles.container}>
-            {/* Welcome Header */}
-            <header className={styles.pageHeaderWithProfile}>
-                {pilot.profile_image_url && (
-                    <img
-                        src={pilot.profile_image_url}
-                        alt={pilot.first_name}
-                        className={styles.profileImage}
-                    />
-                )}
-                <div>
-                    <h1 className={styles.title}>{pilot.first_name}</h1>
-                    <p className={styles.description}>Your paragliding dashboard</p>
-                </div>
-            </header>
-
-            {/* Quick Stats Overview */}
-            <div className={detailStyles.grid}>
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Your Flying Summary</h3>
-                    <div className={detailStyles.infoGrid}>
-                        <Link href={`/pilots/${pilotId}`} className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Total Flights</span>
-                            <span className={detailStyles.infoValue}>{totalFlightCount}</span>
-                        </Link>
-                        <div className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Wings Used</span>
-                            <span className={detailStyles.infoValue}>{totalWings}</span>
-                        </div>
-                        <Link href="/sites" className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Takeoff Sites</span>
-                            <span className={detailStyles.infoValue}>{totalTakeoffs}</span>
-                        </Link>
-                        <Link href="/sites" className={detailStyles.infoItem}>
-                            <span className={detailStyles.infoLabel}>Landing Sites</span>
-                            <span className={detailStyles.infoValue}>{totalLandings}</span>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Quick Actions</h3>
-                    <div className={detailStyles.statsList}>
-                        <Link href={`/pilots/${pilotId}`} className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>View Your Profile</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                        <Link href="/flights" className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>Browse All Flights</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                        <Link href="/sites" className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>Explore Sites</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                        <Link href="/pilots" className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>Community Pilots</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                    </div>
-                </div>
-            </div>
-
-            {/* Description Preferences */}
-            <DescriptionPreferencesComponent
-                initialPreferences={preferences}
-                sampleFlight={sampleFlight}
+    return (
+        <>
+            <MapScene
+                chrome="glass"
+                emphasis={{
+                    flights: (ownFlights ?? []).map(flight => String(flight.strava_activity_id)),
+                    dimOthers: true,
+                }}
             />
 
-            {/* Your Equipment */}
-            {wingStats.wingStats.length > 0 && (
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Your Wings</h3>
-                    <div className={detailStyles.statsList}>
-                        {wingStats.wingStats.map(item => (
-                            <Link
-                                key={item.wing}
-                                href={`/pilots/${pilotId}/${encodeURIComponent(item.wing.toLowerCase())}`}
-                                className={detailStyles.statsItem}
-                            >
-                                <span className={detailStyles.statsItemName}>🪂 {item.wing}</span>
-                                <span className={detailStyles.statsItemCount}>{item.flights} flights</span>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-            )}
+            <PanelHeader
+                title={`Welcome back, ${pilot.first_name}`}
+                subtitle="Everywhere you have flown is on the map behind this."
+            />
 
-            {/* Your Favorite Sites */}
-            {stats.takeoffs.filter(item => item.site).length > 0 && (
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Your Takeoffs</h3>
-                    <div className={detailStyles.statsList}>
-                        {stats.takeoffs
-                            .filter(item => item.site)
-                            .map(item => (
+            <PanelSection>
+                <PanelFacts
+                    facts={[
+                        {
+                            label: 'Flights',
+                            value: <Link href={`/pilots/${pilotId}`}>{totalFlightCount ?? flights.length}</Link>,
+                        },
+                        {label: 'Wings', value: wings.length},
+                        {label: 'Takeoffs', value: takeoffs.length},
+                        {label: 'Landings', value: landings.length},
+                    ]}
+                />
+            </PanelSection>
+
+            <PanelSection title="Your Strava descriptions">
+                <DescriptionPreferencesComponent
+                    initialPreferences={preferences}
+                    sampleFlight={sampleFlight}
+                />
+            </PanelSection>
+
+            {wings.length > 0 && (
+                <PanelSection title="Your wings">
+                    <ul className={tally.tally}>
+                        {wings.map(item => (
+                            <li key={item.wing}>
                                 <Link
-                                    key={item.site.slug}
-                                    href={`/sites/${item.site.slug}`}
-                                    className={detailStyles.statsItem}
+                                    href={`/pilots/${pilotId}/${encodeURIComponent(item.wing.toLowerCase())}`}
+                                    className={tally.tallyRow}
                                 >
-                                    <span
-                                        className={detailStyles.statsItemName}>↗️ {formatSiteName(item.site.name)}</span>
-                                    <span className={detailStyles.statsItemCount}>{item.flights} flights</span>
+                                    <span className={tally.tallyName}>{item.wing}</span>
+                                    <span className={tally.tallyCount}>{item.flights}</span>
                                 </Link>
-                            ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Recent Flights */}
-            {recentFlights.length > 0 && (
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Your Recent Flights</h3>
-                    <div className={detailStyles.flightsList}>
-                        {recentFlights.map(flight => (
-                            <FlightItem key={flight.strava_activity_id} flight={flight}/>
+                            </li>
                         ))}
-                    </div>
-                    <div className={dashboardStyles.flightsSection}>
-                        <Link href={`/pilots/${pilotId}`} className={detailStyles.statsItem}>
-                            <span className={detailStyles.statsItemName}>View all your flights</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                    </div>
-                </div>
+                    </ul>
+                </PanelSection>
             )}
 
-            {/* No flights message */}
-            {recentFlights.length === 0 && (
-                <div className={detailStyles.infoCard}>
-                    <h3 className={detailStyles.infoTitle}>Your Flights</h3>
-                    <div className={dashboardStyles.noFlightsContainer}>
-                        <p>No flights recorded yet. Start flying and sync your Strava activities to see them here!</p>
-                        <Link href="/sites" className={`${detailStyles.statsItem} ${dashboardStyles.noFlightsAction}`}>
-                            <span className={detailStyles.statsItemName}>Explore flying sites</span>
-                            <span className={detailStyles.statsItemCount}>→</span>
-                        </Link>
-                    </div>
-                </div>
+            {takeoffs.length > 0 && (
+                <PanelSection title="Your takeoffs">
+                    <ul className={tally.tally}>
+                        {takeoffs.slice(0, 8).map(item => (
+                            <li key={item.site.ffvl_sid}>
+                                <Link href={`/sites/${item.site.slug}`} className={tally.tallyRow}>
+                                    <span className={tally.tallyName}>
+                                        {formatSiteName(item.site.name)}
+                                    </span>
+                                    <span className={tally.tallyCount}>{item.flights}</span>
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </PanelSection>
             )}
-        </div>
-    </div>
-    </>
+
+            <PanelSection
+                title="Recent flights"
+                action={<Link href={`/pilots/${pilotId}`}>See all</Link>}
+            >
+                {flights.length > 0 ? (
+                    flights.map(flight => (
+                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                    ))
+                ) : (
+                    <PanelEmpty
+                        title="No flights yet"
+                        detail={
+                            <>
+                                Once Strava has a paragliding activity for you, it will appear here
+                                and on the map. <Link href="/sites">Find somewhere to fly.</Link>
+                            </>
+                        }
+                    />
+                )}
+            </PanelSection>
+        </>
+    );
 }
