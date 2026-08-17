@@ -4,6 +4,7 @@ import { ReactNode, Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import styles from './Sheet.module.css'
 import { ChromeMode } from '@ui/map/scene'
+import PanelFooter from './PanelFooter'
 
 /**
  * The panel the route renders into.
@@ -131,7 +132,12 @@ export default function Sheet({
                     <span className={styles.handleBar} aria-hidden="true" />
                 </button>
             )}
-            <div className={styles.scroller}>{children}</div>
+            <div className={styles.scroller}>
+                {children}
+                {/* Every panel, so the Strava attribution is present wherever
+                    their data is, rather than on one route. */}
+                <PanelFooter/>
+            </div>
         </section>
     )
 }

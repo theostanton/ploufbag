@@ -5,6 +5,7 @@ import styles from './Chrome.module.css'
 import Sheet from './Sheet'
 import MapControls from './MapControls'
 import RouteAnnouncer from './RouteAnnouncer'
+import { useEscapeToParent } from './useEscapeToParent'
 import { setInsets, useInsets, useScene } from '@ui/map/store'
 
 /**
@@ -31,6 +32,7 @@ export default function Chrome({
 }) {
     const scene = useScene()
     const insets = useInsets()
+    useEscapeToParent()
     const topBarRef = useRef<HTMLDivElement>(null)
     const sheetRef = useRef<HTMLElement>(null)
 

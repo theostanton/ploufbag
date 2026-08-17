@@ -1,0 +1,71 @@
+/*
+ * Top-right, clear of the rail on the left and the controls at the bottom.
+ * Fixed rather than following the cursor: a card chasing the pointer covers the
+ * feature it is describing.
+ */
+.card {
+    position: absolute;
+    top: var(--chrome-top);
+    right: var(--chrome-gap);
+    z-index: 3;
+    display: flex;
+    gap: var(--space-3);
+    max-width: 280px;
+    padding: var(--space-3) var(--space-4);
+    border-radius: calc(var(--chrome-radius) - 4px);
+    background-color: var(--chrome-bg-strong);
+    border: 1px solid var(--chrome-border);
+    box-shadow: var(--chrome-shadow);
+    backdrop-filter: blur(var(--chrome-blur)) saturate(140%);
+    /* Purely informational, and it appears under the pointer's control — it must
+       never eat a click meant for the map. */
+    pointer-events: none;
+    animation: appear 120ms ease-out;
+}
+
+@keyframes appear {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card {
+        animation: none;
+    }
+}
+
+.accent {
+    flex: none;
+    width: 3px;
+    border-radius: 2px;
+    align-self: stretch;
+}
+
+.body {
+    min-width: 0;
+}
+
+.title {
+    margin: 0 0 2px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    line-height: var(--line-height-snug);
+}
+
+.line {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-snug);
+}
+
+/*
+ * On a phone there is no hover, so this only ever appears from a tap — where
+ * the sheet is the better place for detail. Kept out of the way entirely.
+ */
+@media (max-width: 1023px) {
+    .card {
+        display: none;
+    }
+}

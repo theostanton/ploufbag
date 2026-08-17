@@ -86,6 +86,15 @@ export default async function FlightDetail({params}: {
                         {label: 'Duration', value: formatDuration(flight.duration_sec)},
                         {label: 'Distance', value: `${(flight.distance_meters / 1000).toFixed(1)} km`},
                         {
+                            // Along-track average, not a straight line: it is
+                            // derived from the same distance the panel shows, so
+                            // the two numbers agree.
+                            label: 'Avg speed',
+                            value: flight.duration_sec > 0
+                                ? `${((flight.distance_meters / 1000) / (flight.duration_sec / 3600)).toFixed(1)} km/h`
+                                : '—',
+                        },
+                        {
                             label: 'Started',
                             value: <ClientOnlyDate date={flight.start_date} format="time"/>,
                         },
