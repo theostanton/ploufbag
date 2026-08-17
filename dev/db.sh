@@ -99,6 +99,10 @@ SCHEMA_FILES=(
     create_pilots
     create_sites
     create_description_preferences
+    # /admin reads webhook_events and task_executions. Without this the three
+    # monitoring endpoints 500 and the admin page can only ever show its error
+    # state, which is how it was reviewed for a while.
+    create_monitoring_tables
     add_profile_image_url_to_pilots
     add_created_at_to_pilots
     add_description_preferences_snapshot
