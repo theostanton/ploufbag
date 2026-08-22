@@ -229,4 +229,27 @@ export namespace Flights {
             }
         });
     }
+
+    /**
+     * How many of a pilot's flights have no wing on them.
+     *
+     * An unattributed flight is a legal, permanent state -- but it is also the
+     * one thing worth quietly nudging about, because it is a question only the
+     * pilot can answer and it takes one tap.
+     */
+    export async function countUnattributed(pilotId: StravaAthleteId): Promise<Either<number>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ n: number }>(
+                    `select count(1)::int as n
+                     from flights
+                     where pilot_id = $1::integer and wing_id is null`,
+                    [pilotId]
+                )
+                return success(result.rows[0].reify().n)
+            } catch (error) {
+                return failure(`Flights.countUnattributed failed: ${error}`)
+            }
+        });
+    }
 }

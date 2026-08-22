@@ -422,3 +422,93 @@
     text-underline-offset: 2px;
     margin-left: auto;
 }
+
+/* ---- one-at-a-time review ---- */
+
+.deck {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.deckProgress {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+}
+
+.deckCard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-lg);
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-base);
+}
+
+/* Big enough to recognise. The whole point of this mode is that the shape is
+   the evidence, and the list shrinks it to a thumbnail. */
+.deckTrack {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 140px;
+    border-radius: var(--border-radius-md);
+    background: linear-gradient(160deg, #33473a, #2c4150);
+}
+
+.deckTrack svg {
+    width: 80%;
+    height: 80%;
+    background: transparent;
+}
+
+.deckTitle {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.deckActions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+}
+
+.deckActions .yes,
+.deckActions .no {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.deckFoot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: space-between;
+}
+
+.deckDone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.deckDone p {
+    margin: 0;
+}
+
+.modeToggle {
+    align-self: flex-start;
+}

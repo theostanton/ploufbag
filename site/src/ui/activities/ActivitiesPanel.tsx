@@ -12,6 +12,7 @@ import {
 import { setActivityVerdict, setFlightWing } from '@actions/activities'
 import { GENERIC_ACTION_ERROR, type ActionResult } from '@model/ActionResult'
 import TrackThumb from './TrackThumb'
+import ReviewDeck from './ReviewDeck'
 import styles from './Activities.module.css'
 
 export type PanelWing = {
@@ -72,6 +73,7 @@ export default function ActivitiesPanel({
     const [undo, setUndo] = useState<{ ids: string[]; label: string } | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [wingMenuFor, setWingMenuFor] = useState<string | null>(null)
+    const [deck, setDeck] = useState(false)
 
     const wingByFlight = useMemo(() => {
         const map = new Map<string, FlightWingLink>()
@@ -137,11 +139,35 @@ export default function ActivitiesPanel({
                 ))}
             </div>
 
-            {tab === 'unsure' && visible.length > 0 && (
-                <p className={styles.blurb}>
-                    We could not call these. Look at the shape — a flight leaves a launch and goes
-                    somewhere. Everything here stays put until you decide, or don’t.
-                </p>
+            {tab === 'unsure' && visible.length > 0 && !deck && (
+                <>
+                    <p className={styles.blurb}>
+                        We could not call these. Look at the shape — a flight leaves a launch and
+                        goes somewhere. Everything here stays put until you decide, or don’t.
+                    </p>
+                    <button
+                        type="button"
+                        className={`${styles.linkish} ${styles.modeToggle}`}
+                        onClick={() => setDeck(true)}
+                    >
+                        Review one at a time
+                    </button>
+                </>
+            )}
+
+            {tab === 'unsure' && deck && (
+                <ReviewDeck
+                    activities={visible}
+                    busy={isPending}
+                    onDecide={(activityId, isFlight) =>
+                        run(
+                            () => setActivityVerdict([activityId], isFlight ? 'flight' : 'not_flight'),
+                            { undoIds: [activityId] }
+                        )
+                    }
+                    onAcceptRest={ids => run(() => setActivityVerdict(ids, 'flight'), { undoIds: ids })}
+                    onExit={() => setDeck(false)}
+                />
             )}
             {tab === 'not_flight' && visible.length > 0 && (
                 <p className={styles.blurb}>
@@ -150,7 +176,7 @@ export default function ActivitiesPanel({
                 </p>
             )}
 
-            {visible.length === 0 ? (
+            {deck && tab === 'unsure' ? null : visible.length === 0 ? (
                 <p className={styles.empty}>
                     {tab === 'unsure'
                         ? 'Nothing waiting on you.'
