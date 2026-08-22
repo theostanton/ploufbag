@@ -1,0 +1,359 @@
+/*
+ * The first-run flow, on the glass panel over the pilot's own map.
+ *
+ * Sized larger than the other panels on purpose: this is the one screen in the
+ * product that is read rather than operated, and the number in the middle of it
+ * is the whole value proposition.
+ */
+
+.step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.eyebrow {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.title {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+    text-wrap: balance;
+}
+
+.lede {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    color: var(--color-text-secondary);
+}
+
+/* The payoff. */
+.headline {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+}
+
+.big {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-5xl);
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+}
+
+.bigUnit {
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-snug);
+    color: var(--color-text-muted);
+}
+
+.facts {
+    display: flex;
+    gap: var(--space-8);
+    margin: 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.facts dt {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+}
+
+.facts dd {
+    margin: 0;
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+}
+
+/*
+ * Said once, where it matters. We have just been handed read access to six
+ * years of somebody's life and it is worth being plain about what we do with it.
+ */
+.reassure,
+.aside,
+.hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted);
+}
+
+/* ---- the empty state's type picker ---- */
+
+.types {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.type {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-full);
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.type[data-selected] {
+    border-color: var(--color-primary);
+    background: rgba(107, 107, 31, 0.10);
+}
+
+.typeCount {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- wings ---- */
+
+.wingList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.wingItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.dot {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    border-radius: var(--border-radius-full);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+}
+
+.input,
+.date {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    min-width: 0;
+}
+
+.suggestions {
+    list-style: none;
+    margin: calc(var(--space-4) * -1) 0 0;
+    padding: 0;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.suggestion {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-3);
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.suggestion:hover,
+.suggestion:focus-visible {
+    background: rgba(0, 163, 221, 0.10);
+}
+
+.suggestionMake {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* ---- periods ---- */
+
+/*
+ * Not decoration: these bars are the flights being reassigned. Seeing the
+ * handover month lets a pilot check a bulk change across years of flying against
+ * their own memory before committing to it.
+ */
+.strip {
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface-elevated);
+}
+
+.stripLabel {
+    font-family: var(--font-family-mono);
+    font-size: 8px;
+    fill: var(--color-text-muted);
+}
+
+.periods {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.period {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface-elevated);
+}
+
+.periodName {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.periodDates {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.periodDates .date {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-xs);
+}
+
+.to {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* ---- actions ---- */
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.primary,
+.secondary,
+.back {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--border-radius-md);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.primary {
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+
+.primary:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.secondary {
+    background: transparent;
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.secondary:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.primary:disabled,
+.secondary:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* "Later" is always available, and never dressed up as the main action. */
+.back {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-weight: var(--font-weight-normal);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.back:hover {
+    color: var(--color-secondary);
+}
+
+.error {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+}
