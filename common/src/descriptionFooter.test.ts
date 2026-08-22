@@ -8,6 +8,7 @@ import {
     isFormattedDescription,
     LEGACY_DESCRIPTION_DOMAINS,
     SLUG_PATTERN,
+    withoutStatsBlock,
 } from "./descriptionFooter";
 
 // A realistic description as it appears on Strava after we have written to it:
@@ -273,3 +274,54 @@ describe("formattedStatsPattern with slugged footers", () => {
         expect(updated).toBe(`🌐 ${DESCRIPTION_DOMAIN}/${SLUG}\nPS: thermals were wild today`);
     });
 });
+
+describe('withoutStatsBlock', () => {
+    const STATS = [
+        '🪂 Ozone Zeno 2    15 flights / 18h 45min',
+        '2024               42 flights / 52h 30min',
+        'All Time           87 flights / 124h 15min',
+        '🌐 ploufbag.com/a45nz',
+    ].join('\n')
+
+    it('leaves a description we never wrote to completely alone', () => {
+        const theirs = 'Belle journée à Planfait, un peu de vent en fin de vol.'
+        expect(withoutStatsBlock(theirs)).toBe(theirs)
+    })
+
+    it('leaves an empty description alone', () => {
+        expect(withoutStatsBlock('')).toBe('')
+    })
+
+    it('removes a block we wrote', () => {
+        expect(withoutStatsBlock(STATS)).toBe('')
+    })
+
+    /**
+     * The case that matters. The pilot's own words are above our block, and
+     * taking ours back must not take theirs -- which is exactly the failure
+     * formattedStatsPattern's comments describe happening before.
+     */
+    it("keeps the pilot's own text above it", () => {
+        const mixed = `Belle journée à Planfait.\n\n${STATS}`
+        expect(withoutStatsBlock(mixed)).toBe('Belle journée à Planfait.')
+    })
+
+    it('removes a block published under a legacy domain', () => {
+        const legacy = STATS.replace('ploufbag.com/a45nz', 'paragliderstats.com')
+        const mixed = `Vol du soir.\n\n${legacy}`
+        expect(withoutStatsBlock(mixed)).toBe('Vol du soir.')
+    })
+
+    it('leaves no scar where the block was', () => {
+        const mixed = `First line.\n\n${STATS}`
+        const result = withoutStatsBlock(mixed)
+        expect(result).not.toContain('\n\n\n')
+        expect(result.endsWith('.')).toBe(true)
+    })
+
+    it('is idempotent', () => {
+        const mixed = `Vol.\n\n${STATS}`
+        const once = withoutStatsBlock(mixed)
+        expect(withoutStatsBlock(once)).toBe(once)
+    })
+})

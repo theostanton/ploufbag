@@ -48,6 +48,7 @@ export default async function TopBar() {
         { text: 'Sites', path: '/sites' },
         { text: 'Pilots', path: '/pilots' },
         { text: 'Dashboard', path: '/dashboard', authedOnly: true },
+        { text: 'Activities', path: '/activities', authedOnly: true },
     ]
 
     return (

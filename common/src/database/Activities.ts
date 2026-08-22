@@ -263,6 +263,41 @@ export namespace Activities {
         });
     }
 
+    /**
+     * Records what the pilot decided. The only writer of `pilot_verdict`.
+     *
+     * `null` clears the decision and hands the activity back to the classifier,
+     * which is what "undo" means here -- not "set it to what it was", which
+     * would freeze a guess into a decision nobody made.
+     *
+     * Scoped by pilot id as well as activity id: the ids come from a browser.
+     */
+    export async function setPilotVerdict(
+        pilotId: StravaAthleteId,
+        activityIds: StravaActivityId[],
+        verdict: ActivityVerdict | null
+    ): Promise<Either<number>> {
+        if (activityIds.length === 0) {
+            return success(0)
+        }
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ strava_activity_id: StravaActivityId }>(
+                    `update activities
+                     set pilot_verdict = $3::activity_verdict,
+                         decided_at    = case when $3::activity_verdict is null then null else now() end
+                     where pilot_id = $1::integer
+                       and strava_activity_id = any ($2::text[])
+                     returning strava_activity_id`,
+                    [pilotId, activityIds, verdict]
+                )
+                return success(result.rows.length)
+            } catch (error) {
+                return failure(`Activities.setPilotVerdict failed: ${error}`)
+            }
+        });
+    }
+
     /** Ids we have already scanned, so a re-scan can stop early. */
     export async function knownIdsForPilot(
         pilotId: StravaAthleteId

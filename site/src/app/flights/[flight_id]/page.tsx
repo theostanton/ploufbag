@@ -1,6 +1,7 @@
 import {notFound} from "next/navigation";
 import {Flights} from "@database/flights";
-import {StravaActivityId} from "@ploufbag/common";
+import {StravaActivityId, Wings, isSuccess} from "@ploufbag/common";
+import {Auth} from "@auth/index";
 import Link from "next/link";
 import ViewOnStrava from "@ui/links/ViewOnStrava";
 import ClientOnlyDate from "@ui/ClientOnlyDate";
@@ -9,6 +10,7 @@ import {getFlightColor} from "@ui/map/colors";
 import {PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 import styles from "@ui/chrome/FlightDetail.module.css";
 import {formatSiteName} from "@utils/formatSiteName";
+import FlightControls from "@ui/activities/FlightControls";
 
 function formatDuration(seconds: number) {
     const hours = Math.floor(seconds / 3600);
@@ -33,7 +35,12 @@ export default async function FlightDetail({params}: {
     params: Promise<{ flight_id: StravaActivityId }>
 }) {
     const flightId = (await params).flight_id;
-    const [flight] = await Flights.get(flightId);
+    const [[flight], viewerId] = await Promise.all([
+        Flights.get(flightId),
+        // This page is public, so the viewer is usually not the pilot. Asked
+        // without it being an error to say no.
+        Auth.getSelfPilotIdOrNull(),
+    ]);
 
     // notFound() rather than a "not found" panel, so the response is an actual
     // 404. These URLs are published in Strava descriptions and get copied by
@@ -48,6 +55,17 @@ export default async function FlightDetail({params}: {
 
     const siteIds = [flight.takeoff?.ffvl_sid, flight.landing?.ffvl_sid]
         .filter((id): id is string => Boolean(id));
+
+    const isOwner = viewerId != null && Number(viewerId) === Number(flight.pilot_id);
+    const wingsResult = isOwner ? await Wings.getForPilot(flight.pilot_id) : null;
+    const wings = wingsResult && isSuccess(wingsResult)
+        ? wingsResult[0].map(wing => ({
+            wing_id: wing.wing_id,
+            name: wing.name,
+            colour: wing.colour,
+            retired: wing.retired,
+        }))
+        : [];
 
     return (
         <>
@@ -121,6 +139,18 @@ export default async function FlightDetail({params}: {
                     ]}
                 />
             </PanelSection>
+
+            {isOwner && (
+                <PanelSection title="Got this wrong?">
+                    <FlightControls
+                        flightId={String(flight.strava_activity_id)}
+                        wingId={flight.wing_id ?? null}
+                        wingName={flight.wing ?? null}
+                        wingColour={flight.wing_colour ?? null}
+                        wings={wings}
+                    />
+                </PanelSection>
+            )}
 
             <PanelSection title="Route">
                 <div className={styles.route}>

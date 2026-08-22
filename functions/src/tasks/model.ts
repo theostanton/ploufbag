@@ -1,9 +1,10 @@
 import { executeFetchAllActivitiesTask } from "./fetchAllActivities";
 import { executeUpdateDescriptionTask } from "./updateDescription";
 import { executeUpdateSingleActivityTask } from "./updateSingleActivity";
+import { executeReconcileDescriptionTask } from "./reconcileDescription";
 import { executeHelloWorldTask } from "./helloWorld";
 import { executeSyncSitesTask } from "./syncSites";
-import { FetchAllActivitiesTask, UpdateDescriptionTask, UpdateSingleActivityTask, HelloWorldTask, SyncSitesTask } from "@ploufbag/common";
+import { FetchAllActivitiesTask, UpdateDescriptionTask, UpdateSingleActivityTask, ReconcileDescriptionTask, HelloWorldTask, SyncSitesTask } from "@ploufbag/common";
 
 export type TaskResult = TaskSuccess | TaskFailure
 
@@ -16,7 +17,7 @@ export type TaskFailure = {
     message: string
 }
 
-export type TaskBody = FetchAllActivitiesTask | UpdateDescriptionTask | UpdateSingleActivityTask | HelloWorldTask | SyncSitesTask
+export type TaskBody = FetchAllActivitiesTask | UpdateDescriptionTask | UpdateSingleActivityTask | ReconcileDescriptionTask | HelloWorldTask | SyncSitesTask
 
 export type TaskHandler = (task: any) => Promise<TaskResult>
 
@@ -27,5 +28,6 @@ export const taskHandlers: Record<TaskName, TaskHandler> = {
     FetchAllActivities: executeFetchAllActivitiesTask,
     UpdateDescription: executeUpdateDescriptionTask,
     UpdateSingleActivity: executeUpdateSingleActivityTask,
+    ReconcileDescription: executeReconcileDescriptionTask,
     HelloWorld: executeHelloWorldTask,
 }

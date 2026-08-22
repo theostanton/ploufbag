@@ -292,6 +292,57 @@ export namespace Wings {
     }
 
     /**
+     * Which wing a flight on this date was most likely flown on.
+     *
+     * Rules two and three of the design's wing resolution, in order: a pilot who
+     * flies one wing gets that wing; otherwise, a date falling inside exactly
+     * one wing's period gets that wing. Ambiguity resolves to nothing, and
+     * nothing is a legal answer -- an unattributed flight is a flight, where
+     * before it was a flight thrown away.
+     *
+     * Retired wings still count for dates inside their period. They are the
+     * correct attribution for everything flown on them; "retired" means "stop
+     * offering it for new flights", not "pretend it never flew".
+     */
+    export async function resolveForDate(
+        pilotId: StravaAthleteId,
+        date: Date
+    ): Promise<Either<Wing | null>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const active = await database.query<Wing>(
+                    `select ${COLUMNS} from wings where pilot_id = $1::integer and retired = false`,
+                    [pilotId]
+                )
+                const activeWings = active.rows.map(row => row.reify())
+                if (activeWings.length === 1) {
+                    return success(activeWings[0])
+                }
+
+                // `< flown_until + 1 day` for the same reason assignToDateRange
+                // uses it: the pilot means the whole of the closing day.
+                const inPeriod = await database.query<Wing>(
+                    `select ${COLUMNS} from wings
+                     where pilot_id = $1::integer
+                       and (flown_from is null or $2::timestamptz >= flown_from)
+                       and (flown_until is null or $2::timestamptz < (flown_until + interval '1 day'))`,
+                    [pilotId, date]
+                )
+                const candidates = inPeriod.rows.map(row => row.reify())
+                if (candidates.length === 1) {
+                    return success(candidates[0])
+                }
+
+                // Two wings flown concurrently, or none recorded for that date.
+                // Both are ordinary, and both mean we do not know.
+                return success(null)
+            } catch (error) {
+                return failure(`Wings.resolveForDate failed: ${error}`)
+            }
+        });
+    }
+
+    /**
      * Attributes every one of a pilot's flights in a date window to a wing.
      *
      * The bulk primitive the whole design rests on: two dates settle years of

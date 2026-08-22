@@ -24,6 +24,24 @@ export namespace Auth {
     }
 
 
+    /**
+     * The signed-in pilot, or nothing.
+     *
+     * `getSelfPilotId` throws when there is no session -- it reads `.value` off
+     * a cookie that is not there -- which is right for a protected route and
+     * wrong for a public one. Flight, site and pilot pages are all public and
+     * still want to know whether the person reading is the owner, so they need
+     * the question asked without it being an error to say no.
+     */
+    export async function getSelfPilotIdOrNull(): Promise<StravaAthleteId | null> {
+        const jwt = (await cookies()).get('sid')?.value
+        if (!jwt) {
+            return null
+        }
+        const [pilotId, error] = await verifyJwt(jwt)
+        return error ? null : pilotId
+    }
+
     export async function checkIsAuthed(): Promise<boolean> {
         const jwt = (await cookies()).get('sid')?.value
 

@@ -330,6 +330,21 @@ export interface UpdateSingleActivityTask extends BaseTask {
     activityId: StravaActivityId;
 }
 
+/**
+ * Makes a Strava activity's description match what we now believe about it.
+ *
+ * Both directions. If the activity is a flight, its stats block is written or
+ * rewritten; if it is not one any more, the block we previously wrote is taken
+ * back out. The second half is the one that matters: demoting a flight silently,
+ * leaving our text on somebody's Strava activity, is the fastest way to lose the
+ * trust that holding an OAuth token depends on.
+ */
+export interface ReconcileDescriptionTask extends BaseTask {
+    name: "ReconcileDescription";
+    pilotId: StravaAthleteId;
+    activityId: StravaActivityId;
+}
+
 export interface SyncSitesTask extends BaseTask {
     name: "SyncSites";
 }
@@ -339,11 +354,11 @@ export interface HelloWorldTask extends BaseTask {
 }
 
 // Union type of all tasks
-export type Task = FetchAllActivitiesTask | UpdateDescriptionTask | UpdateSingleActivityTask | SyncSitesTask | HelloWorldTask;
+export type Task = FetchAllActivitiesTask | UpdateDescriptionTask | UpdateSingleActivityTask | ReconcileDescriptionTask | SyncSitesTask | HelloWorldTask;
 
 // General task framework types
 export type TaskBody = BaseTask
-export type TaskName = "SyncSites" | "FetchAllActivities" | "UpdateDescription" | "UpdateSingleActivity" | "HelloWorld"
+export type TaskName = "SyncSites" | "FetchAllActivities" | "UpdateDescription" | "UpdateSingleActivity" | "ReconcileDescription" | "HelloWorld"
 
 // Generic task executor function type (to be implemented by functions package)
 export type TaskExecutor = (task: TaskBody) => Promise<TaskResult>
