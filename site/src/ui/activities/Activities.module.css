@@ -1,0 +1,514 @@
+/*
+ * The activity triage screen, in the chrome rail.
+ *
+ * Denser than the rest of the panels because it is a working screen rather than
+ * a reading one: a pilot arriving here has seventeen decisions to make and wants
+ * them all on one screen, not four at a time.
+ */
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* ---- tabs ---- */
+
+.tabs {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: rgba(216, 216, 208, 0.5);
+    border-radius: var(--border-radius-lg);
+}
+
+.tab {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-2);
+    border: 0;
+    border-radius: var(--border-radius-md);
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab[data-active] {
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.tabCount {
+    font-weight: var(--font-weight-normal);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.blurb,
+.empty {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted);
+}
+
+.listHead {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.selectAll {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+/* ---- rows ---- */
+
+.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-2);
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.row:last-child {
+    border-bottom: 0;
+}
+
+.row[data-selected] {
+    background: rgba(0, 163, 221, 0.08);
+    border-radius: var(--border-radius-md);
+}
+
+.check {
+    flex: none;
+    margin-top: 2px;
+}
+
+.thumb {
+    flex: none;
+    width: 48px;
+    height: 32px;
+    border-radius: var(--border-radius-sm);
+    background: rgba(26, 26, 26, 0.05);
+}
+
+.thumbEmpty {
+    flex: none;
+    width: 48px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius-sm);
+    background: rgba(26, 26, 26, 0.05);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.body {
+    flex: 1;
+    min-width: 0;
+}
+
+.title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.titleLink {
+    color: inherit;
+    text-decoration: none;
+}
+
+.titleLink:hover {
+    color: var(--color-secondary);
+}
+
+.meta {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+/*
+ * Reasons, not a score. A pilot cannot act on "87% confident" and recognises
+ * "Planfait → Doussard" instantly, because they were there. Doubts are coloured
+ * differently because the doubt is the thing they are being asked to settle.
+ */
+.reasons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.reason {
+    font-family: var(--font-family-mono);
+    font-size: 10px;
+    padding: 2px var(--space-2);
+    border-radius: var(--border-radius-sm);
+    background: rgba(107, 107, 31, 0.11);
+    color: #4f5417;
+}
+
+.reason[data-against] {
+    background: rgba(217, 119, 6, 0.13);
+    color: #8a5a08;
+}
+
+/* ---- row actions ---- */
+
+.rowActions {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.yes,
+.no,
+.wingChip,
+.bulkAction,
+.bulkClear,
+.linkish,
+.undo {
+    font: inherit;
+    cursor: pointer;
+}
+
+.yes,
+.no {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.yes {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+
+.no:hover {
+    border-color: var(--color-error);
+    color: var(--color-error);
+}
+
+.yes:disabled,
+.no:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* ---- wing chip ---- */
+
+.wingCell {
+    position: relative;
+}
+
+.wingChip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Dashed, because an unknown wing is a legal state and not an error. */
+.wingChip[data-unknown] {
+    border-style: dashed;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-normal);
+}
+
+.wingDot {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: var(--border-radius-full);
+    background: var(--color-border);
+}
+
+.wingChip[data-unknown] .wingDot {
+    background: transparent;
+    border: 1px dashed var(--color-text-muted);
+}
+
+.wingMenu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    list-style: none;
+    margin: 0;
+    padding: var(--space-1);
+    min-width: 170px;
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.wingOption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    font-size: var(--font-size-xs);
+    text-align: left;
+    color: var(--color-text-primary);
+}
+
+.wingOption:hover {
+    background: rgba(0, 163, 221, 0.10);
+}
+
+.wingOptionEmpty {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+}
+
+.retired {
+    margin-left: auto;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+}
+
+/* ---- bulk ---- */
+
+.bulkHint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding-top: var(--space-2);
+}
+
+.linkish {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.bulkBar {
+    position: sticky;
+    bottom: var(--space-3);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--border-radius-lg);
+    background: #1f2420;
+    color: #fff;
+    font-size: var(--font-size-xs);
+    box-shadow: var(--shadow-lg);
+}
+
+.bulkAction {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-bright);
+}
+
+.bulkSelect {
+    font: inherit;
+    font-size: var(--font-size-xs);
+    background: transparent;
+    color: var(--color-primary-bright);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-1) var(--space-2);
+}
+
+.bulkSelect option {
+    color: var(--color-text-primary);
+}
+
+.bulkClear {
+    margin-left: auto;
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: var(--font-size-xs);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* ---- feedback ---- */
+
+.error,
+.toast {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+}
+
+.error {
+    color: var(--color-error);
+}
+
+.toast {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--border-radius-md);
+    background: rgba(31, 36, 32, 0.92);
+    color: #fff;
+}
+
+.undo {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary-bright);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    margin-left: auto;
+}
+
+/* ---- one-at-a-time review ---- */
+
+.deck {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.deckProgress {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+}
+
+.deckCard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-lg);
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-base);
+}
+
+/* Big enough to recognise. The whole point of this mode is that the shape is
+   the evidence, and the list shrinks it to a thumbnail. */
+.deckTrack {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 140px;
+    border-radius: var(--border-radius-md);
+    background: linear-gradient(160deg, #33473a, #2c4150);
+}
+
+.deckTrack svg {
+    width: 80%;
+    height: 80%;
+    background: transparent;
+}
+
+.deckTitle {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.deckActions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+}
+
+.deckActions .yes,
+.deckActions .no {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-4);
+    font-size: var(--font-size-sm);
+}
+
+.deckFoot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: space-between;
+}
+
+.deckDone {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.deckDone p {
+    margin: 0;
+}
+
+.modeToggle {
+    align-self: flex-start;
+}

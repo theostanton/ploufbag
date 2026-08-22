@@ -48,7 +48,7 @@ function buildEntries(flights: FlightSummary[]): Entry[] {
             key,
             pilot: flight.pilot?.first_name ?? 'Unknown pilot',
             wing,
-            color: getFlightColor(pilotId, wing),
+            color: getFlightColor(pilotId, flight.wing, flight.wing_colour),
             flights: 1,
         })
     }

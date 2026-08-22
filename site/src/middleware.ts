@@ -6,7 +6,11 @@ export default async function middleware(req: NextRequest) {
     console.log('middleware()')
 
     const path = req.nextUrl.pathname
-    const isProtectedRoute = path.startsWith('/dashboard') || path.startsWith('/welcome')
+    const isProtectedRoute = path.startsWith('/dashboard')
+        || path.startsWith('/welcome')
+        // Somebody else's activities are none of your business, including the
+        // ones we decided were not flights.
+        || path.startsWith('/activities')
     const isPublicRoute = !isProtectedRoute
 
     // x-pathname was set here purely so Header could tell whether it was on the

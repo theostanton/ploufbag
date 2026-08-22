@@ -1,0 +1,355 @@
+/*
+ * Wing management, sized for the 390px dashboard rail.
+ *
+ * The collapsed row deliberately matches PilotDetail.module.css's tally rows --
+ * a colour, a name, a count -- because that is what this replaced, and a pilot
+ * arriving at the dashboard should recognise the list before noticing it is now
+ * editable. Everything else opens beneath it.
+ */
+
+.manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.item {
+    border-radius: var(--border-radius-lg);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-3);
+    border: 0;
+    background: transparent;
+    border-radius: var(--border-radius-lg);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    transition: background-color var(--transition-fast);
+}
+
+.row:hover {
+    background-color: rgba(0, 163, 221, 0.10);
+}
+
+.dot {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-radius: var(--border-radius-full);
+}
+
+.name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.retired {
+    flex: none;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+}
+
+.count {
+    flex: none;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+    flex: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* ---- editor ---- */
+
+.editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5);
+    margin-top: var(--space-2);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-lg);
+    background: var(--color-surface-elevated);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+}
+
+.input,
+.date,
+.select {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    min-width: 0;
+}
+
+.input:focus-visible,
+.date:focus-visible,
+.select:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 1px;
+}
+
+/*
+ * Sits directly under the name field as a list, not a floating popover: inside
+ * a rail that already scrolls, an absolutely positioned menu either clips at the
+ * panel edge or covers the fields below it.
+ */
+.suggestions {
+    list-style: none;
+    margin: calc(var(--space-3) * -1) 0 0;
+    padding: 0;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.suggestion {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-3);
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+    color: var(--color-text-primary);
+}
+
+.suggestion:hover,
+.suggestion:focus-visible {
+    background: rgba(0, 163, 221, 0.10);
+}
+
+.suggestionName {
+    font-weight: var(--font-weight-medium);
+}
+
+.suggestionMake {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--border-radius-md);
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.swatch[data-selected] {
+    border-color: var(--color-text-primary);
+    box-shadow: inset 0 0 0 2px var(--color-surface-elevated);
+}
+
+.swatch:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+}
+
+.dates {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.dates .date {
+    flex: 1;
+    min-width: 0;
+}
+
+.to {
+    flex: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted);
+}
+
+.checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.primary,
+.secondary,
+.danger,
+.quiet,
+.add {
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--border-radius-md);
+    border: 1px solid transparent;
+    cursor: pointer;
+}
+
+.primary {
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+
+.primary:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.secondary,
+.add {
+    background: transparent;
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.secondary:hover:not(:disabled),
+.add:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.add {
+    align-self: flex-start;
+}
+
+.danger {
+    background: var(--color-error);
+    color: var(--color-text-inverse);
+}
+
+.quiet {
+    background: transparent;
+    padding: 0;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-normal);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.quiet:hover {
+    color: var(--color-error);
+}
+
+.primary:disabled,
+.secondary:disabled,
+.danger:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* A bordered-off operation with a consequence worth stating before the button. */
+.tool {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.toolText {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted);
+}
+
+.mergeRow {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.mergeRow .select {
+    flex: 1;
+    min-width: 0;
+}
+
+.empty,
+.error,
+.notice {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+}
+
+.empty {
+    color: var(--color-text-muted);
+}
+
+.error {
+    color: var(--color-error);
+}
+
+.notice {
+    color: var(--color-success);
+}

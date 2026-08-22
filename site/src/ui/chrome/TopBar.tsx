@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Auth } from '@auth/index'
+import { Activities, isSuccess } from '@ploufbag/common'
 import { getCount } from '@database/pilots'
 import { signupState } from '@model/signup'
 import { SignOut } from '@ui/SignOut'
@@ -7,7 +8,7 @@ import ConnectWithStrava from '@ui/ConnectWithStrava'
 import { BRAND_NAME } from '@ui/brand'
 import styles from './TopBar.module.css'
 
-type NavItem = { text: string; path: string; authedOnly?: true }
+type NavItem = { text: string; path: string; authedOnly?: true; badge?: number }
 
 /**
  * The floating navigation bar over the map.
@@ -43,11 +44,28 @@ export default async function TopBar() {
               })
           )
 
+    // How many activities are waiting on a decision. Only asked for a signed-in
+    // pilot, and never allowed to break the nav: a badge is worth a query, not
+    // worth a blank header.
+    let waiting = 0
+    if (isAuthed) {
+        try {
+            const pilotId = await Auth.getSelfPilotId()
+            const counts = await Activities.countsForPilot(pilotId)
+            if (isSuccess(counts)) {
+                waiting = counts[0].unsure
+            }
+        } catch (error) {
+            console.error('TopBar: could not count waiting activities:', error)
+        }
+    }
+
     const navItems: NavItem[] = [
         { text: 'Flights', path: '/flights' },
         { text: 'Sites', path: '/sites' },
         { text: 'Pilots', path: '/pilots' },
         { text: 'Dashboard', path: '/dashboard', authedOnly: true },
+        { text: 'Activities', path: '/activities', authedOnly: true, badge: waiting },
     ]
 
     return (
@@ -63,6 +81,11 @@ export default async function TopBar() {
                     .map((item) => (
                         <Link key={item.text} href={item.path} className={styles.navItem}>
                             {item.text}
+                            {/* A count, not a dot: "17" is a decision about how
+                                long this will take, and a dot is not. */}
+                            {item.badge ? (
+                                <span className={styles.badge}>{item.badge}</span>
+                            ) : null}
                         </Link>
                     ))}
             </nav>

@@ -1,45 +1,31 @@
 /**
  * Track colours.
  *
- * Lifted out of FlightsMap, where it lived as a private helper, because the
- * colour is now baked into each feature's properties on the server and the map
- * styles from `['get', 'color']`. One expression paints every track, instead of
- * a layer per flight.
+ * The palette and the hash now live in `@ploufbag/common` as trackColours.ts,
+ * because they are reproduced in SQL — track_colour() in create_wings.sql — so
+ * that the wings backfill can freeze each glider into the colour its tracks were
+ * already appearing in. Two implementations that have to agree exactly should
+ * not sit in a package the other cannot import.
  */
+import { flightTrackColour } from '@ploufbag/common'
 
 /**
- * Ten hues, distinguishable from each other and from satellite imagery.
+ * The colour a flight's track is drawn in.
  *
- * These are deliberately not the brand tokens: the olive primary disappears
- * against summer alpine terrain and the cyan secondary against water and
- * shadowed snow. Tracks have to read over whatever is underneath them.
- */
-const TRACK_COLORS = [
-    '#3b82f6', // Blue
-    '#ef4444', // Red
-    '#22c55e', // Green
-    '#f59e0b', // Amber
-    '#8b5cf6', // Violet
-    '#ec4899', // Pink
-    '#06b6d4', // Cyan
-    '#84cc16', // Lime
-    '#f97316', // Orange
-    '#6366f1', // Indigo
-] as const
-
-/**
- * Stable colour per pilot-and-wing pair, so the same wing is the same colour on
- * every view without any palette state to carry around.
+ * A wing that exists as a row carries its own colour, chosen by the pilot, and
+ * that always wins. Everything else falls back to hashing the pilot and wing
+ * together, which is what every track was coloured by before wings had colours —
+ * so a flight whose wing predates the backfill, or which has no wing at all,
+ * keeps exactly the hue it has today.
  *
- * The hash is the djb2-ish variant that was already in FlightsMap, kept as-is so
- * existing flights do not all change colour.
+ * @param wingColour the wing's own colour, when the query joined it.
  */
-export function getFlightColor(pilotId: string, wing: string): string {
-    const hash = (pilotId + wing).split('').reduce((accumulator, character) => {
-        accumulator = (accumulator << 5) - accumulator + character.charCodeAt(0)
-        return accumulator & accumulator
-    }, 0)
-    return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length]
+export function getFlightColor(
+    pilotId: string,
+    wing: string | null | undefined,
+    wingColour?: string | null
+): string {
+    return wingColour || flightTrackColour(pilotId, wing)
 }
 
 /** Takeoff, landing, and sites that serve as both. */

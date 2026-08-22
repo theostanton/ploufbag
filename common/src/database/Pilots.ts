@@ -32,6 +32,51 @@ export namespace Pilots {
         });
     }
 
+    /**
+     * Which Strava activity types this pilot logs flights as.
+     *
+     * Null means never asked, which is not the same as an empty list: the
+     * classifier falls back to its defaults for the first, and the empty state
+     * is what turns the second into a question. Replaces the hard-coded pair in
+     * isRelevantActivityType, which is why a pilot logging flights as anything
+     * else saw an empty account and was never told why.
+     */
+    export async function getFlightActivityTypes(
+        pilotId: StravaAthleteId
+    ): Promise<Either<string[] | null>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ flight_activity_types: string[] | null }>(
+                    `select flight_activity_types from pilots where pilot_id = $1::integer`,
+                    [pilotId]
+                )
+                if (result.rows.length !== 1) {
+                    return failure(`No pilot with id ${pilotId}`)
+                }
+                return success(result.rows[0].reify().flight_activity_types ?? null)
+            } catch (error) {
+                return failure(`Pilots.getFlightActivityTypes failed: ${error}`)
+            }
+        });
+    }
+
+    export async function setFlightActivityTypes(
+        pilotId: StravaAthleteId,
+        types: string[]
+    ): Promise<Either<void>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                await database.query(
+                    `update pilots set flight_activity_types = $2 where pilot_id = $1::integer`,
+                    [pilotId, types]
+                )
+                return success(undefined)
+            } catch (error) {
+                return failure(`Pilots.setFlightActivityTypes failed: ${error}`)
+            }
+        });
+    }
+
     export async function getAccessToken(pilotId: StravaAthleteId): Promise<Either<string>> {
         console.log(`Pilots.getAccessToken() pilotId=${pilotId}`);
         return withPooledClient(async (database) => {

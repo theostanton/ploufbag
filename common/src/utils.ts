@@ -1,3 +1,15 @@
+/** True when there is a wing name worth printing after the 🪂.
+ *
+ * Lives here, rather than beside the formatter that needed it first, because
+ * DescriptionFormatterClient also needs it — and that class exists precisely so
+ * that a `'use client'` component can render a preview without dragging
+ * ts-postgres and the connection pool into the browser bundle. Importing it
+ * from DescriptionFormatter would have undone that.
+ */
+export function hasWingName(wing: string | null | undefined): wing is string {
+  return typeof wing === 'string' && wing.trim().length > 0;
+}
+
 /**
  * Formats site names to be more readable and visually appealing
  */

@@ -4,11 +4,12 @@ import {Flights} from "@database/flights";
 import {getPilotWingStats} from "@database/stats";
 import {Sites} from "@database/Sites";
 import {DescriptionPreferences} from "@database/descriptionPreferences";
-import {isSuccess} from "@ploufbag/common";
+import {Activities, Flights as FlightsCommon, Wings, isSuccess} from "@ploufbag/common";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import Link from "next/link";
 import DescriptionPreferencesComponent from "@ui/preferences/DescriptionPreferences";
+import WingsManager from "@ui/wings/WingsManager";
 import MapScene from "@ui/map/MapScene";
 import FlightRow from "@ui/chrome/FlightRow";
 import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
@@ -40,7 +41,10 @@ export default async function Dashboard() {
         [recentFlights],
         [totalFlightCount],
         descriptionPreferencesResult,
-        [ownFlights]
+        [ownFlights],
+        [wingRecords],
+        verdictCountsResult,
+        unattributedResult
     ] = await Promise.all([
         get(pilotId),
         getPilotWingStats(pilotId),
@@ -49,7 +53,10 @@ export default async function Dashboard() {
         Flights.getPilotFlightCount(pilotId),
         DescriptionPreferences.get(pilotId),
         // Ids only, to tell the map which tracks are yours.
-        Flights.getForPilot(pilotId)
+        Flights.getForPilot(pilotId),
+        Wings.getForPilotWithCounts(pilotId),
+        Activities.countsForPilot(pilotId),
+        FlightsCommon.countUnattributed(pilotId)
     ]);
 
     if (!pilot) {
@@ -69,6 +76,9 @@ export default async function Dashboard() {
     const wings = wingStats?.wingStats ?? [];
     const takeoffs = stats?.takeoffs.filter(item => item.site) ?? [];
     const landings = stats?.landings.filter(item => item.site) ?? [];
+
+    const waiting = isSuccess(verdictCountsResult) ? verdictCountsResult[0].unsure : 0;
+    const unattributed = isSuccess(unattributedResult) ? unattributedResult[0] : 0;
 
     const preferences = isSuccess(descriptionPreferencesResult) ? descriptionPreferencesResult[0] : {
         pilot_id: pilotId,
@@ -119,7 +129,7 @@ export default async function Dashboard() {
                             label: 'Flights',
                             value: <Link href={`/pilots/${pilotId}`}>{totalFlightCount ?? flights.length}</Link>,
                         },
-                        {label: 'Wings', value: wings.length},
+                        {label: 'Wings', value: (wingRecords ?? []).length || wings.length},
                         {label: 'Takeoffs', value: takeoffs.length},
                         {label: 'Landings', value: landings.length},
                     ]}
@@ -133,23 +143,52 @@ export default async function Dashboard() {
                 />
             </PanelSection>
 
-            {wings.length > 0 && (
-                <PanelSection title="Your wings">
+            {/*
+              * Two nudges, both optional and both dismissible by simply not
+              * doing them. Neither is an error state: an activity we could not
+              * call and a flight without a wing are ordinary, permanent,
+              * legal things, and the design is explicit that this pile must
+              * never become an obligation.
+              */}
+            {(waiting > 0 || unattributed > 0) && (
+                <PanelSection title="When you have a minute">
                     <ul className={tally.tally}>
-                        {wings.map(item => (
-                            <li key={item.wing}>
-                                <Link
-                                    href={`/pilots/${pilotId}/${encodeURIComponent(item.wing.toLowerCase())}`}
-                                    className={tally.tallyRow}
-                                >
-                                    <span className={tally.tallyName}>{item.wing}</span>
-                                    <span className={tally.tallyCount}>{item.flights}</span>
+                        {waiting > 0 && (
+                            <li>
+                                <Link href="/activities" className={tally.tallyRow}>
+                                    <span className={tally.tallyName}>
+                                        {waiting === 1
+                                            ? 'One activity we could not call'
+                                            : `${waiting} activities we could not call`}
+                                    </span>
+                                    <span className={tally.tallyCount}>Review</span>
                                 </Link>
                             </li>
-                        ))}
+                        )}
+                        {unattributed > 0 && (
+                            <li>
+                                <Link href="/activities" className={tally.tallyRow}>
+                                    <span className={tally.tallyName}>
+                                        {unattributed === 1
+                                            ? 'One flight with no wing on it'
+                                            : `${unattributed} flights with no wing on them`}
+                                    </span>
+                                    <span className={tally.tallyCount}>Set</span>
+                                </Link>
+                            </li>
+                        )}
                     </ul>
                 </PanelSection>
             )}
+
+            {/*
+              * Editable, where this was a read-only tally of names parsed out of
+              * Strava descriptions. Rendered whether or not there are any wings:
+              * a pilot with none needs the way in more than anyone.
+              */}
+            <PanelSection title="Your wings">
+                <WingsManager wings={wingRecords ?? []}/>
+            </PanelSection>
 
             {takeoffs.length > 0 && (
                 <PanelSection title="Your takeoffs">

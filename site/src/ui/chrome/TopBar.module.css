@@ -94,3 +94,24 @@
         padding: var(--space-3);
     }
 }
+
+/*
+ * How many activities are waiting on a decision.
+ *
+ * Amber rather than red: this is work the pilot can ignore for ever without
+ * anything breaking, and the design is explicit that the unsure pile must never
+ * become an obligation.
+ */
+.badge {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 0 var(--space-2);
+    border-radius: var(--border-radius-full);
+    background: var(--color-warning);
+    color: var(--color-text-inverse);
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    vertical-align: 1px;
+}

@@ -122,3 +122,27 @@ export function formattedStatsPattern(): RegExp {
 export function isFormattedDescription(description: string): boolean {
     return ALL_DESCRIPTION_DOMAINS.some(domain => description.includes(`🌐 ${domain}`));
 }
+
+/**
+ * A description with our stats block taken back out.
+ *
+ * The counterpart to writing one. When a pilot says an activity was not a flight
+ * after all, whatever we published onto it has to come off in the same action --
+ * the alternative is our text sitting on somebody's Strava activity for ever,
+ * with nothing in the product still claiming responsibility for it.
+ *
+ * Built on the same `formattedStatsPattern()` the writer replaces with, so the
+ * two cannot drift. That pattern's own comments describe two occasions when a
+ * description writer corrupted live activities; the same care applies here, and
+ * the same rule: if there is no block to remove, change nothing at all.
+ */
+export function withoutStatsBlock(description: string): string {
+    if (!isFormattedDescription(description)) {
+        return description
+    }
+    const stripped = description.replace(formattedStatsPattern(), '')
+    // Collapse the hole the block leaves behind: it was usually preceded by the
+    // pilot's own text and a blank line, and leaving three newlines behind is a
+    // visible scar that says something used to be here.
+    return stripped.replace(/\n{3,}/g, '\n\n').trim()
+}

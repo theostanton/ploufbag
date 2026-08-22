@@ -58,7 +58,7 @@ export async function GET() {
                 pilotId: flight.pilot_id,
                 pilotName: flight.pilot?.first_name ?? null,
                 wing: flight.wing ?? 'unknown',
-                color: getFlightColor(String(flight.pilot_id), flight.wing || 'unknown'),
+                color: getFlightColor(String(flight.pilot_id), flight.wing, flight.wing_colour),
                 startDate:
                     flight.start_date instanceof Date
                         ? flight.start_date.toISOString()

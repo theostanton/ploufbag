@@ -1,0 +1,140 @@
+/* The owner's controls on their own flight. Quiet: this is a correction, not a
+   call to action, and the panel is about the flight rather than about editing. */
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.wingCell {
+    position: relative;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-elevated);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.chip[data-unknown] {
+    border-style: dashed;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-normal);
+}
+
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: var(--border-radius-full);
+    background: var(--color-border);
+    flex: none;
+}
+
+.chip[data-unknown] .dot {
+    background: transparent;
+    border: 1px dashed var(--color-text-muted);
+}
+
+.menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    list-style: none;
+    margin: 0;
+    padding: var(--space-1);
+    min-width: 180px;
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    text-align: left;
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.option:hover {
+    background: rgba(0, 163, 221, 0.10);
+}
+
+.confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.confirmText {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    line-height: var(--line-height-normal);
+    flex-basis: 100%;
+}
+
+.danger,
+.quiet {
+    font: inherit;
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+}
+
+.danger {
+    font-weight: var(--font-weight-semibold);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-error);
+    background: var(--color-error);
+    color: var(--color-text-inverse);
+}
+
+.quiet {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-text-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.quiet:hover {
+    color: var(--color-error);
+}
+
+.error,
+.notice {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--font-size-xs);
+}
+
+.error {
+    color: var(--color-error);
+}
+
+.notice {
+    color: var(--color-success);
+}

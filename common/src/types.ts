@@ -32,7 +32,7 @@ export interface Site {
 export interface Flight {
     pilot_id: StravaAthleteId;
     strava_activity_id: StravaActivityId;
-    wing: string;
+    wing: string | null;
     duration_sec: number;
     distance_meters: number;
     start_date: Date;
@@ -56,7 +56,9 @@ export type Polyline = LatLng[]
 export type FlightRow = {
     pilot_id: StravaAthleteId
     strava_activity_id: StravaActivityId
-    wing: string
+    /** Nullable since wings became rows -- see the twin in model.ts. */
+    wing: string | null
+    wing_id?: string | null
     duration_sec: number
     distance_meters: number
     start_date: Date
