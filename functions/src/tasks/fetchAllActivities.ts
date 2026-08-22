@@ -1,19 +1,36 @@
-import {isSuccess} from "@ploufbag/common";
-import { FetchAllActivitiesTask, TaskResult, StravaActivityId, StravaAthleteId, FlightRow } from '@ploufbag/common';
-import { withPooledClient } from '@ploufbag/common';
+import { isSuccess } from "@ploufbag/common";
+import { FetchAllActivitiesTask, TaskResult } from '@ploufbag/common';
 import { Pilots } from '@/database/Pilots';
-import { Flights } from '@/database/Flights';
 import { StravaApi } from '@/stravaApi';
-import { convertStravaActivityToFlight } from './utils/stravaConverter';
 import { scanPilotActivities } from './scanActivities';
-import {StravaActivity} from "@/stravaApi/model";
+import { promotePilotFlights } from './promoteFlights';
 
+/**
+ * Read a pilot's whole Strava history and make our flights match it.
+ *
+ * Two phases, and the split is the point.
+ *
+ * The scan reads every activity from Strava's *list* endpoint -- two requests
+ * for a three-hundred activity history -- and records a verdict for each one.
+ * The promotion then pays the expensive per-activity cost only for activities
+ * that are already believed to be flights.
+ *
+ * What this replaced fetched every candidate individually before it knew whether
+ * it was a flight, because the only way to tell was a 🪂 line the pilot had
+ * typed into the description by hand -- and anything without one was discarded
+ * into a log nobody read. That single line of code is why pilots had to
+ * hand-annotate their entire history before this product could do anything for
+ * them.
+ *
+ * Safe to re-run, and expected to be: promotion is bounded per run so that a
+ * pilot with two hundred newly-found flights does not exhaust Strava's fifteen
+ * minute budget in one go.
+ */
 export async function executeFetchAllActivitiesTask(
     task: FetchAllActivitiesTask
 ): Promise<TaskResult> {
     console.log(`Executing FetchAllActivities for pilotId=${task.pilotId}`);
 
-    // Get pilot from database
     const pilotResult = await Pilots.get(task.pilotId);
     if (!isSuccess(pilotResult)) {
         return {
@@ -23,102 +40,30 @@ export async function executeFetchAllActivitiesTask(
     }
     const pilot = pilotResult[0];
 
-    // Create Strava API instance
     const api = await StravaApi.fromUserId(pilot.pilot_id);
 
-    // Scan the whole history from Strava's list endpoint and record a verdict
-    // for every activity.
-    //
-    // This creates and changes nothing -- it writes to `activities`, never to
-    // `flights` -- so it runs alongside the importer below rather than replacing
-    // it. The screen that corrects a verdict has to exist before anything acts
-    // on one; until then the importer keeps producing flights exactly as it did,
-    // and this only builds the record the screen will read.
-    //
-    // A failure here is not a failure of the task. The importer below is what
-    // pilots currently depend on, and it must not stop working because a scan
-    // hit a rate limit.
     const scan = await scanPilotActivities(pilot.pilot_id, api);
     if (scan.error) {
-        console.log(`Activity scan failed for pilotId=${task.pilotId}, continuing: ${scan.error}`);
-    } else if (scan.summary) {
-        console.log(`Activity scan for pilotId=${task.pilotId}: ${JSON.stringify(scan.summary)}`);
+        return { success: false, message: `Scan failed: ${scan.error}` };
     }
 
-    // Get existing activity IDs from database
-    const existingActivityIds: StravaActivityId[] = await withPooledClient(async (database) => {
-        type ExistingStravaActivityId = Pick<FlightRow, 'strava_activity_id'>;
-        console.log('Fetching existing activity IDs');
-        const existingActivityIdsResult = await database.query(`
-            select f.strava_activity_id as strava_activity_id
-            from flights as f
-            where pilot_id = $1
-        `, [pilot.pilot_id]);
-        console.log(`Fetched existingActivityIdsResult=${JSON.stringify(existingActivityIdsResult)}`);
-
-        return [...existingActivityIdsResult].map(a => a.strava_activity_id);
-    });
-
-    // Fetch activities from Strava
-    const paraglidingActivityIdsResult = await api.fetchParaglidingActivityIds(10_000, existingActivityIds);
-
-    if (!isSuccess(paraglidingActivityIdsResult)) {
-        return {
-            success: false,
-            message: `fetchParaglidingActivityIds failed: ${paraglidingActivityIdsResult[1]}`
-        };
-    }
-    const paraglidingActivityIds: StravaActivityId[] = paraglidingActivityIdsResult[0];
-
-    // Process paragliding activity IDs
-    // 1. Fetch full Strava Activity
-    // 2. Convert to FlightRow  
-    // 3. Store to flights table
-    const storedFlights: FlightRow[] = [];
-
-    for (const activityId of paraglidingActivityIds) {
-        try {
-            const activityResult = await api.fetchActivity(activityId);
-            if (!isSuccess(activityResult)) {
-                console.log(`Failed to fetch activity ${activityId}: ${activityResult[1]}`);
-                
-                // Check for rate limiting
-                if (activityResult[1] === 'Rate limited') {
-                    const errorMessage = `Got rate limited after ${storedFlights.length} activities`;
-                    console.log(errorMessage);
-                    return {
-                        success: false,
-                        message: errorMessage,
-                    };
-                }
-                continue;
-            }
-            
-            const stravaActivity:StravaActivity = activityResult[0];
-
-            const conversionResult = await convertStravaActivityToFlight(pilot.pilot_id, stravaActivity);
-            if (isSuccess(conversionResult)) {
-                const flightRow = conversionResult[0];
-                const upsertResult = await Flights.upsert([flightRow]);
-                if (!isSuccess(upsertResult)) {
-                    return {
-                        success: false,
-                        message: `Flights.upsert failed for row=${JSON.stringify(flightRow)} error=${upsertResult[1]}`
-                    };
-                }
-                storedFlights.push(flightRow);
-                console.log(`Processed ${storedFlights.length}/${paraglidingActivityIds.length}`);
-            } else {
-                console.log(`Failed to convert activity id=${activityId} error=${conversionResult[1]}`);
-            }
-        } catch (error) {
-            console.error(`Error processing activity ${activityId}:`, error);
-            // Continue with next activity
-        }
+    const promotion = await promotePilotFlights(pilot.pilot_id, api);
+    if (promotion.error) {
+        return { success: false, message: `Promotion failed: ${promotion.error}` };
     }
 
-    console.log(`Successfully processed ${storedFlights.length} activities for pilot ${task.pilotId}`);
-    return {
-        success: true
-    };
+    const summary = promotion.summary!;
+
+    // Rate limiting is an ordinary outcome here, not a failure: the work list is
+    // untouched and the next run continues from where this one stopped. Failing
+    // the task would have Cloud Tasks retry it immediately, into the same limit.
+    if (summary.rateLimited) {
+        console.log(`FetchAllActivities for ${task.pilotId} paused on Strava's rate limit`);
+    }
+
+    console.log(`FetchAllActivities for ${task.pilotId}: ` +
+        `scanned ${scan.summary?.scanned}, promoted ${summary.promoted}, ` +
+        `demoted ${summary.demoted}, more to do: ${summary.remaining > 0}`);
+
+    return { success: true };
 }

@@ -63,28 +63,18 @@ export namespace Activities {
     /** The pilot's answer, or failing that, ours. */
     const EFFECTIVE = `coalesce(pilot_verdict, verdict)`
 
-    const COLUMNS = `
-        strava_activity_id,
-        pilot_id,
-        type,
-        name,
-        start_date,
-        distance_meters,
-        elapsed_sec,
-        moving_sec,
-        total_elevation_gain,
-        start_lat,
-        start_lng,
-        end_lat,
-        end_lng,
-        polyline,
-        verdict,
-        score,
-        reasons,
-        takeoff_id,
-        landing_id,
-        pilot_verdict
-    `
+    const COLUMN_NAMES = [
+        'strava_activity_id', 'pilot_id', 'type', 'name', 'start_date',
+        'distance_meters', 'elapsed_sec', 'moving_sec', 'total_elevation_gain',
+        'start_lat', 'start_lng', 'end_lat', 'end_lng', 'polyline',
+        'verdict', 'score', 'reasons', 'takeoff_id', 'landing_id', 'pilot_verdict',
+    ]
+
+    /** The select list, optionally qualified for a query that joins. */
+    const columns = (alias: string = '') =>
+        COLUMN_NAMES.map(name => (alias ? `${alias}.${name}` : name)).join(', ')
+
+    const COLUMNS = columns()
 
     /**
      * Records what a scan concluded, leaving the pilot's own decision alone.
@@ -294,6 +284,70 @@ export namespace Activities {
                 return success(result.rows.length)
             } catch (error) {
                 return failure(`Activities.setPilotVerdict failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * Activities we believe are flights but have no flight row for.
+     *
+     * The work list for promotion. Bounded by the caller because each one costs
+     * Strava requests -- a detail fetch and a description write -- and Strava's
+     * limits are per fifteen minutes, so a pilot with two hundred newly found
+     * flights is several runs of work, not one.
+     */
+    export async function getPromotable(
+        pilotId: StravaAthleteId,
+        limit: number = 40
+    ): Promise<Either<ActivityRow[]>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<ActivityRow>(
+                    `select ${columns('a')}
+                     from activities a
+                              left join flights f
+                                        on f.strava_activity_id = a.strava_activity_id
+                     where a.pilot_id = $1::integer
+                       and coalesce(a.pilot_verdict, a.verdict) = 'flight'::activity_verdict
+                       and f.strava_activity_id is null
+                     order by a.start_date desc
+                     limit ${limit}`,
+                    [pilotId]
+                )
+                return success(result.rows.map(row => row.reify()))
+            } catch (error) {
+                return failure(`Activities.getPromotable failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * Flights whose activity we no longer believe is one.
+     *
+     * Reachable without anyone pressing a button: a pilot deletes the activity's
+     * GPS on Strava, or edits it into something else, and the next scan changes
+     * its mind. Left unreconciled, the flight stays on the map for ever with
+     * nothing behind it.
+     */
+    export async function getDemotable(
+        pilotId: StravaAthleteId,
+        limit: number = 40
+    ): Promise<Either<StravaActivityId[]>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ strava_activity_id: StravaActivityId }>(
+                    `select f.strava_activity_id
+                     from flights f
+                              join activities a
+                                   on a.strava_activity_id = f.strava_activity_id
+                     where f.pilot_id = $1::integer
+                       and coalesce(a.pilot_verdict, a.verdict) <> 'flight'::activity_verdict
+                     limit ${limit}`,
+                    [pilotId]
+                )
+                return success(result.rows.map(row => row.reify().strava_activity_id))
+            } catch (error) {
+                return failure(`Activities.getDemotable failed: ${error}`)
             }
         });
     }

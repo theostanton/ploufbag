@@ -80,6 +80,32 @@ const FLIGHT_WORDS = [
     '🪂',
 ]
 
+/**
+ * The wing named on the old 🪂 description line, if there is one.
+ *
+ * This convention is no longer the only way in -- that was the whole problem --
+ * but it is still the strongest signal there is, because the pilot wrote it
+ * themselves. A pilot who has been typing it for years should find it still
+ * being read.
+ *
+ * The pattern also has to skip past the aggregate columns *we* publish on that
+ * same line ("🪂 Zeno 2    15 flights / 18h 45min"), or re-importing an activity
+ * we have already written to would read the wing as its own statistics.
+ */
+export function extractWingName(description: string | null | undefined): string | null {
+    if (!description) {
+        return null
+    }
+    const named = description
+        .split('\n')
+        .map(line => line.match(/^🪂 (.+?)(?:\s{2,}\d|\s+\d+ flights?|$)/))
+        .filter(match => match != null)
+        .map(match => match!![1].trim())
+        .filter(name => name.length > 0)
+
+    return named[0] ?? null
+}
+
 /** Metres between two points, good enough for "did this end where it started". */
 export function haversineMetres(a: LatLng, b: LatLng): number {
     const R = 6_371_000

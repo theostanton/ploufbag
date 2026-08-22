@@ -14,8 +14,6 @@ import { executeUpdateSingleActivityTask } from "../tasks/updateSingleActivity";
 import { executeUpdateDescriptionTask } from "../tasks/updateDescription";
 import { Flights } from "../model/database/Flights";
 import { Pilots } from "../model/database/Pilots";
-import { StravaApi } from "../model/stravaApi";
-import { isRelevantActivityType } from "../model/stravaApi/model";
 
 /**
  * Handle incoming Strava webhook events
@@ -242,23 +240,23 @@ async function processActivityEvent(
         if (payload.aspect_type === 'update' && flightAlreadyExists) {
             console.log(`Flight already exists for activity ${activityId}, skipping UpdateSingleActivity on update event`);
         } else {
-            // Fetch activity to check if it's a relevant type before processing
-            const api = await StravaApi.fromUserId(payload.owner_id);
-            const activityResult = await api.fetchActivity(activityId);
-
-            if (!isSuccess(activityResult)) {
-                throw new Error(`Failed to fetch activity ${payload.object_id}: ${activityResult[1]}`);
-            }
-
-            const activity = activityResult[0];
-
-            // Check if this is a relevant activity type
-            if (!isRelevantActivityType(activity.type)) {
-                console.log(`Ignoring activity ${payload.object_id} with type '${activity.type}' - not a paragliding activity`);
-                throw new ActivityIgnoredError(`Activity type '${activity.type}' is not relevant for import`);
-            }
-
-            // Execute UpdateSingleActivity task directly
+            // No type gate here any more, and no pre-fetch to apply one.
+            //
+            // It used to fetch the activity purely to ask isRelevantActivityType,
+            // which was hard-coded to Workout and Kitesurf -- so a pilot who logs
+            // flights as a Hike had every upload silently ignored at this line,
+            // which is the failure this whole change exists to end. Which types
+            // count is the pilot's answer now, and the task below is what knows
+            // it.
+            //
+            // Dropping the gate also drops a duplicate request: the task fetches
+            // the same activity again a moment later, and Strava's limits are
+            // per fifteen minutes.
+            //
+            // Everything reaching here is recorded in `activities`, including
+            // what turns out not to be a flight. That record is what makes the
+            // empty state able to say "you have 340 Hikes, is that where they
+            // are?" rather than guessing.
             const taskBody = {
                 name: "UpdateSingleActivity" as const,
                 pilotId: payload.owner_id,
