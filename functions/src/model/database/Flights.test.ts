@@ -24,7 +24,13 @@ test('Pilots.upsert()', async () => {
     // mock. Assert it separately, then compare everything that was written.
     expect(flight!.slug).toMatch(SLUG_PATTERN)
 
-    const {slug, ...writtenFields} = flight!
+    // wing_id is the same shape of thing: a column the table has and the caller
+    // did not supply. Null here is the point rather than an oversight -- a
+    // flight whose wing we cannot work out is a legal, permanent state, where
+    // before it was a flight that got thrown away.
+    expect(flight!.wing_id).toBeNull()
+
+    const {slug, wing_id, ...writtenFields} = flight!
     expect(writtenFields).toStrictEqual(activity1)
 
     // The slug is published to Strava, so re-syncing the activity must not

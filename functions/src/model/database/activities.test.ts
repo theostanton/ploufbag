@@ -101,8 +101,12 @@ describe('the pilot always wins', () => {
         // A later, more confident scan says flight again.
         await Activities.upsertScanned([scanned({strava_activity_id: 'a2', verdict: 'flight', score: 140})])
 
+        // Cast to text, as every read of these columns has to. ts-postgres has
+        // no decoder for a user-defined type and returns null rather than
+        // failing, so `select verdict` quietly yields nothing at all.
         const [row] = await rows<{ verdict: string, pilot_verdict: string }>(
-            `select verdict, pilot_verdict from activities where strava_activity_id = 'a2'`)
+            `select verdict::text as verdict, pilot_verdict::text as pilot_verdict
+             from activities where strava_activity_id = 'a2'`)
         expect(row.verdict).toBe('flight')
         expect(row.pilot_verdict).toBe('not_flight')
     })
