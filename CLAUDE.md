@@ -13,7 +13,7 @@ Plouf Bag is a paragliding flight tracking application that integrates with Stra
 - **`/functions`** - Backend services (API, tasks, webhooks) deployed as Cloud Run containers
 - **`/site`** - Next.js frontend application
 - **`/infra`** - Terraform infrastructure definitions
-- **`/tasks`** - Task business logic package consumed by functions
+- **`/dev`** - Scripts for running Postgres and the site locally without Docker
 
 ### Key Technologies
 - **Database**: PostgreSQL with PostGIS extension for geospatial queries
@@ -94,7 +94,7 @@ Background jobs are processed via Google Cloud Tasks:
 - **`updateDescription`** - Generate AI-powered flight descriptions using preferences
 - **`helloWorld`** - Health check task
 
-Task handlers are in `functions/src/tasks/` with business logic in the separate `/tasks` package.
+Task handlers and their business logic are both in `functions/src/tasks/`.
 
 ## Testing
 

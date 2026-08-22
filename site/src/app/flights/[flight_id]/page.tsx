@@ -62,8 +62,12 @@ export default async function FlightDetail({params}: {
 
             <PanelHeader
                 back={{href: '/flights', label: 'All flights'}}
-                accent={getFlightColor(String(flight.pilot_id), flight.wing || 'unknown')}
-                title={flight.wing}
+                accent={getFlightColor(String(flight.pilot_id), flight.wing, flight.wing_colour)}
+                // A flight can have no wing: `flights.wing` became nullable so
+                // that one we cannot attribute survives rather than being
+                // discarded. The panel is still about a flight, so it gets a
+                // title either way.
+                title={flight.wing || 'Flight'}
                 subtitle={
                     <>
                         {flight.pilot && (
@@ -100,12 +104,18 @@ export default async function FlightDetail({params}: {
                         },
                         {
                             label: 'Wing',
-                            value: (
+                            // Plain text when there is no wing, because there is
+                            // no per-wing page to link to. Making this the place
+                            // a pilot picks the wing is a later change; until
+                            // then it says what we know rather than pretending.
+                            value: flight.wing ? (
                                 <Link
                                     href={`/pilots/${flight.pilot_id}/${encodeURIComponent(flight.wing.toLowerCase())}`}
                                 >
                                     {flight.wing}
                                 </Link>
+                            ) : (
+                                'Unknown'
                             ),
                         },
                     ]}

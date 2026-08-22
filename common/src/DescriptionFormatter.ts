@@ -5,7 +5,7 @@ import {
     AggregationResult, 
     StravaAthleteId
 } from './types';
-import { formatSiteName, formatAggregationResult } from './utils';
+import { formatSiteName, formatAggregationResult, hasWingName } from './utils';
 import { Client } from './database';
 import { isSuccess, WindReport, WindDirection } from './model';
 import { descriptionFooter, SAMPLE_SLUG } from './descriptionFooter';
@@ -42,6 +42,17 @@ export class DescriptionFormatter {
     private lines: string[] = []
     private readonly maxLength: number;
     private wingPrefix: string;
+    /**
+     * Whether this flight has a wing to name.
+     *
+     * It may not: `flights.wing` became nullable when wings became rows, so that
+     * a flight we cannot attribute survives as an unattributed flight instead of
+     * being thrown away. What must not happen is this class publishing
+     * "🪂 null" onto the pilot's Strava activity -- descriptionFooter.ts
+     * documents two earlier occasions when a description writer corrupted live
+     * activities and did not self-heal.
+     */
+    private readonly hasWing: boolean;
     private yearPrefix: string;
     private allTimePrefix: string;
 
@@ -58,13 +69,29 @@ export class DescriptionFormatter {
         private preference: DescriptionPreference
     ) {
         this.allTimePrefix = 'All Time'
-        this.wingPrefix = `🪂 ${this.flightRow.wing}`
+        this.hasWing = hasWingName(this.flightRow.wing)
+        this.wingPrefix = this.hasWing ? `🪂 ${this.flightRow.wing}` : ''
         this.yearPrefix = this.flightRow.start_date.getFullYear().toString()
-        this.maxLength = 2 + Math.max(this.wingPrefix.length, this.yearPrefix.length, this.allTimePrefix.length)
+        this.maxLength = 2 + Math.max(
+            // Only the lines that will actually be rendered set the column
+            // width. Guarded on hasWing rather than on the preference, so that
+            // every flight that *has* a wing keeps the exact width it has
+            // today -- a pilot with the wing aggregate switched off would
+            // otherwise see the rest of their block silently reflow.
+            this.hasWing ? this.wingPrefix.length : 0,
+            this.yearPrefix.length,
+            this.allTimePrefix.length
+        )
     }
 
     async appendWingAggregation(client: Client) {
         if (!this.preference.include_wing_aggregate) {
+            return
+        }
+        // No wing, no wing line. Beyond the "🪂 null" the prefix would carry,
+        // the query below would match `wing = null` -- which is never true, so
+        // it returns no rows and the reify() beneath it throws.
+        if (!this.hasWing) {
             return
         }
         const result = await client.query<AggregationResult>(`
@@ -212,10 +239,10 @@ export class DescriptionFormatter {
         }
     ): string {
         const lines: string[] = [];
-        const wingPrefix = `🪂 ${this.flightRow.wing}`;
-        const yearPrefix = this.flightRow.start_date.getFullYear().toString();
-        const allTimePrefix = 'All Time';
-        const maxLength = 2 + Math.max(wingPrefix.length, yearPrefix.length, allTimePrefix.length);
+        const wingPrefix = this.wingPrefix;
+        const yearPrefix = this.yearPrefix;
+        const allTimePrefix = this.allTimePrefix;
+        const maxLength = this.maxLength;
 
         // Sites
         if (this.preference.include_sites && sampleData?.takeoff_name && sampleData?.landing_name) {
@@ -232,7 +259,7 @@ export class DescriptionFormatter {
         }
 
         // Wing aggregate
-        if (this.preference.include_wing_aggregate) {
+        if (this.preference.include_wing_aggregate && this.hasWing) {
             const wingFlights = sampleData?.wing_flights || 15;
             const wingDuration = sampleData?.wing_duration || (18 * 3600 + 45 * 60); // 18h 45min
             lines.push(`${wingPrefix.padEnd(maxLength, " ")}  ${formatAggregationResult({ count: wingFlights, total_duration_sec: wingDuration })}`);

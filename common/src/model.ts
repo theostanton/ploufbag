@@ -103,13 +103,68 @@ export type PilotRowFull = PilotRow & {
 }
 
 // ===================================
+// WING TYPES
+// ===================================
+
+export type WingId = string
+
+/**
+ * A glider, owned by a pilot.
+ *
+ * Until wings became rows, this was free text on the flight: whatever followed
+ * the 🪂 in the Strava description the pilot had typed by hand. That made
+ * "Zeno 2" and "zeno2" two different wings, made renaming impossible, and left
+ * nothing to attribute a flight to when the description named no wing at all.
+ */
+export type Wing = {
+    wing_id: WingId
+    pilot_id: StravaAthleteId
+    name: string
+    manufacturer: string | null
+    model: string | null
+    /** Hex, e.g. `#3b82f6`. What this wing's tracks are drawn in on the map. */
+    colour: string
+    /**
+     * The period this wing was flown in. Null on either side means no boundary
+     * there -- a wing still being flown has no `flown_until`. Used to attribute
+     * a flight whose wing is not otherwise known.
+     */
+    flown_from: Date | null
+    flown_until: Date | null
+    retired: boolean
+    sort: number
+}
+
+// ===================================
 // FLIGHT TYPES
 // ===================================
 
 export type FlightRow = {
     pilot_id: StravaAthleteId
     strava_activity_id: StravaActivityId
-    wing: string
+    /**
+     * The wing's name, as text, kept alongside `wing_id`.
+     *
+     * Nullable since wings became rows: not knowing which wing a flight was on
+     * used to destroy the flight, because the column was `not null` and the
+     * importer had nowhere to put a flight it could not attribute. An
+     * unattributed flight is now a legal state.
+     *
+     * Every consumer must handle null. DescriptionFormatter is the one that
+     * matters -- it builds `🪂 ${wing}` and publishes the result onto the
+     * pilot's Strava activity -- and it drops the wing line entirely rather than
+     * writing "🪂 null".
+     */
+    wing: string | null
+    /**
+     * The wing this flight was flown on, once wings became rows.
+     *
+     * Optional for the same reason `slug` is: application code writing a flight
+     * does not always have one to hand, and rows read back may predate the
+     * backfill. `wing` above stays populated in step with it, because
+     * DescriptionFormatter and the per-wing pages still read the text.
+     */
+    wing_id?: WingId | null
     duration_sec: number
     distance_meters: number
     start_date: Date
@@ -139,6 +194,14 @@ export type FlightWithSites = Omit<FlightRow, 'takeoff_id' | 'landing_id'> & {
     takeoff: Site | null
     landing: Site | null
     pilot: Pilot | null
+    /**
+     * The wing's own colour, joined from `wings`.
+     *
+     * Optional because not every query joins it and rows predating the backfill
+     * have none. Where it is absent the map falls back to hashing the wing's
+     * name, which is what it did before wings had colours of their own.
+     */
+    wing_colour?: string | null
 }
 
 // ===================================

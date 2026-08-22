@@ -3,7 +3,7 @@ import {
     FlightRow, 
     SiteType 
 } from './types';
-import { formatSiteName, formatAggregationResult } from './utils';
+import { formatSiteName, formatAggregationResult, hasWingName } from './utils';
 import { descriptionFooter, SAMPLE_SLUG } from './descriptionFooter';
 
 // Client-side only version of DescriptionFormatter for previews
@@ -12,15 +12,22 @@ export class DescriptionFormatterClient {
     private yearPrefix: string;
     private allTimePrefix: string;
     private maxLength: number;
+    /** See the twin in DescriptionFormatter: a flight may have no wing. */
+    private hasWing: boolean;
 
     constructor(
         private flightRow: FlightRow,
         private preference: DescriptionPreference
     ) {
         this.allTimePrefix = 'All Time'
-        this.wingPrefix = `🪂 ${this.flightRow.wing}`
+        this.hasWing = hasWingName(this.flightRow.wing)
+        this.wingPrefix = this.hasWing ? `🪂 ${this.flightRow.wing}` : ''
         this.yearPrefix = this.flightRow.start_date.getFullYear().toString()
-        this.maxLength = 2 + Math.max(this.wingPrefix.length, this.yearPrefix.length, this.allTimePrefix.length)
+        this.maxLength = 2 + Math.max(
+            this.hasWing ? this.wingPrefix.length : 0,
+            this.yearPrefix.length,
+            this.allTimePrefix.length
+        )
     }
 
     // Client-side preview generation without database dependencies
@@ -57,7 +64,7 @@ export class DescriptionFormatterClient {
         }
 
         // Wing aggregate
-        if (this.preference.include_wing_aggregate) {
+        if (this.preference.include_wing_aggregate && this.hasWing) {
             const wingFlights = sampleData?.wing_flights || 15;
             const wingDuration = sampleData?.wing_duration || (18 * 3600 + 45 * 60); // 18h 45min
             lines.push(`${wingPrefix.padEnd(maxLength, " ")}  ${formatAggregationResult({ count: wingFlights, total_duration_sec: wingDuration })}`);

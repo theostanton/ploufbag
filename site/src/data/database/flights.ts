@@ -27,6 +27,8 @@ export namespace Flights {
         return `select f.pilot_id,
                        f.strava_activity_id,
                        f.wing,
+                       f.wing_id,
+                       w.colour  as wing_colour,
                        f.duration_sec,
                        f.distance_meters,
                        f.start_date,
@@ -39,6 +41,10 @@ export namespace Flights {
                          left join sites as t on f.takeoff_id = t.ffvl_sid
                          left join sites as l on f.landing_id = l.ffvl_sid
                          left join pilots as p on f.pilot_id = p.pilot_id
+                         -- left join, not inner: a flight whose wing we do not
+                         -- know is still a flight, and still belongs in every
+                         -- list and on the map.
+                         left join wings as w on f.wing_id = w.wing_id
                     ${where}
                 order by f.start_date desc
                 limit ${limit}`

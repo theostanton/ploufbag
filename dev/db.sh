@@ -108,10 +108,24 @@ SCHEMA_FILES=(
     add_description_preferences_snapshot
     create_analytics_events
     add_indexes
+    # After create_flights: it adds flights.wing_id and relaxes flights.wing.
+    # The site's flight queries left-join wings, so without this every list and
+    # the map 500 against a locally-built database.
+    create_wings
 )
 
-do_schema() {
-    echo "==> applying schema"
+# Applied after the fixtures, not with the schema.
+#
+# backfill_wings turns the free text in flights.wing into rows in wings, so it
+# has nothing to work with until the seed has inserted some flights. Running it
+# here mirrors production, where the schema goes on first and the backfill runs
+# over six years of existing rows.
+BACKFILL_FILES=(
+    backfill_wings
+)
+
+# $@ - script basenames, applied in the order given.
+apply_scripts() {
     local scripts="$REPO_ROOT/functions/src/model/database/scripts"
     local tmp
     tmp="$(mktemp -d "$DEV_ROOT/schema.XXXXXX")"
@@ -119,12 +133,12 @@ do_schema() {
         chmod 755 "$tmp"
     fi
 
-    # The chunk files are applied by globbing $tmp, which sorts lexically, so the
-    # SCHEMA_FILES position has to be baked into the filename. Without it
-    # add_created_at_to_pilots sorts ahead of create_pilots and the migration
-    # runs against a table that does not exist yet.
+    # The chunk files are applied by globbing $tmp, which sorts lexically, so
+    # each script's position in the argument list has to be baked into the
+    # filename. Without it add_created_at_to_pilots sorts ahead of create_pilots
+    # and the migration runs against a table that does not exist yet.
     local order=0
-    for name in "${SCHEMA_FILES[@]}"; do
+    for name in "$@"; do
         # Split on ;;; into one file per statement. Files that use plain
         # semicolons only come through as a single chunk, which psql runs fine.
         node -e '
@@ -164,6 +178,16 @@ do_schema() {
     rm -rf "$tmp"
 }
 
+do_schema() {
+    echo "==> applying schema"
+    apply_scripts "${SCHEMA_FILES[@]}"
+}
+
+do_backfill() {
+    echo "==> backfilling"
+    apply_scripts "${BACKFILL_FILES[@]}"
+}
+
 do_seed() {
     echo "==> seeding fixtures"
     local sql="$DEV_ROOT/seed.sql"
@@ -194,6 +218,7 @@ case "${1:-up}" in
         do_start
         do_schema
         do_seed
+        do_backfill
         echo
         echo "==> ready. Point the site at it with:"
         do_env | sed 's/^/    /'

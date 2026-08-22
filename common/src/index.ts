@@ -4,11 +4,13 @@ export * from './descriptionFooter';
 export * from './DescriptionFormatter';
 export * from './DescriptionFormatterClient';
 export * from './model';
+export * from './trackColours';
 
 // Export database access classes
 export { Pilots } from './database/Pilots';
 export { Flights } from './database/Flights';
 export { Sites } from './database/Sites';
+export { Wings } from './database/Wings';
 export { Windsocks } from './database/Windsocks';
 export { DescriptionPreferences } from './database/DescriptionPreferences';
 export { WebhookEvents } from './database/WebhookEvents';
