@@ -181,7 +181,9 @@ export class TestDatabaseSetup {
       'create_description_preferences.sql',
       'create_monitoring_tables.sql',
       // After create_flights.sql: it alters that table.
-      'create_wings.sql'
+      'create_wings.sql',
+      // After create_pilots.sql: it adds pilots.flight_activity_types.
+      'create_activities.sql'
     ];
 
     for (const fileName of schemaFiles) {

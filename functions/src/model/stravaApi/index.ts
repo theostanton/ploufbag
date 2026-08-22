@@ -55,6 +55,48 @@ export class StravaApi {
         }
     }
 
+    /**
+     * Every activity Strava has for this athlete, as summaries.
+     *
+     * Two hundred per request and no per-activity fetch, which is what makes a
+     * six-year history scannable in a couple of seconds rather than a couple of
+     * hundred requests. The classifier decides what is a flight from these; the
+     * detail endpoint is only worth paying for once something already is one.
+     *
+     * Every type is returned, deliberately. Which types count as flights is the
+     * pilot's answer, not this method's, and the empty state needs to be able to
+     * say "you have 340 Hikes" when we found nothing.
+     */
+    async fetchActivitySummaries(limit: number = 10_000): Promise<Either<StravaActivitySummary[]>> {
+        console.log(`fetchActivitySummaries() limit=${limit}`);
+        try {
+            const summaries: StravaActivitySummary[] = []
+            let page = 1
+            while (summaries.length < limit) {
+                const response = await axios.get<StravaActivitySummary[]>(
+                    'https://www.strava.com/api/v3/athlete/activities',
+                    { params: { per_page: 200, page }, headers: this.headers }
+                );
+                summaries.push(...response.data)
+                console.log(`fetchActivitySummaries page=${page} got=${response.data.length} total=${summaries.length}`)
+                // A short page is the last page. Unlike the id scan below, there
+                // is no early exit on already-seen activities: the whole point of
+                // a scan is that it is cheap enough to redo in full, and stopping
+                // early would leave edited activities stale for ever.
+                if (response.data.length < 200) {
+                    break
+                }
+                page++
+            }
+            return success(summaries.slice(0, limit))
+        } catch (error: any) {
+            if (error.response?.status === 429) {
+                return failed('Rate limited');
+            }
+            return failed(`fetchActivitySummaries failed: ${error.message || error.toString()}`)
+        }
+    }
+
     async fetchParaglidingActivityIds(limit: number = 10000, ignoreActivityIds: StravaActivityId[] = []): Promise<Either<StravaActivityId[]>> {
         console.log(`fetchWingedActivityIds() limit=${limit} ignoreActivityIds=${ignoreActivityIds}`);
         try {

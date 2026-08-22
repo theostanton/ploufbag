@@ -82,7 +82,7 @@ export namespace TestContainer {
 
         // create_wings must follow create_flights: it alters that table, adding
         // flights.wing_id and relaxing flights.wing to nullable.
-        const queries = ['create_flights', 'create_pilots', 'create_sites', 'create_description_preferences', 'create_wings']
+        const queries = ['create_flights', 'create_pilots', 'create_sites', 'create_description_preferences', 'create_wings', 'create_activities']
             .map((filename) => fs.readFileSync(`./src/model/database/scripts/${filename}.sql`, 'utf8'))
             .flatMap(query => query.split(";;;"))
 

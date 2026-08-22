@@ -5,6 +5,7 @@ import { Pilots } from '@/database/Pilots';
 import { Flights } from '@/database/Flights';
 import { StravaApi } from '@/stravaApi';
 import { convertStravaActivityToFlight } from './utils/stravaConverter';
+import { scanPilotActivities } from './scanActivities';
 import {StravaActivity} from "@/stravaApi/model";
 
 export async function executeFetchAllActivitiesTask(
@@ -24,6 +25,25 @@ export async function executeFetchAllActivitiesTask(
 
     // Create Strava API instance
     const api = await StravaApi.fromUserId(pilot.pilot_id);
+
+    // Scan the whole history from Strava's list endpoint and record a verdict
+    // for every activity.
+    //
+    // This creates and changes nothing -- it writes to `activities`, never to
+    // `flights` -- so it runs alongside the importer below rather than replacing
+    // it. The screen that corrects a verdict has to exist before anything acts
+    // on one; until then the importer keeps producing flights exactly as it did,
+    // and this only builds the record the screen will read.
+    //
+    // A failure here is not a failure of the task. The importer below is what
+    // pilots currently depend on, and it must not stop working because a scan
+    // hit a rate limit.
+    const scan = await scanPilotActivities(pilot.pilot_id, api);
+    if (scan.error) {
+        console.log(`Activity scan failed for pilotId=${task.pilotId}, continuing: ${scan.error}`);
+    } else if (scan.summary) {
+        console.log(`Activity scan for pilotId=${task.pilotId}: ${JSON.stringify(scan.summary)}`);
+    }
 
     // Get existing activity IDs from database
     const existingActivityIds: StravaActivityId[] = await withPooledClient(async (database) => {

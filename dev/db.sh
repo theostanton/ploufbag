@@ -112,6 +112,8 @@ SCHEMA_FILES=(
     # The site's flight queries left-join wings, so without this every list and
     # the map 500 against a locally-built database.
     create_wings
+    # After create_pilots: adds pilots.flight_activity_types.
+    create_activities
 )
 
 # Applied after the fixtures, not with the schema.
