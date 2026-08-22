@@ -29,6 +29,20 @@ export type WingInput = {
  * pages route on, so a rename that updated only the wing row would leave both
  * showing the old name until something else rewrote them.
  */
+/*
+ * A note on the `::text::` casts below, which look redundant and are not.
+ *
+ * ts-postgres infers a parameter's wire type from the cast written next to it.
+ * Given `$6::date` it decides the parameter *is* a date, then fails to encode a
+ * JavaScript string into one -- and rather than erroring it sends null, so the
+ * value silently vanishes and a date filter matches every row. Casting from text
+ * instead types the parameter as text, which it encodes correctly, and Postgres
+ * does the conversion.
+ *
+ * Found by running the suite against a real database for the first time: three
+ * tests failed because `assignToDateRange` had received null for both ends of
+ * the period and cheerfully reassigned the pilot's entire history.
+ */
 export namespace Wings {
 
     /**
@@ -116,7 +130,7 @@ export namespace Wings {
             try {
                 const result = await database.query<Wing>(
                     `insert into wings (pilot_id, name, manufacturer, model, colour, flown_from, flown_until, retired)
-                     values ($1::integer, $2, $3, $4, $5, $6::date, $7::date, $8)
+                     values ($1::integer, $2, $3, $4, $5, $6::text::date, $7::text::date, $8)
                      returning ${COLUMNS}`,
                     [
                         pilotId,
@@ -156,8 +170,8 @@ export namespace Wings {
                          manufacturer = $4,
                          model        = $5,
                          colour       = $6,
-                         flown_from   = $7::date,
-                         flown_until  = $8::date,
+                         flown_from   = $7::text::date,
+                         flown_until  = $8::text::date,
                          retired      = $9
                      where wing_id = $1::uuid
                        and pilot_id = $2::integer
@@ -379,8 +393,8 @@ export namespace Wings {
                     `update flights
                      set wing_id = $2::uuid, wing = $3
                      where pilot_id = $1::integer
-                       and ($4::date is null or start_date >= $4::date)
-                       and ($5::date is null or start_date < ($5::date + interval '1 day'))
+                       and ($4::text::date is null or start_date >= $4::text::date)
+                       and ($5::text::date is null or start_date < ($5::text::date + interval '1 day'))
                        and ($6::boolean is false or wing_id is null)
                      returning strava_activity_id`,
                     [pilotId, wingId, name, from || null, until || null, onlyUnattributed]

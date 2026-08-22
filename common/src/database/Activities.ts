@@ -70,11 +70,52 @@ export namespace Activities {
         'verdict', 'score', 'reasons', 'takeoff_id', 'landing_id', 'pilot_verdict',
     ]
 
+    /**
+     * Columns holding the `activity_verdict` enum.
+     *
+     * They have to be selected as text. ts-postgres has no decoder for a
+     * user-defined type, and rather than failing it hands back null -- so
+     * `select verdict from activities` yields null for every row and the whole
+     * screen renders empty. The `$n::text::activity_verdict` casts on the write
+     * side are the same problem in the other direction, where it instead throws
+     * "Unsupported data type: 16445".
+     */
+    const ENUM_COLUMNS = ['verdict', 'pilot_verdict']
+
     /** The select list, optionally qualified for a query that joins. */
     const columns = (alias: string = '') =>
-        COLUMN_NAMES.map(name => (alias ? `${alias}.${name}` : name)).join(', ')
+        COLUMN_NAMES.map(name => {
+            const qualified = alias ? `${alias}.${name}` : name
+            return ENUM_COLUMNS.includes(name) ? `${qualified}::text as ${name}` : qualified
+        }).join(', ')
 
     const COLUMNS = columns()
+
+    /**
+     * A row as the rest of the codebase expects it.
+     *
+     * `polyline` and `reasons` are `json` columns, and the driver can hand them
+     * back either already parsed or still as a string depending on how the
+     * result was produced. Handling both here rather than at each call site is
+     * what stops `reasons.slice(0, 2).map(...)` throwing in the browser, which
+     * is what a raw string would do.
+     */
+    function reifyActivity(raw: any): ActivityRow {
+        const parse = (value: any, fallback: any) => {
+            if (value == null) return fallback
+            if (typeof value !== 'string') return value
+            try {
+                return JSON.parse(value)
+            } catch {
+                return fallback
+            }
+        }
+        return {
+            ...raw,
+            polyline: parse(raw.polyline, null),
+            reasons: parse(raw.reasons, []),
+        }
+    }
 
     /**
      * Records what a scan concluded, leaving the pilot's own decision alone.
@@ -99,7 +140,7 @@ export namespace Activities {
                                                 end_lng, polyline, verdict, score, reasons,
                                                 takeoff_id, landing_id, scanned_at)
                         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                                $15::activity_verdict, $16, $17, $18, $19, now())
+                                $15::text::activity_verdict, $16, $17, $18, $19, now())
                         on conflict (strava_activity_id)
                             do update set type                 = excluded.type,
                                           name                 = excluded.name,
@@ -161,7 +202,7 @@ export namespace Activities {
                 const result = verdict
                     ? await database.query<ActivityRow>(
                         `select ${COLUMNS} from activities
-                         where pilot_id = $1::integer and ${EFFECTIVE} = $2::activity_verdict
+                         where pilot_id = $1::integer and ${EFFECTIVE} = $2::text::activity_verdict
                          order by start_date desc limit ${limit}`,
                         [pilotId, verdict]
                     )
@@ -171,7 +212,7 @@ export namespace Activities {
                          order by start_date desc limit ${limit}`,
                         [pilotId]
                     )
-                return success(result.rows.map(row => row.reify()))
+                return success(result.rows.map(row => reifyActivity(row.reify())))
             } catch (error) {
                 return failure(`Activities.getForPilot failed for pilotId=${pilotId}: ${error}`)
             }
@@ -192,7 +233,7 @@ export namespace Activities {
                 if (result.rows.length !== 1) {
                     return failure(`No activity for id=${activityId}`)
                 }
-                return success(result.rows[0].reify())
+                return success(reifyActivity(result.rows[0].reify()))
             } catch (error) {
                 return failure(`Activities.get failed for id=${activityId}: ${error}`)
             }
@@ -204,7 +245,7 @@ export namespace Activities {
         return withPooledClient(async (database: Client) => {
             try {
                 const result = await database.query<{ verdict: ActivityVerdict, n: number }>(
-                    `select ${EFFECTIVE} as verdict, count(1)::int as n
+                    `select (${EFFECTIVE})::text as verdict, count(1)::int as n
                      from activities
                      where pilot_id = $1::integer
                      group by ${EFFECTIVE}`,
@@ -274,8 +315,8 @@ export namespace Activities {
             try {
                 const result = await database.query<{ strava_activity_id: StravaActivityId }>(
                     `update activities
-                     set pilot_verdict = $3::activity_verdict,
-                         decided_at    = case when $3::activity_verdict is null then null else now() end
+                     set pilot_verdict = $3::text::activity_verdict,
+                         decided_at    = case when $3::text::activity_verdict is null then null else now() end
                      where pilot_id = $1::integer
                        and strava_activity_id = any ($2::text[])
                      returning strava_activity_id`,
@@ -314,7 +355,7 @@ export namespace Activities {
                      limit ${limit}`,
                     [pilotId]
                 )
-                return success(result.rows.map(row => row.reify()))
+                return success(result.rows.map(row => reifyActivity(row.reify())))
             } catch (error) {
                 return failure(`Activities.getPromotable failed: ${error}`)
             }
