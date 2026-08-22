@@ -3,7 +3,7 @@ import {StartedPostgreSqlContainer} from "@testcontainers/postgresql";
 import {Client, connect} from "ts-postgres";
 import * as fs from "node:fs";
 import {TestContainer} from "./generateContainer.test";
-import {trackColourFor} from "@ploufbag/common";
+import {Wings, isSuccess, trackColourFor} from "@ploufbag/common";
 
 /**
  * The wings schema and its backfill.
@@ -205,5 +205,185 @@ describe('backfill_wings.sql', () => {
             `select count(*)::int as n from flights where strava_activity_id = 'w8'`
         )
         expect(count.n).toBe(1)
+    })
+})
+
+/**
+ * The write layer.
+ *
+ * Every one of these moves flight attribution around, several of them in bulk,
+ * and two of them delete a row. They also all have to keep `flights.wing` in
+ * step with `wings.name` — that text column is what gets published to Strava and
+ * what the per-wing pages route on, so an operation that updated only the wing
+ * row would look right on the dashboard and be wrong everywhere else.
+ */
+describe('Wings write layer', () => {
+    const PILOT = 903
+    const OTHER_PILOT = 904
+
+    beforeAll(async () => {
+        await client.query(`insert into pilots (pilot_id, first_name)
+                            values ($1, 'Wren'), ($2, 'Intruder')`, [PILOT, OTHER_PILOT])
+    }, 60_000)
+
+    async function freshWing(name: string, colour = '#3b82f6') {
+        const result = await Wings.create(PILOT, { name, colour })
+        if (!isSuccess(result)) throw new Error(result[1])
+        return result[0]
+    }
+
+    it('creates a wing', async () => {
+        const wing = await freshWing('Ozone Zeno 2')
+        expect(wing.name).toBe('Ozone Zeno 2')
+        expect(wing.pilot_id).toBe(PILOT)
+    })
+
+    it('refuses a second wing with the same name, in words a pilot can act on', async () => {
+        const again = await Wings.create(PILOT, { name: 'ozone  zeno 2', colour: '#ef4444' })
+        expect(isSuccess(again)).toBe(false)
+        expect(String(again[1])).toContain('already have a wing')
+    })
+
+    it('returns calendar dates as strings, not instants', async () => {
+        const created = await Wings.create(PILOT, {
+            name: 'Dated Wing',
+            colour: '#22c55e',
+            flown_from: '2022-03-01',
+            flown_until: '2024-09-30',
+        })
+        if (!isSuccess(created)) throw new Error(created[1])
+        // A Date here would carry the server's timezone and could move the
+        // boundary by a day, silently reassigning the flights either side of it.
+        expect(created[0].flown_from).toBe('2022-03-01')
+        expect(created[0].flown_until).toBe('2024-09-30')
+    })
+
+    it('renaming a wing renames it on its flights too', async () => {
+        const wing = await freshWing('Typo Wign', '#f59e0b')
+        await insertFlight('rename1', PILOT, 'Typo Wign')
+        await client.query(`update flights set wing_id = $1::uuid where strava_activity_id = 'rename1'`,
+            [wing.wing_id])
+
+        const updated = await Wings.update(PILOT, wing.wing_id, { name: 'Typo Wing', colour: '#f59e0b' })
+        expect(isSuccess(updated)).toBe(true)
+
+        const [flight] = await rows<{ wing: string }>(
+            `select wing from flights where strava_activity_id = 'rename1'`)
+        expect(flight.wing).toBe('Typo Wing')
+    })
+
+    it('will not let one pilot touch another pilot\'s wing', async () => {
+        const wing = await freshWing('Not Yours', '#8b5cf6')
+
+        const update = await Wings.update(OTHER_PILOT, wing.wing_id, { name: 'Stolen', colour: '#ef4444' })
+        expect(isSuccess(update)).toBe(false)
+
+        const remove = await Wings.remove(OTHER_PILOT, wing.wing_id)
+        expect(isSuccess(remove)).toBe(false)
+
+        const [survivor] = await rows<{ name: string }>(
+            `select name from wings where wing_id = $1::uuid`, [wing.wing_id])
+        expect(survivor.name).toBe('Not Yours')
+    })
+
+    it('merges one wing into another, moving its flights and its name', async () => {
+        const source = await freshWing('Zeno II', '#ec4899')
+        const target = await freshWing('Zeno 2 proper', '#06b6d4')
+        await insertFlight('merge1', PILOT, 'Zeno II')
+        await insertFlight('merge2', PILOT, 'Zeno II')
+        await client.query(
+            `update flights set wing_id = $1::uuid where strava_activity_id in ('merge1', 'merge2')`,
+            [source.wing_id])
+
+        const merged = await Wings.merge(PILOT, source.wing_id, target.wing_id)
+        expect(isSuccess(merged)).toBe(true)
+        expect(merged[0]).toBe(2)
+
+        const moved = await rows<{ wing: string, wing_id: string }>(
+            `select wing, wing_id from flights where strava_activity_id in ('merge1', 'merge2')`)
+        expect(moved.every(f => f.wing_id === target.wing_id)).toBe(true)
+        expect(moved.every(f => f.wing === 'Zeno 2 proper')).toBe(true)
+
+        const gone = await rows<{ n: number }>(
+            `select count(1)::int as n from wings where wing_id = $1::uuid`, [source.wing_id])
+        expect(gone[0].n).toBe(0)
+    })
+
+    it('refuses to merge a wing into itself', async () => {
+        const wing = await freshWing('Lonely', '#84cc16')
+        const merged = await Wings.merge(PILOT, wing.wing_id, wing.wing_id)
+        expect(isSuccess(merged)).toBe(false)
+    })
+
+    /**
+     * Deleting has to clear the text column as well as the foreign key. The FK
+     * is `on delete set null`, but `flights.wing` is plain text no constraint
+     * touches — leaving it would produce a flight with no wing_id still claiming
+     * a wing by name, which is the inconsistent state wings exist to end.
+     */
+    it('deleting a wing leaves its flights with no wing at all', async () => {
+        const wing = await freshWing('Doomed', '#f97316')
+        await insertFlight('del1', PILOT, 'Doomed')
+        await client.query(`update flights set wing_id = $1::uuid where strava_activity_id = 'del1'`,
+            [wing.wing_id])
+
+        const removed = await Wings.remove(PILOT, wing.wing_id)
+        expect(isSuccess(removed)).toBe(true)
+        expect(removed[0]).toBe(1)
+
+        const [flight] = await rows<{ wing: string | null, wing_id: string | null }>(
+            `select wing, wing_id from flights where strava_activity_id = 'del1'`)
+        expect(flight.wing_id).toBeNull()
+        expect(flight.wing).toBeNull()
+    })
+
+    describe('assignToDateRange', () => {
+        let wing: { wing_id: string }
+
+        beforeAll(async () => {
+            wing = await freshWing('Range Wing', '#6366f1')
+            await client.query(
+                `insert into flights (strava_activity_id, pilot_id, wing, duration_sec, distance_meters,
+                                      start_date, description)
+                 values ('r-before', $1, null, 600, 5000, '2022-02-28T14:00:00Z', ''),
+                        ('r-open', $1, null, 600, 5000, '2022-03-01T00:00:00Z', ''),
+                        ('r-close', $1, null, 600, 5000, '2024-09-30T18:30:00Z', ''),
+                        ('r-after', $1, null, 600, 5000, '2024-10-01T09:00:00Z', '')`,
+                [PILOT])
+        }, 60_000)
+
+        /**
+         * The trap: start_date is a timestamp, so `<= '2024-09-30'` compares an
+         * 18:30 flight against midnight and drops it. A pilot who says they flew
+         * a wing until the 30th means the whole of the 30th.
+         */
+        it('includes the whole of the closing day', async () => {
+            const assigned = await Wings.assignToDateRange(PILOT, wing.wing_id, '2022-03-01', '2024-09-30')
+            expect(isSuccess(assigned)).toBe(true)
+
+            const inside = await rows<{ strava_activity_id: string }>(
+                `select strava_activity_id from flights
+                 where wing_id = $1::uuid order by strava_activity_id`, [wing.wing_id])
+            expect(inside.map(f => f.strava_activity_id)).toEqual(['r-close', 'r-open'])
+        })
+
+        it('leaves flights outside the period alone', async () => {
+            const outside = await rows<{ wing_id: string | null }>(
+                `select wing_id from flights where strava_activity_id in ('r-before', 'r-after')`)
+            expect(outside.every(f => f.wing_id === null)).toBe(true)
+        })
+
+        it('does not overrule a wing the pilot already set, when asked not to', async () => {
+            const other = await freshWing('Already Set', '#3b82f6')
+            await client.query(
+                `update flights set wing_id = $1::uuid, wing = 'Already Set'
+                 where strava_activity_id = 'r-before'`, [other.wing_id])
+
+            await Wings.assignToDateRange(PILOT, wing.wing_id, null, null, true)
+
+            const [kept] = await rows<{ wing: string }>(
+                `select wing from flights where strava_activity_id = 'r-before'`)
+            expect(kept.wing).toBe('Already Set')
+        })
     })
 })

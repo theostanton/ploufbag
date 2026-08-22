@@ -125,12 +125,21 @@ export type Wing = {
     /** Hex, e.g. `#3b82f6`. What this wing's tracks are drawn in on the map. */
     colour: string
     /**
-     * The period this wing was flown in. Null on either side means no boundary
-     * there -- a wing still being flown has no `flown_until`. Used to attribute
-     * a flight whose wing is not otherwise known.
+     * The period this wing was flown in, as calendar dates (`YYYY-MM-DD`).
+     *
+     * Null on either side means no boundary there -- a wing still being flown
+     * has no `flown_until`. Used to attribute a flight whose wing is not
+     * otherwise known.
+     *
+     * Strings rather than Dates, and read back through `to_char`, because these
+     * are calendar dates and not instants: "I flew it from 1 March" means the
+     * first of March wherever the pilot was standing. Round-tripping them
+     * through a Date drags in the server's timezone and can move the boundary a
+     * day, which silently reassigns the flights either side of it. It is also
+     * exactly the format `<input type="date">` reads and writes.
      */
-    flown_from: Date | null
-    flown_until: Date | null
+    flown_from: string | null
+    flown_until: string | null
     retired: boolean
     sort: number
 }

@@ -4,11 +4,12 @@ import {Flights} from "@database/flights";
 import {getPilotWingStats} from "@database/stats";
 import {Sites} from "@database/Sites";
 import {DescriptionPreferences} from "@database/descriptionPreferences";
-import {isSuccess} from "@ploufbag/common";
+import {Wings, isSuccess} from "@ploufbag/common";
 import {Metadata} from "next";
 import {createMetadata} from "@ui/metadata";
 import Link from "next/link";
 import DescriptionPreferencesComponent from "@ui/preferences/DescriptionPreferences";
+import WingsManager from "@ui/wings/WingsManager";
 import MapScene from "@ui/map/MapScene";
 import FlightRow from "@ui/chrome/FlightRow";
 import {PanelEmpty, PanelFacts, PanelHeader, PanelSection} from "@ui/chrome/Panel";
@@ -40,7 +41,8 @@ export default async function Dashboard() {
         [recentFlights],
         [totalFlightCount],
         descriptionPreferencesResult,
-        [ownFlights]
+        [ownFlights],
+        [wingRecords]
     ] = await Promise.all([
         get(pilotId),
         getPilotWingStats(pilotId),
@@ -49,7 +51,8 @@ export default async function Dashboard() {
         Flights.getPilotFlightCount(pilotId),
         DescriptionPreferences.get(pilotId),
         // Ids only, to tell the map which tracks are yours.
-        Flights.getForPilot(pilotId)
+        Flights.getForPilot(pilotId),
+        Wings.getForPilotWithCounts(pilotId)
     ]);
 
     if (!pilot) {
@@ -119,7 +122,7 @@ export default async function Dashboard() {
                             label: 'Flights',
                             value: <Link href={`/pilots/${pilotId}`}>{totalFlightCount ?? flights.length}</Link>,
                         },
-                        {label: 'Wings', value: wings.length},
+                        {label: 'Wings', value: (wingRecords ?? []).length || wings.length},
                         {label: 'Takeoffs', value: takeoffs.length},
                         {label: 'Landings', value: landings.length},
                     ]}
@@ -133,23 +136,14 @@ export default async function Dashboard() {
                 />
             </PanelSection>
 
-            {wings.length > 0 && (
-                <PanelSection title="Your wings">
-                    <ul className={tally.tally}>
-                        {wings.map(item => (
-                            <li key={item.wing}>
-                                <Link
-                                    href={`/pilots/${pilotId}/${encodeURIComponent(item.wing.toLowerCase())}`}
-                                    className={tally.tallyRow}
-                                >
-                                    <span className={tally.tallyName}>{item.wing}</span>
-                                    <span className={tally.tallyCount}>{item.flights}</span>
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                </PanelSection>
-            )}
+            {/*
+              * Editable, where this was a read-only tally of names parsed out of
+              * Strava descriptions. Rendered whether or not there are any wings:
+              * a pilot with none needs the way in more than anyone.
+              */}
+            <PanelSection title="Your wings">
+                <WingsManager wings={wingRecords ?? []}/>
+            </PanelSection>
 
             {takeoffs.length > 0 && (
                 <PanelSection title="Your takeoffs">
