@@ -196,3 +196,96 @@ describe('haversineMetres', () => {
         expect(metres).toBeLessThan(5_500)
     })
 })
+
+/**
+ * Cases taken from a real account, after the first version of this classifier
+ * was measured against one and found nothing.
+ *
+ * It recovered 0 of 70 annotated flights. Not a threshold being slightly off:
+ * the reachable score without a site match topped out below the bar, so no
+ * flight outside the French federation's site data could ever have been found.
+ * These are the specific shapes that broke it.
+ */
+describe('shapes that a real account turned out to be full of', () => {
+    it('accepts a five-minute sled ride off a lift-served launch', () => {
+        // The single most common flight in a real logbook, and the old duration
+        // band -- a penalty under five minutes, a bonus only over eight --
+        // rejected every one of them.
+        const result = classifyActivity(activity({
+            name: 'Paraglide • Planpraz',
+            type: 'Kitesurf',
+            candidateTypes: ['Kitesurf'],
+            distanceMeters: 3_400,
+            elapsedSec: 5 * 60,
+            totalElevationGain: 43,
+            takeoffSiteName: null,
+            landingSiteName: null,
+        }))
+        expect(result.verdict).toBe('flight')
+    })
+
+    it('does not punish a soaring flight for landing where it took off', () => {
+        // Ridge and dune soaring lands you back at launch by design. The loop
+        // test is about walks and rides, so it is gated on walking pace.
+        const result = classifyActivity(activity({
+            name: 'Paraglide • Dune du Pilat',
+            distanceMeters: 17_500,
+            elapsedSec: 40 * 60,
+            totalElevationGain: 445,
+            startPoint: [44.5883, -1.2131],
+            endPoint: [44.5884, -1.2132],
+            takeoffSiteName: null,
+            landingSiteName: null,
+        }))
+        expect(result.reasons.some(reason => reason.code === 'loop')).toBe(false)
+        expect(result.verdict).toBe('flight')
+    })
+
+    it('does not punish a thermic flight for climbing', () => {
+        // Climbing is the entire sport. The penalty is for walking uphill, so it
+        // is gated on walking pace too.
+        const result = classifyActivity(activity({
+            name: 'Paraglide • Planpraz',
+            distanceMeters: 3_200,
+            elapsedSec: 6 * 60,
+            totalElevationGain: 608,
+            takeoffSiteName: null,
+            landingSiteName: null,
+        }))
+        expect(result.reasons.some(reason => reason.code === 'climbing')).toBe(false)
+        expect(result.verdict).toBe('flight')
+    })
+
+    /**
+     * The structural bug, as a test. The site table belongs to the French
+     * federation; a pilot flying anywhere else matches nothing, however obvious
+     * their flight is, so a confident verdict has to be reachable with every
+     * site signal switched off.
+     */
+    it('can reach a confident verdict with no site data at all', () => {
+        const result = classifyActivity(activity({
+            name: 'Parapente',
+            distanceMeters: 6_500,
+            elapsedSec: 11 * 60,
+            totalElevationGain: 120,
+            takeoffSiteName: null,
+            landingSiteName: null,
+        }))
+        expect(result.score).toBeGreaterThanOrEqual(CONFIDENT_SCORE)
+    })
+
+    it('still will not claim a flight from geometry alone', () => {
+        // Everything a flight has except a name that says so and a site that
+        // agrees. Measured against a real account this is where the false
+        // positives would come from, and it stays a question.
+        const result = classifyActivity(activity({
+            name: 'Afternoon Workout',
+            distanceMeters: 6_500,
+            elapsedSec: 11 * 60,
+            totalElevationGain: 120,
+            takeoffSiteName: null,
+            landingSiteName: null,
+        }))
+        expect(result.verdict).not.toBe('flight')
+    })
+})

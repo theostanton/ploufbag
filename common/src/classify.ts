@@ -74,10 +74,23 @@ export const CONFIDENT_SCORE = 60
 /** At or above this, we ask. Below it, we assume not and remember the answer. */
 export const UNSURE_SCORE = 20
 
+/**
+ * Words that only appear in the name of a paragliding flight.
+ *
+ * Weighted near-decisively, because they are: nobody titles a bike ride
+ * "Paraglide". Real accounts turn out to lean on this far harder than any
+ * geometry — a pilot who names their activities at all usually names them after
+ * the sport or the site.
+ */
+const PARAGLIDING_WORDS = [
+    'paraglide', 'paragliding', 'parapente', 'speedfly', 'speedriding',
+    'hike and fly', 'hike-and-fly', 'vol libre', 'volbiv', '🪂',
+]
+
+/** Words that suggest a flight without settling it. */
 const FLIGHT_WORDS = [
-    'vol', 'fly', 'flight', 'flying', 'para', 'glide', 'gliding', 'xc',
-    'cross', 'thermal', 'soar', 'volbiv', 'biv', 'deco', 'decollage', 'atterro',
-    '🪂',
+    'vol', 'fly', 'flight', 'flying', 'glide', 'gliding', 'xc',
+    'cross', 'thermal', 'soar', 'biv', 'deco', 'decollage', 'atterro',
 ]
 
 /**
@@ -172,9 +185,11 @@ export function classifyActivity(input: ClassifierInput): Classification {
         if (input.hasTrack) {
             add('open-takeoff', 'Did not start at a known launch', -15)
         }
-    } else if (input.hasTrack) {
-        add('no-sites', 'Not near a known site', -10)
     }
+    // No penalty for matching no site at all. The site table is the French
+    // federation's, so a pilot flying anywhere else matches nothing however
+    // obvious their flight is — and the scoring has to be reachable without it.
+    // Silence here, rather than evidence against.
 
     if (!input.hasTrack) {
         // A Workout with no GPS at all could be anything, and there is nothing
@@ -198,39 +213,52 @@ export function classifyActivity(input: ClassifierInput): Classification {
     }
 
     const minutes = input.elapsedSec / 60
-    if (minutes < 5) {
+    // The floor used to be five minutes, and the bonus started at eight. Both
+    // were wrong: measured against a real account, a large share of flights are
+    // sled rides of three to eleven minutes off a lift-served launch, and the
+    // old bands rejected them outright. Only a genuine false start is short
+    // enough to count against.
+    if (minutes < 3) {
         add('short', `Only ${Math.round(minutes)} min`, -25)
-    } else if (minutes >= 8 && minutes <= 240) {
+    } else if (minutes <= 240) {
         add('duration', `${Math.round(minutes)} min`, 10)
     } else if (hours > 4) {
         add('long', `${hours.toFixed(1)} hours`, -15)
     }
 
-    // Climb per kilometre separates flying from walking uphill. A hike-and-fly
-    // recorded as one activity sits between the two, which is exactly why it
-    // should land in the unsure pile rather than be guessed at.
-    if (input.totalElevationGain != null && kilometres >= 1) {
+    // Walking pace, and only walking pace, is what makes climbing and looping
+    // suspicious. Both penalties are gated on it, because on their own they
+    // describe ordinary flying: a paraglider climbs — that is the entire sport —
+    // and ridge and dune soaring lands you exactly where you took off. Measured
+    // against a real account, ungated versions of these two rejected genuine
+    // thermic and coastal flights.
+    const looksLikeWalking = input.elapsedSec > 0 && speedKmh > 0 && speedKmh < 15
+
+    if (looksLikeWalking && input.totalElevationGain != null && kilometres >= 1) {
         const climbPerKm = input.totalElevationGain / kilometres
         if (climbPerKm > 120) {
-            add('climbing', `Climbs ${Math.round(climbPerKm)} m per km — looks like walking up`, -20)
-        } else if (climbPerKm < 50) {
+            add('climbing', `Climbs ${Math.round(climbPerKm)} m per km at walking pace`, -20)
+        }
+    }
+    if (input.totalElevationGain != null && kilometres >= 1) {
+        const climbPerKm = input.totalElevationGain / kilometres
+        if (climbPerKm < 50) {
             add('little-climb', 'Barely climbs for the ground it covers', 10)
         }
     }
 
-    // A flight goes somewhere. A track that ends where it started is a loop, and
-    // loops are walks, rides and drives.
-    if (input.startPoint && input.endPoint && input.distanceMeters > 2000) {
+    if (looksLikeWalking && input.startPoint && input.endPoint && input.distanceMeters > 2000) {
         const straightLine = haversineMetres(input.startPoint, input.endPoint)
         if (straightLine / input.distanceMeters < 0.05) {
-            add('loop', 'Ends where it started', -15)
+            add('loop', 'Ends where it started, at walking pace', -15)
         }
     }
 
     const haystack = input.name.toLowerCase()
-    const matched = FLIGHT_WORDS.find(word => haystack.includes(word))
-    if (matched) {
-        add('name', `Called “${input.name}”`, 20)
+    if (PARAGLIDING_WORDS.some(word => haystack.includes(word))) {
+        add('name', `Called “${input.name}”`, 45)
+    } else if (FLIGHT_WORDS.some(word => haystack.includes(word))) {
+        add('name', `Called “${input.name}”`, 15)
     }
 
     const score = reasons.reduce((total, reason) => total + reason.points, 0)
