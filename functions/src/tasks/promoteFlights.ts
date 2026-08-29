@@ -3,17 +3,16 @@ import {
     ActivityRow,
     Flights as FlightsCommon,
     FlightRow,
-    LatLng,
     StravaAthleteId,
     Wing,
     Wings,
     extractWingName,
     isSuccess,
 } from "@ploufbag/common";
-import { decode } from "@googlemaps/polyline-codec";
 import { StravaApi } from "@/stravaApi";
 import { executeUpdateDescriptionTask } from "./updateDescription";
 import { executeReconcileDescriptionTask } from "./reconcileDescription";
+import { shapeOfActivity } from "./flightShape";
 
 /**
  * Turning verdicts into flights.
@@ -60,22 +59,6 @@ function wingFromDescription(description: string, wings: Wing[]): Wing | null {
     return wings.find(wing => key(wing.name) === wanted) ?? null
 }
 
-function fullTrack(encoded: string | undefined, fallback: LatLng[] | null): LatLng[] {
-    if (encoded) {
-        try {
-            const tuples = decode(encoded)
-            if (tuples.length >= 2) {
-                return tuples.map(tuple => [tuple[0], tuple[1]] as LatLng)
-            }
-        } catch (error) {
-            console.log(`Could not decode polyline: ${error}`)
-        }
-    }
-    // The scan already stored the coarse track. Better than nothing, and the
-    // flight is still worth having without geometry at all.
-    return fallback ?? []
-}
-
 export async function promotePilotFlights(
     pilotId: StravaAthleteId,
     api: StravaApi,
@@ -119,16 +102,29 @@ export async function promotePilotFlights(
             wing = isSuccess(resolved) ? resolved[0] : null
         }
 
+        // The flight, not the recording. The scan works from summaries and so
+        // cannot know where the flying started; here there is a detail fetch in
+        // hand already, and one more request buys the pilot a real airtime
+        // instead of one that includes the walk down to the car.
+        const shape = await shapeOfActivity(api, stravaActivity)
+        if (shape.rateLimited) {
+            console.log(`Rate limited after promoting ${promoted}; stopping`)
+            rateLimited = true
+            break
+        }
+
         const flight: FlightRow = {
             pilot_id: pilotId,
             strava_activity_id: activity.strava_activity_id,
             wing: wing?.name ?? null,
             wing_id: wing?.wing_id ?? null,
-            duration_sec: activity.elapsed_sec,
-            distance_meters: activity.distance_meters,
-            start_date: activity.start_date,
+            duration_sec: shape.durationSec,
+            distance_meters: shape.distanceMeters,
+            start_date: shape.startDate,
             description: stravaActivity.description ?? '',
-            polyline: fullTrack(stravaActivity.map?.polyline, activity.polyline),
+            // The scan already stored the coarse track, which is better than
+            // nothing when the detail endpoint gave us no geometry at all.
+            polyline: shape.track ?? activity.polyline ?? [],
             takeoff_id: activity.takeoff_id ?? undefined,
             landing_id: activity.landing_id ?? undefined,
         }

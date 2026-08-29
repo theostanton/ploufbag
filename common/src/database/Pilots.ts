@@ -70,6 +70,21 @@ export namespace Pilots {
                     `update pilots set flight_activity_types = $2 where pilot_id = $1::integer`,
                     [pilotId, types]
                 )
+                // Every verdict this pilot has was reached against the old list,
+                // and the list is the first thing the classifier consults -- so
+                // a pilot who tells us they log flights as Hikes has just
+                // invalidated every "not a flight" we ever wrote for them.
+                //
+                // Forgetting that we read their descriptions is what puts those
+                // activities back in front of the scan's review pass, and it is
+                // also what stops `upsertScanned` preserving the stale verdicts:
+                // it keeps a stored verdict precisely because it was reached
+                // with a description we can no longer better, and that is no
+                // longer true once the gate itself has moved.
+                await database.query(
+                    `update activities set description_checked_at = null where pilot_id = $1::integer`,
+                    [pilotId]
+                )
                 return success(undefined)
             } catch (error) {
                 return failure(`Pilots.setFlightActivityTypes failed: ${error}`)

@@ -2,7 +2,6 @@ import {
     Activities,
     Flights as FlightsCommon,
     FlightRow,
-    LatLng,
     Sites,
     UpdateSingleActivityTask,
     TaskResult,
@@ -12,12 +11,12 @@ import {
     isSuccess,
     Pilots as PilotsCommon,
 } from "@ploufbag/common";
-import { decode } from "@googlemaps/polyline-codec";
 import { Pilots } from '@/database/Pilots';
 import { StravaApi } from '@/stravaApi';
 import { StravaActivity } from "@/stravaApi/model";
 import { executeUpdateDescriptionTask } from "./updateDescription";
 import { executeReconcileDescriptionTask } from "./reconcileDescription";
+import { shapeOfActivity } from "./flightShape";
 
 /**
  * One activity, straight off a Strava webhook.
@@ -56,23 +55,14 @@ export async function executeUpdateSingleActivityTask(
     }
     const stravaActivity: StravaActivity = activityResult[0];
 
-    // The full-resolution track from the detail endpoint, falling back to the
-    // coarse one the list endpoint would have given.
-    let track: LatLng[] | null = null
-    const encoded = stravaActivity.map?.polyline || stravaActivity.map?.summary_polyline
-    if (encoded) {
-        try {
-            const tuples = decode(encoded)
-            if (tuples.length >= 2) {
-                track = tuples.map(tuple => [tuple[0], tuple[1]] as LatLng)
-            }
-        } catch (error) {
-            console.log(`Could not decode polyline for ${task.activityId}: ${error}`)
-        }
-    }
-
-    const startPoint = track?.[0] ?? null
-    const endPoint = track ? track[track.length - 1] : null
+    // The flight, rather than the recording: a vario started in the lift queue
+    // and stopped at the bar has walking welded to both ends, and it is measured
+    // off here so that everything below -- the verdict, the sites, the published
+    // stats -- is about the part where the pilot was flying.
+    const shape = await shapeOfActivity(api, stravaActivity)
+    const track = shape.track
+    const startPoint = shape.startPoint
+    const endPoint = shape.endPoint
 
     const takeoff = startPoint ? await Sites.getNearestWithin(startPoint) : null
     const landing = endPoint ? await Sites.getNearestWithin(endPoint) : null
@@ -95,6 +85,7 @@ export async function executeUpdateSingleActivityTask(
         takeoffSiteName: takeoff?.name ?? null,
         landingSiteName: landing?.name ?? null,
         wingFromDescription: namedWing,
+        flown: shape.flown,
         candidateTypes,
     })
 
@@ -121,6 +112,14 @@ export async function executeUpdateSingleActivityTask(
     }])
     if (!isSuccess(recorded)) {
         return { success: false, message: `Could not record activity: ${recorded[1]}` };
+    }
+
+    // This path read the description, which the history scan cannot. Saying so
+    // is what stops the next scan -- working from a summary, and so blind to the
+    // 🪂 line -- overwriting the verdict we just reached with a worse one.
+    const noted = await Activities.markDescriptionChecked([task.activityId])
+    if (!isSuccess(noted)) {
+        console.log(`Could not record that ${task.activityId} has been read: ${noted[1]}`)
     }
 
     // What the pilot said beats what we think, including for an activity they
@@ -161,14 +160,17 @@ export async function executeUpdateSingleActivityTask(
         wing = isSuccess(resolved) ? resolved[0] : null
     }
 
+    // The published flight is the trimmed one. A pilot's airtime should not
+    // include the walk to the landing field, and these are the numbers that end
+    // up in their totals and on the Strava description.
     const flight: FlightRow = {
         pilot_id: pilot.pilot_id,
         strava_activity_id: task.activityId,
         wing: wing?.name ?? null,
         wing_id: wing?.wing_id ?? null,
-        duration_sec: stravaActivity.elapsed_time ?? 0,
-        distance_meters: Math.round(stravaActivity.distance ?? 0),
-        start_date: new Date(stravaActivity.start_date),
+        duration_sec: shape.durationSec,
+        distance_meters: shape.distanceMeters,
+        start_date: shape.startDate,
         description: stravaActivity.description ?? '',
         polyline: track ?? [],
         takeoff_id: takeoff?.ffvl_sid ?? undefined,

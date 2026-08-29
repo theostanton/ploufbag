@@ -14,6 +14,7 @@ import { executeUpdateSingleActivityTask } from "../tasks/updateSingleActivity";
 import { executeUpdateDescriptionTask } from "../tasks/updateDescription";
 import { Flights } from "../model/database/Flights";
 import { Pilots } from "../model/database/Pilots";
+import trigger, { RECHECK_DELAY_SEC } from "../tasks/trigger";
 
 /**
  * Handle incoming Strava webhook events
@@ -228,18 +229,26 @@ async function processActivityEvent(
             return null; // No task triggered for deletion
         }
 
-        // For "update" events, check if the flight already exists in the DB.
-        // If it does, skip UpdateSingleActivity to avoid re-extracting the wing
-        // from the already-formatted description (which corrupts the wing name
-        // due to padding spaces and causes the flight count to drop to 1).
         const activityId = payload.object_id.toString();
-        const existingFlight = await Flights.get(activityId);
-        const flightAlreadyExists = isSuccess(existingFlight);
         let taskExecutionId: string | null = null;
 
-        if (payload.aspect_type === 'update' && flightAlreadyExists) {
-            console.log(`Flight already exists for activity ${activityId}, skipping UpdateSingleActivity on update event`);
-        } else {
+        {
+            // Every create and every update runs the task, including an update
+            // to an activity we have already made a flight of.
+            //
+            // Updates used to be skipped in that case, to avoid re-reading the
+            // wing off a description we had ourselves written statistics into.
+            // That reason is gone -- extractWingName steps over our own columns
+            // and there are tests pinning it -- and the skip cost more than it
+            // saved: cropping is the commonest edit a pilot makes, and a
+            // cropped activity kept the duration, distance and track from
+            // before the crop for as long as the flight existed.
+            //
+            // Re-running is safe to do on our own writes as well. Publishing a
+            // description that has not changed is a no-op inside
+            // UpdateDescription, so an event we caused ourselves stops there
+            // rather than going round again.
+            //
             // No type gate here any more, and no pre-fetch to apply one.
             //
             // It used to fetch the activity purely to ask isRelevantActivityType,
@@ -321,6 +330,53 @@ async function processActivityEvent(
         console.error("Error processing activity event:", error);
         throw error;
     }
+}
+
+/**
+ * Looking at a new upload once more, a quarter of an hour later.
+ *
+ * The create event is raised when the activity appears on Strava, which is
+ * routinely before the pilot has finished with it -- the description carrying
+ * the 🪂 line, the real title, the crop that takes the walk off each end, all
+ * arrive afterwards, and Strava raises no webhook for any of them. Classifying
+ * once at create time therefore judges a version of the activity that existed
+ * for about a minute, and this is what stops that snapshot being final.
+ *
+ * Only for activities that did not become flights: one that did has already
+ * been published to, and a later edit to it comes back round as an update event
+ * or is caught by the scan's review pass.
+ *
+ * Best effort on purpose. The upload has already been handled by the time this
+ * runs, and a queue that is unavailable is not a reason to fail the webhook and
+ * have Strava retry the whole thing.
+ */
+async function scheduleRecheck(
+    payload: StravaWebhookEvent,
+    activityId: string
+): Promise<void> {
+    if (payload.aspect_type !== 'create') {
+        return;
+    }
+
+    const flight = await Flights.get(activityId);
+    if (isSuccess(flight)) {
+        return;
+    }
+
+    const queued = await trigger(
+        {
+            name: "UpdateSingleActivity" as const,
+            pilotId: payload.owner_id,
+            activityId
+        },
+        { delaySec: RECHECK_DELAY_SEC }
+    );
+
+    if (isFailure(queued)) {
+        console.log(`Could not schedule a re-check of activity ${activityId}: ${queued[1]}`);
+        return;
+    }
+    console.log(`Scheduled a re-check of activity ${activityId} in ${RECHECK_DELAY_SEC}s`);
 }
 
 /**

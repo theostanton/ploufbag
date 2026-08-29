@@ -16,7 +16,22 @@ function getQueueId(taskName: TaskName): string | null {
 
 }
 
-export default async function (task: TaskBody): Promise<Either<void>> {
+/**
+ * How long to wait before looking at a freshly uploaded activity again.
+ *
+ * Strava raises the create webhook when the activity appears, which is not when
+ * the pilot has finished with it: a vario or a watch uploads first and the app
+ * sends the title, the description and any crop afterwards, and Strava raises no
+ * webhook for most of those. Fifteen minutes is long enough to be after the
+ * pilot has packed up and tidied the activity, and short enough that the flight
+ * shows up while they are still looking at their phone.
+ */
+export const RECHECK_DELAY_SEC = 15 * 60
+
+export default async function (
+    task: TaskBody,
+    options: { delaySec?: number } = {}
+): Promise<Either<void>> {
     const client = new CloudTasksClient({
         // Add timeout to fail faster instead of waiting 40+ seconds
         timeout: 10000 // 10 seconds
@@ -37,7 +52,12 @@ export default async function (task: TaskBody): Promise<Either<void>> {
                     url: process.env.TASKS_URL,
                     httpMethod: "POST",
                     body: Buffer.from(JSON.stringify(task)).toString('base64')
-                }
+                },
+                // Cloud Tasks holds it until then, so a delayed re-check costs
+                // nothing to wait for and survives this container going away.
+                ...(options.delaySec
+                    ? { scheduleTime: { seconds: Math.round(Date.now() / 1000) + options.delaySec } }
+                    : {}),
             }
         })
         console.log(`Triggered task=${task} response=${JSON.stringify(response)}`)

@@ -48,6 +48,26 @@ export type ClassifierInput = {
     /** A wing read off the old 🪂 description line, when we happen to have it. */
     wingFromDescription?: string | null
     /**
+     * The flight itself, once the ground time at each end is trimmed off.
+     *
+     * Present only where we have been to Strava for the track's timestamps, so
+     * everything below has to read the same with it absent -- the history scan
+     * works from summaries alone and never has it.
+     *
+     * Where it is present it replaces the figures above rather than adding to
+     * them, because a recording that starts in the lift queue and ends at the
+     * bar describes a walk however the flight in the middle of it went. See
+     * flightWindow.ts.
+     */
+    flown?: {
+        durationSec: number
+        distanceMeters: number
+        /** Metres climbed while flying. Not Strava's figure for the whole day. */
+        totalElevationGain?: number | null
+        /** Ground time cut off both ends together. */
+        trimmedSec: number
+    } | null
+    /**
      * The Strava activity types this pilot logs flights as. Empty means "not
      * asked yet", and the defaults below apply.
      */
@@ -197,11 +217,33 @@ export function classifyActivity(input: ClassifierInput): Classification {
         add('no-track', 'No track recorded', -30)
     }
 
-    const hours = input.elapsedSec / 3600
-    const kilometres = input.distanceMeters / 1000
+    // Everything below measures the flight rather than the recording. Where the
+    // track's timestamps told us when the pilot was actually airborne, those
+    // figures stand in for Strava's -- which is what stops a sled ride with a
+    // walk welded to each end reading as a walk. See `flown` above.
+    const elapsedSec = input.flown?.durationSec ?? input.elapsedSec
+    const distanceMeters = input.flown?.distanceMeters ?? input.distanceMeters
+    const elevationGain = input.flown
+        ? input.flown.totalElevationGain ?? null
+        : input.totalElevationGain ?? null
+
+    if (input.flown && input.flown.trimmedSec >= 60) {
+        // Worth no points on purpose. The trim is not evidence for a flight, it
+        // is the reason the evidence below reads the way it does -- and a pilot
+        // looking at a forty minute activity we call a six minute flight is owed
+        // the sentence that explains it.
+        add(
+            'trimmed',
+            `Ignored ${Math.round(input.flown.trimmedSec / 60)} min on the ground`,
+            0
+        )
+    }
+
+    const hours = elapsedSec / 3600
+    const kilometres = distanceMeters / 1000
     const speedKmh = hours > 0 ? kilometres / hours : 0
 
-    if (input.elapsedSec > 0) {
+    if (elapsedSec > 0) {
         if (speedKmh >= 15 && speedKmh <= 50) {
             add('speed', `${Math.round(speedKmh)} km/h average`, 20)
         } else if (speedKmh > 0 && speedKmh < 8) {
@@ -212,7 +254,7 @@ export function classifyActivity(input: ClassifierInput): Classification {
         }
     }
 
-    const minutes = input.elapsedSec / 60
+    const minutes = elapsedSec / 60
     // The floor used to be five minutes, and the bonus started at eight. Both
     // were wrong: measured against a real account, a large share of flights are
     // sled rides of three to eleven minutes off a lift-served launch, and the
@@ -232,24 +274,24 @@ export function classifyActivity(input: ClassifierInput): Classification {
     // and ridge and dune soaring lands you exactly where you took off. Measured
     // against a real account, ungated versions of these two rejected genuine
     // thermic and coastal flights.
-    const looksLikeWalking = input.elapsedSec > 0 && speedKmh > 0 && speedKmh < 15
+    const looksLikeWalking = elapsedSec > 0 && speedKmh > 0 && speedKmh < 15
 
-    if (looksLikeWalking && input.totalElevationGain != null && kilometres >= 1) {
-        const climbPerKm = input.totalElevationGain / kilometres
+    if (looksLikeWalking && elevationGain != null && kilometres >= 1) {
+        const climbPerKm = elevationGain / kilometres
         if (climbPerKm > 120) {
             add('climbing', `Climbs ${Math.round(climbPerKm)} m per km at walking pace`, -20)
         }
     }
-    if (input.totalElevationGain != null && kilometres >= 1) {
-        const climbPerKm = input.totalElevationGain / kilometres
+    if (elevationGain != null && kilometres >= 1) {
+        const climbPerKm = elevationGain / kilometres
         if (climbPerKm < 50) {
             add('little-climb', 'Barely climbs for the ground it covers', 10)
         }
     }
 
-    if (looksLikeWalking && input.startPoint && input.endPoint && input.distanceMeters > 2000) {
+    if (looksLikeWalking && input.startPoint && input.endPoint && distanceMeters > 2000) {
         const straightLine = haversineMetres(input.startPoint, input.endPoint)
-        if (straightLine / input.distanceMeters < 0.05) {
+        if (straightLine / distanceMeters < 0.05) {
             add('loop', 'Ends where it started, at walking pace', -15)
         }
     }
