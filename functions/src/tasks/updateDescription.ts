@@ -62,6 +62,20 @@ export async function executeUpdateDescriptionTask(
     console.log(updatedDescription);
     console.log();
 
+    // Nothing to say, so nothing is said.
+    //
+    // This is what makes it safe to run the whole pipeline again on a Strava
+    // update event, including the events our own writes provoke: the second
+    // pass computes the same text, stops here, and no further event is raised.
+    // It also spares the rate limit a write per webhook on activities nobody
+    // has touched since we last published them.
+    if (updatedDescription === flight.description) {
+        console.log(`Description for ${task.flightId} is already what we would publish; leaving it alone`);
+        return {
+            success: true
+        };
+    }
+
     // Update Strava activity description
     const [pilot, error] = await Pilots.get(flight.pilot_id);
     if (error) {
