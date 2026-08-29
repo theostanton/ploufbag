@@ -1,18 +1,22 @@
 import {
     Activities,
+    ActivityRow,
     LatLng,
     Pilots as PilotsCommon,
     Polyline,
     ScannedActivity,
     Sites,
+    StravaActivityId,
     StravaAthleteId,
     classifyActivity,
+    extractWingName,
     isSuccess,
     type ClassifierInput,
 } from "@ploufbag/common";
 import { decode } from "@googlemaps/polyline-codec";
 import { StravaApi } from "@/stravaApi";
 import { StravaActivitySummary } from "@/stravaApi/model";
+import { shapeOfActivity } from "./flightShape";
 
 /**
  * Reading a pilot's whole Strava history and deciding what each activity is.
@@ -33,7 +37,22 @@ export type ScanSummary = {
     flight: number
     unsure: number
     not_flight: number
+    /** Activities the review pass went back to Strava for. */
+    reviewed: number
+    /** How many of those it changed its mind about. */
+    reconsidered: number
 }
+
+/**
+ * How many activities one scan will go back to Strava for.
+ *
+ * Two requests each at worst -- the detail, and the streams when the recording
+ * looks like it has ground time in it -- against a limit counted per fifteen
+ * minutes and a promotion pass that has to run afterwards out of the same
+ * budget. A pilot with a long history of unread activities gets through them
+ * over several scans, most recent first, which is the order they care about.
+ */
+const REVIEW_BUDGET = 12
 
 /**
  * Site lookups are one database round trip each, and a pilot who flies from the
@@ -101,7 +120,13 @@ export async function scanPilotActivities(
 
     const siteCache = new Map<string, NearestSite>()
     const scanned: ScannedActivity[] = []
-    const counts: ScanSummary = { scanned: 0, flight: 0, unsure: 0, not_flight: 0 }
+    const counts: ScanSummary = {
+        scanned: 0, flight: 0, unsure: 0, not_flight: 0, reviewed: 0, reconsidered: 0,
+    }
+    // Activities of a type this pilot logs flights as. The review pass below
+    // works from this list, so that reading a description is only ever spent on
+    // something that could turn out to be a flight.
+    const candidateIds: StravaActivityId[] = []
 
     for (const summary of summaries) {
         const track = decodeTrack(summary)
@@ -119,6 +144,7 @@ export async function scanPilotActivities(
         let takeoff: NearestSite = null
         let landing: NearestSite = null
         if (isCandidate) {
+            candidateIds.push(summary.id.toString())
             if (startPoint) takeoff = await nearestSite(startPoint, siteCache)
             if (endPoint) landing = await nearestSite(endPoint, siteCache)
         }
@@ -181,8 +207,157 @@ export async function scanPilotActivities(
         return { error: `Activities.upsertScanned failed: ${upserted[1]}` }
     }
 
+    await reviewUnreadActivities(pilotId, api, candidateIds, candidateTypes, siteCache, counts)
+
     console.log(`Scanned ${counts.scanned} activities for pilot ${pilotId}: ` +
-        `${counts.flight} flights, ${counts.unsure} unsure, ${counts.not_flight} not flights`)
+        `${counts.flight} flights, ${counts.unsure} unsure, ${counts.not_flight} not flights` +
+        (counts.reviewed > 0
+            ? `, reviewed ${counts.reviewed} and changed our mind about ${counts.reconsidered}`
+            : ''))
 
     return { summary: counts }
+}
+
+/**
+ * Going back to Strava for the activities a summary could not settle.
+ *
+ * The scan above is deliberately blind to descriptions -- reading them costs a
+ * request each, and the whole point of scanning from the list endpoint is that a
+ * three hundred activity history costs two. But that blindness had a cost of its
+ * own, and it is the bug this exists to fix: a pilot's vario uploads the
+ * activity, the description with the 🪂 line lands a minute later, Strava raises
+ * no webhook for it, and the flight is invisible for ever on the strength of a
+ * snapshot taken before the pilot had finished.
+ *
+ * So anything that could still be a flight, and whose description we have never
+ * read, is read once. `description_checked_at` remembers that, and an edit on
+ * Strava clears it again, which is what makes this bounded rather than a
+ * re-read of the pilot's whole history on every scan.
+ */
+async function reviewUnreadActivities(
+    pilotId: StravaAthleteId,
+    api: StravaApi,
+    candidateIds: StravaActivityId[],
+    candidateTypes: string[],
+    siteCache: Map<string, NearestSite>,
+    counts: ScanSummary
+): Promise<void> {
+    const unread = await Activities.getUnreadCandidates(pilotId, candidateIds, REVIEW_BUDGET)
+    if (!isSuccess(unread)) {
+        console.log(`Activities.getUnreadCandidates failed: ${unread[1]}`)
+        return
+    }
+
+    const checked: StravaActivityId[] = []
+    const rescanned: ScannedActivity[] = []
+
+    for (const activity of unread[0]) {
+        const detail = await api.fetchActivity(activity.strava_activity_id)
+        if (!isSuccess(detail)) {
+            if (detail[1] === 'Rate limited') {
+                console.log(`Rate limited after reviewing ${checked.length}; stopping`)
+                break
+            }
+            console.log(`Could not review ${activity.strava_activity_id}: ${detail[1]}`)
+            continue
+        }
+        const stravaActivity = detail[0]
+
+        const shape = await shapeOfActivity(api, stravaActivity)
+        if (shape.rateLimited) {
+            console.log(`Rate limited after reviewing ${checked.length}; stopping`)
+            break
+        }
+
+        const takeoff = shape.startPoint ? await nearestSite(shape.startPoint, siteCache) : null
+        const landing = shape.endPoint ? await nearestSite(shape.endPoint, siteCache) : null
+
+        const classification = classifyActivity({
+            type: stravaActivity.type,
+            name: stravaActivity.name ?? '',
+            distanceMeters: Math.round(stravaActivity.distance ?? 0),
+            elapsedSec: stravaActivity.elapsed_time ?? 0,
+            movingSec: stravaActivity.moving_time ?? null,
+            totalElevationGain: stravaActivity.total_elevation_gain ?? null,
+            startPoint: shape.startPoint,
+            endPoint: shape.endPoint,
+            hasTrack: shape.track != null,
+            takeoffSiteName: takeoff?.name ?? null,
+            landingSiteName: landing?.name ?? null,
+            // The reason for the whole trip: this is the one field the scan
+            // above cannot see.
+            wingFromDescription: extractWingName(stravaActivity.description),
+            flown: shape.flown,
+            candidateTypes,
+        })
+
+        checked.push(activity.strava_activity_id)
+        counts.reviewed++
+        if (classification.verdict !== activity.verdict) {
+            counts.reconsidered++
+            counts[activity.verdict]--
+            counts[classification.verdict]++
+            console.log(
+                `Reviewing ${activity.strava_activity_id} changed it from ` +
+                `${activity.verdict} to ${classification.verdict}`
+            )
+        }
+
+        rescanned.push(rescannedRow(activity, shape.track, classification.verdict, classification, takeoff, landing))
+    }
+
+    if (rescanned.length > 0) {
+        const upserted = await Activities.upsertScanned(rescanned)
+        if (!isSuccess(upserted)) {
+            console.log(`Activities.upsertScanned failed for reviewed activities: ${upserted[1]}`)
+            return
+        }
+    }
+
+    // Marked last, and only for what actually got a verdict: an activity we
+    // failed to fetch has not been read, and should be first in the queue next
+    // time rather than filed as settled.
+    const marked = await Activities.markDescriptionChecked(checked)
+    if (!isSuccess(marked)) {
+        console.log(`Activities.markDescriptionChecked failed: ${marked[1]}`)
+    }
+}
+
+/**
+ * The reviewed activity, as a row to store.
+ *
+ * Keeps Strava's own figures for the recording -- this table is the record of
+ * what is on Strava, and a pilot looking at "40 min" on the activities screen
+ * should see what their watch said. The trimming shows up where it belongs: in
+ * the verdict, in the reasons, and in the flight the promotion pass creates.
+ */
+function rescannedRow(
+    activity: ActivityRow,
+    track: Polyline | null,
+    verdict: ScannedActivity['verdict'],
+    classification: { score: number; reasons: ScannedActivity['reasons'] },
+    takeoff: NearestSite,
+    landing: NearestSite
+): ScannedActivity {
+    return {
+        strava_activity_id: activity.strava_activity_id,
+        pilot_id: activity.pilot_id,
+        type: activity.type,
+        name: activity.name,
+        start_date: activity.start_date,
+        distance_meters: activity.distance_meters,
+        elapsed_sec: activity.elapsed_sec,
+        moving_sec: activity.moving_sec,
+        total_elevation_gain: activity.total_elevation_gain,
+        start_lat: track?.[0]?.[0] ?? activity.start_lat,
+        start_lng: track?.[0]?.[1] ?? activity.start_lng,
+        end_lat: track?.[track.length - 1]?.[0] ?? activity.end_lat,
+        end_lng: track?.[track.length - 1]?.[1] ?? activity.end_lng,
+        polyline: verdict === 'not_flight' ? null : track ?? activity.polyline,
+        verdict,
+        score: classification.score,
+        reasons: classification.reasons,
+        takeoff_id: takeoff?.ffvl_sid ?? null,
+        landing_id: landing?.ffvl_sid ?? null,
+    }
 }

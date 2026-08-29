@@ -154,12 +154,58 @@ export namespace Activities {
                                           end_lat              = excluded.end_lat,
                                           end_lng              = excluded.end_lng,
                                           polyline             = excluded.polyline,
-                                          verdict              = excluded.verdict,
-                                          score                = excluded.score,
-                                          reasons              = excluded.reasons,
+                                          -- A scan may only overwrite a verdict
+                                          -- it is at least as well informed as.
+                                          --
+                                          -- The history scan works from
+                                          -- summaries, which do not carry the
+                                          -- description, so letting it write
+                                          -- over a verdict that was reached
+                                          -- *with* the description throws away
+                                          -- the strongest signal there is: an
+                                          -- activity recognised by its 🪂 line
+                                          -- would be demoted by the next scan,
+                                          -- and promoteFlights would then
+                                          -- delete the flight and take our text
+                                          -- back off Strava. An edit is the one
+                                          -- thing that makes a stored verdict
+                                          -- worth replacing, and an edit clears
+                                          -- description_checked_at below, which
+                                          -- puts the row in front of the review
+                                          -- pass in the same run.
+                                          verdict              = case
+                                                                    when activities.description_checked_at is not null
+                                                                        then activities.verdict
+                                                                    else excluded.verdict end,
+                                          score                = case
+                                                                    when activities.description_checked_at is not null
+                                                                        then activities.score
+                                                                    else excluded.score end,
+                                          reasons              = case
+                                                                    when activities.description_checked_at is not null
+                                                                        then activities.reasons
+                                                                    else excluded.reasons end,
                                           takeoff_id           = excluded.takeoff_id,
                                           landing_id           = excluded.landing_id,
-                                          scanned_at           = now()
+                                          scanned_at           = now(),
+                                          -- An activity that changed on Strava
+                                          -- is one we have not really read. The
+                                          -- pilot's edit is usually the thing
+                                          -- that made it recognisable -- a
+                                          -- title, a crop, the 🪂 line -- so
+                                          -- forgetting that we checked is what
+                                          -- puts it back in front of the review
+                                          -- pass. Left alone when nothing moved,
+                                          -- or every scan would re-read every
+                                          -- rejected activity for ever.
+                                          description_checked_at =
+                                              case
+                                                  when activities.name is distinct from excluded.name
+                                                      or activities.elapsed_sec is distinct from excluded.elapsed_sec
+                                                      or activities.distance_meters is distinct from excluded.distance_meters
+                                                      then null
+                                                  else activities.description_checked_at
+                                                  end
                     `, [
                         activity.strava_activity_id,
                         activity.pilot_id,
@@ -389,6 +435,82 @@ export namespace Activities {
                 return success(result.rows.map(row => row.reify().strava_activity_id))
             } catch (error) {
                 return failure(`Activities.getDemotable failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * Activities we have never read a description for.
+     *
+     * The gap this closes: a verdict is reached from the summary alone, and the
+     * summary does not carry the description. An activity uploaded by a vario
+     * and described a minute later -- or cropped, or renamed -- was classified
+     * against the version before the edit and never looked at again, because
+     * Strava raises no webhook for most edits. This is the list of activities
+     * where going and looking could still change our mind.
+     *
+     * Restricted to `ids` rather than working it out in SQL, because which
+     * activities are even candidates is the pilot's own list of flight activity
+     * types, and that gate lives in the classifier. Four hundred bike rides
+     * should not each cost a Strava request to re-confirm they are bike rides.
+     *
+     * Rows the pilot has ruled on are left out. They have already been read by
+     * the only reader that counts.
+     */
+    export async function getUnreadCandidates(
+        pilotId: StravaAthleteId,
+        ids: StravaActivityId[],
+        limit: number
+    ): Promise<Either<ActivityRow[]>> {
+        if (ids.length === 0 || limit <= 0) {
+            return success([])
+        }
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<ActivityRow>(
+                    `select ${COLUMNS}
+                     from activities
+                     where pilot_id = $1::integer
+                       and strava_activity_id = any ($2)
+                       and pilot_verdict is null
+                       and verdict <> 'flight'::activity_verdict
+                       and description_checked_at is null
+                     order by start_date desc
+                     limit ${limit}`,
+                    [pilotId, ids]
+                )
+                return success(result.rows.map(row => reifyActivity(row.reify())))
+            } catch (error) {
+                return failure(`Activities.getUnreadCandidates failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * Records that we have been to Strava for these activities' descriptions.
+     *
+     * Written whether or not the verdict changed. "We looked and it is still
+     * not a flight" is the answer that stops the next scan looking again, and
+     * without storing it the review pass would spend its whole budget on the
+     * same handful of activities every run.
+     */
+    export async function markDescriptionChecked(
+        ids: StravaActivityId[]
+    ): Promise<Either<void>> {
+        if (ids.length === 0) {
+            return success(undefined)
+        }
+        return withPooledClient(async (database: Client) => {
+            try {
+                await database.query(
+                    `update activities
+                     set description_checked_at = now()
+                     where strava_activity_id = any ($1)`,
+                    [ids]
+                )
+                return success(undefined)
+            } catch (error) {
+                return failure(`Activities.markDescriptionChecked failed: ${error}`)
             }
         });
     }

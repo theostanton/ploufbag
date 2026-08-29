@@ -183,7 +183,10 @@ export class TestDatabaseSetup {
       // After create_flights.sql: it alters that table.
       'create_wings.sql',
       // After create_pilots.sql: it adds pilots.flight_activity_types.
-      'create_activities.sql'
+      'create_activities.sql',
+      // After create_activities.sql: it adds activities.description_checked_at,
+      // which upsertScanned writes on every scan.
+      'add_description_checked_at_to_activities.sql'
     ];
 
     for (const fileName of schemaFiles) {
