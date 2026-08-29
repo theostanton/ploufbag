@@ -289,3 +289,110 @@ describe('shapes that a real account turned out to be full of', () => {
         expect(result.verdict).not.toBe('flight')
     })
 })
+
+describe('recordings that contain the ground as well as the flight', () => {
+    /**
+     * The case this exists for: theostanton's 29 Aug flight, 3.3 km of sled ride
+     * with the walk around launch and the pack-up still attached. Uncropped it
+     * reads as walking pace and is rejected; the pilot's only fix used to be to
+     * crop it on Strava by hand.
+     */
+    const uncropped = () => activity({
+        name: 'Afternoon Kitesurf',
+        type: 'Kitesurf',
+        candidateTypes: ['Kitesurf'],
+        distanceMeters: 3_313,
+        elapsedSec: 40 * 60,
+        totalElevationGain: 60,
+    })
+
+    it("rejects an uncropped flight when all it has is Strava's figures", () => {
+        const result = classifyActivity(uncropped())
+        expect(result.verdict).toBe('not_flight')
+        expect(result.reasons.some(reason => reason.code === 'slow')).toBe(true)
+    })
+
+    it('recognises the same flight once the ground time is trimmed off', () => {
+        const result = classifyActivity({
+            ...uncropped(),
+            flown: {
+                durationSec: 281,
+                distanceMeters: 3_313,
+                totalElevationGain: 2,
+                trimmedSec: 40 * 60 - 281,
+            },
+        })
+
+        // Not a flight outright, and deliberately so: the trim is not itself
+        // evidence, it only stops the walk being counted against the flight.
+        // An activity with a default name, no site match and no wing line has
+        // nothing else going for it, so the pilot gets asked rather than
+        // ignored -- which is the whole difference from the rejection above.
+        expect(result.verdict).toBe('unsure')
+        expect(result.reasons.some(reason => reason.code === 'slow')).toBe(false)
+        expect(result.reasons.some(reason => reason.code === 'speed')).toBe(true)
+    })
+
+    it('recognises it outright once anything else at all points the same way', () => {
+        const result = classifyActivity({
+            ...uncropped(),
+            name: 'Paraglide • Planpraz',
+            flown: {
+                durationSec: 281,
+                distanceMeters: 3_313,
+                totalElevationGain: 2,
+                trimmedSec: 40 * 60 - 281,
+            },
+        })
+
+        expect(result.verdict).toBe('flight')
+    })
+
+    it('tells the pilot what it ignored, without counting it as evidence', () => {
+        const result = classifyActivity(activity({
+            flown: {
+                durationSec: 281,
+                distanceMeters: 3_313,
+                totalElevationGain: 2,
+                trimmedSec: 22 * 60,
+            },
+        }))
+        const trimmed = result.reasons.find(reason => reason.code === 'trimmed')
+
+        expect(trimmed?.text).toBe('Ignored 22 min on the ground')
+        expect(trimmed?.points).toBe(0)
+    })
+
+    it('says nothing about a trim too small to be worth a line', () => {
+        const result = classifyActivity(activity({
+            flown: {
+                durationSec: 2_400,
+                distanceMeters: 12_000,
+                totalElevationGain: 300,
+                trimmedSec: 20,
+            },
+        }))
+        expect(result.reasons.some(reason => reason.code === 'trimmed')).toBe(false)
+    })
+
+    it('charges a hike and fly for the flight, not for the walk up', () => {
+        // Strava's climb is the 900 m the pilot walked. Billing the eleven
+        // minute flight for it is what made these read as hikes.
+        const result = classifyActivity(activity({
+            name: 'Hike and Fly • Chamonix',
+            elapsedSec: 101 * 60,
+            distanceMeters: 12_000,
+            totalElevationGain: 900,
+            flown: {
+                durationSec: 11 * 60,
+                distanceMeters: 6_000,
+                totalElevationGain: 20,
+                trimmedSec: 90 * 60,
+            },
+        }))
+
+        expect(result.verdict).toBe('flight')
+        expect(result.reasons.some(reason => reason.code === 'climbing')).toBe(false)
+        expect(result.reasons.some(reason => reason.code === 'slow')).toBe(false)
+    })
+})

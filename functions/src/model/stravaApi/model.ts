@@ -62,6 +62,18 @@ export type StravaActivity = Omit<StravaActivitySummary, 'map'> & {
 }
 
 /**
+ * The streams endpoint, asked for keyed by type.
+ *
+ * Every stream is optional: Strava returns only what it has, so an activity
+ * recorded without GPS comes back with `time` and nothing to go with it.
+ */
+export type StravaStreams = {
+    time?: { data: number[] }
+    latlng?: { data: ([number, number] | [])[] }
+    altitude?: { data: number[] }
+}
+
+/**
  * Check if a Strava activity type should be imported as a paragliding flight
  * Currently supports: Kitesurf and Workout (paragliding activities are logged as Workout)
  */

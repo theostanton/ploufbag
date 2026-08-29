@@ -1,6 +1,7 @@
 import axios, {AxiosHeaders} from "axios";
 import {StravaActivityId, failed, Either, success, Pilots, isSuccess} from "@ploufbag/common";
-import {StravaActivity, StravaActivitySummary, StravaAthlete, isRelevantActivityType} from "@/stravaApi/model";
+import {StravaActivity, StravaActivitySummary, StravaAthlete, StravaStreams, isRelevantActivityType} from "@/stravaApi/model";
+import {TrackSample} from "@ploufbag/common";
 
 export class StravaApi {
 
@@ -159,6 +160,70 @@ export class StravaApi {
                 return failed('Rate limited');
             }
             return failed(`fetchActivity failed: ${error.message || error.toString()}`);
+        }
+    }
+
+    /**
+     * The track with its clock: what turns a shape into a flight with a start
+     * and an end.
+     *
+     * Neither the list nor the detail endpoint carries timestamps -- a polyline
+     * is positions and nothing else -- so working out when the pilot was
+     * actually airborne, rather than walking around at launch with the vario
+     * running, needs this third request. It is the only reason to spend it, and
+     * callers are expected to ask first whether the activity looks like it has
+     * ground time in it.
+     *
+     * Missing streams are a success with nothing in them, not a failure. An
+     * activity with no GPS is ordinary, and the callers all have a path that
+     * works without a track; only a rate limit is worth stopping a batch for.
+     */
+    async fetchActivityStreams(activityId: StravaActivityId): Promise<Either<TrackSample[]>> {
+        console.log(`fetchActivityStreams() activityId=${activityId}`);
+        try {
+            const response = await axios.get<StravaStreams>(
+                `https://www.strava.com/api/v3/activities/${activityId}/streams`,
+                {
+                    headers: this.headers,
+                    params: {keys: 'time,latlng,altitude', key_by_type: true},
+                }
+            );
+
+            if (response.status !== 200) {
+                return failed(`fetchActivityStreams failed status=${response.status}`);
+            }
+
+            const times = response.data?.time?.data
+            const points = response.data?.latlng?.data
+            const altitudes = response.data?.altitude?.data
+
+            if (!times || !points || times.length !== points.length) {
+                return success([]);
+            }
+
+            const samples: TrackSample[] = []
+            for (let i = 0; i < times.length; i++) {
+                const point = points[i]
+                if (!point || point.length !== 2) {
+                    continue
+                }
+                samples.push({
+                    timeSec: times[i],
+                    point: [point[0], point[1]],
+                    altitudeMetres: altitudes?.[i] ?? null,
+                })
+            }
+            return success(samples);
+        } catch (error: any) {
+            if (error.response?.status === 429) {
+                return failed('Rate limited');
+            }
+            if (error.response?.status === 404) {
+                // Nothing recorded, which is a fact about the activity rather
+                // than something going wrong.
+                return success([]);
+            }
+            return failed(`fetchActivityStreams failed: ${error.message || error.toString()}`);
         }
     }
 
