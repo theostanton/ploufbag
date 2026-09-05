@@ -16,6 +16,7 @@ tasks:
       TAG: '{{now | unixEpoch}}'
     cmds:
       - task: functions:build
+      - task: db:migrate
       - task: site:deploy
         vars:
           TAG:
@@ -25,6 +26,35 @@ tasks:
           SITE_TAG:
             ref: .TAG
 
+
+  db:migrate:
+    desc: Apply the database schema to whatever DATABASE_* points at
+    # Ahead of the apply for the same reason the workflow runs it there: the
+    # scripts are additive, so the running services keep working against the new
+    # schema, and the new ones would not work against the old.
+    #
+    # functions/.env names the production database either way round depending on
+    # how it was generated, so both are accepted here rather than making the
+    # deploy depend on which one somebody has.
+    cmds:
+      - |
+        DATABASE_HOST="${DATABASE_HOST:-${PRODUCION_DATABASE_HOST:-}}" \
+        DATABASE_PORT="${DATABASE_PORT:-${PRODUCION_DATABASE_PORT:-5432}}" \
+        DATABASE_NAME="${DATABASE_NAME:-${PRODUCION_DATABASE_NAME:-}}" \
+        DATABASE_USER="${DATABASE_USER:-${PRODUCION_DATABASE_USER:-}}" \
+        DATABASE_PASSWORD="${DATABASE_PASSWORD:-${PRODUCION_DATABASE_PASSWORD:-}}" \
+        ./scripts/migrate.sh
+
+  db:check:
+    desc: Report schema scripts that have not been applied, changing nothing
+    cmds:
+      - |
+        DATABASE_HOST="${DATABASE_HOST:-${PRODUCION_DATABASE_HOST:-}}" \
+        DATABASE_PORT="${DATABASE_PORT:-${PRODUCION_DATABASE_PORT:-5432}}" \
+        DATABASE_NAME="${DATABASE_NAME:-${PRODUCION_DATABASE_NAME:-}}" \
+        DATABASE_USER="${DATABASE_USER:-${PRODUCION_DATABASE_USER:-}}" \
+        DATABASE_PASSWORD="${DATABASE_PASSWORD:-${PRODUCION_DATABASE_PASSWORD:-}}" \
+        ./scripts/migrate.sh --check
 
   local-build:
     desc: Compose Build

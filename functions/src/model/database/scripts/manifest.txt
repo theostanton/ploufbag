@@ -1,0 +1,62 @@
+# The schema, in the order it has to be applied.
+#
+# One list, read by everything that builds a database: the deploy
+# (scripts/migrate.sh), the local cluster (dev/db.sh), the Testcontainers suite
+# and the site's test setup. It exists because there were four copies of this
+# order and adding a table meant remembering all of them -- which is how
+# create_activities.sql came to be applied nowhere but a developer's laptop,
+# and every Strava upload failed for a week against a table that was not there.
+#
+# Rules for anything added here:
+#
+#   * It is applied on every deploy, so it must be safe to re-apply. Guard
+#     everything -- `create table if not exists`, `add column if not exists`,
+#     `create index if not exists`, a `do $$ ... $$` block around a create type.
+#   * It must be additive. A script that drops or truncates is refused by
+#     migrate.sh unless it carries `-- migrate: destructive-ok`, because these
+#     run unattended on merge to main.
+#   * Order matters and is not alphabetical. Say what depends on what.
+#
+# Data backfills are deliberately not here. They are one-off, they are slow, and
+# re-running one on every deploy is a different risk from re-running a
+# `create table if not exists`. dev/db.sh keeps its own short list of those.
+
+create_flights
+create_pilots
+create_sites
+create_description_preferences
+
+# /admin reads webhook_events and task_executions. Without this the three
+# monitoring endpoints 500 and the admin page can only show its error state.
+create_monitoring_tables
+
+add_profile_image_url_to_pilots
+add_created_at_to_pilots
+add_description_preferences_snapshot
+
+# After create_flights. Fresh instances get the column from create_flights.sql
+# itself; this is what carries it to instances that predate it, and it
+# backfills only the rows that have no slug yet.
+add_slug_to_flights
+
+create_analytics_events
+add_indexes
+
+# After create_flights: adds flights.wing_id and relaxes flights.wing to
+# nullable. The site's flight queries left-join wings, so without it every list
+# and the map 500.
+create_wings
+
+# After create_pilots: adds pilots.flight_activity_types.
+create_activities
+
+# After create_activities: adds activities.description_checked_at, which
+# upsertScanned writes on every scan.
+add_description_checked_at_to_activities
+
+# Deliberately absent: migrate_monitoring_tables_to_varchar.
+#
+# It drops webhook_events and task_executions to rebuild them without enum
+# types. It has already been applied, it is not idempotent, and running it on
+# every deploy would erase the monitoring history each time -- including the
+# webhook failures that are the only record of why a flight went missing.

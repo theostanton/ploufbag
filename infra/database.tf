@@ -44,3 +44,24 @@ resource "google_sql_user" "functions" {
   password = random_password.database.result
 }
 
+
+# Read by the deploy's migration step, which cannot use the unix socket the
+# services connect over and so goes through cloud-sql-proxy instead. Outputs
+# rather than hardcoded values in the workflow, so a rebuilt instance or a
+# rotated password does not leave the deploy pointing at the wrong database.
+output "database_connection_name" {
+  value = google_sql_database_instance.instance.connection_name
+}
+
+output "database_name" {
+  value = google_sql_database.database.name
+}
+
+output "database_user" {
+  value = google_sql_user.functions.name
+}
+
+output "database_password" {
+  value     = random_password.database.result
+  sensitive = true
+}
