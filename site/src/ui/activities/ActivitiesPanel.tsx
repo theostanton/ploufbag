@@ -3,12 +3,8 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import {
-    flightTrackColour,
-    type ActivityRow,
-    type ActivityVerdict,
-    type VerdictCounts,
-} from '@ploufbag/common'
+import { flightTrackColour } from '@ploufbag/common/dist/trackColours'
+import type { ActivityRow, ActivityVerdict, VerdictCounts } from '@ploufbag/common'
 import { setActivityVerdict, setFlightWing } from '@actions/activities'
 import { GENERIC_ACTION_ERROR, type ActionResult } from '@model/ActionResult'
 import TrackThumb from './TrackThumb'

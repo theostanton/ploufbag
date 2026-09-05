@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { TRACK_COLOURS, searchWingCatalogue, type WingSuggestion } from '@ploufbag/common'
+import { TRACK_COLOURS } from '@ploufbag/common/dist/trackColours'
+import { searchWingCatalogue, type WingSuggestion } from '@ploufbag/common/dist/wingCatalogue'
 import {
     assignWingToRange,
     createWing,

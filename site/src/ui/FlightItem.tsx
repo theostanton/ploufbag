@@ -1,6 +1,6 @@
 'use client'
 
-import {FlightSummary} from "@database/flights";
+import type {FlightSummary} from "@database/flights";
 import Link from "next/link";
 import Stats from "@ui/stats/Stats";
 import {Stat} from "@ui/stats/model";

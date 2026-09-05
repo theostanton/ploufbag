@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { flightTrackColour, type ActivityRow } from '@ploufbag/common'
+import { flightTrackColour } from '@ploufbag/common/dist/trackColours'
+import type { ActivityRow } from '@ploufbag/common'
 import TrackThumb from './TrackThumb'
 import styles from './Activities.module.css'
 

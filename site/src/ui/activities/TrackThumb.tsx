@@ -1,4 +1,4 @@
-import { LatLng } from '@ploufbag/common'
+import type { LatLng } from '@ploufbag/common'
 import styles from './Activities.module.css'
 
 /**

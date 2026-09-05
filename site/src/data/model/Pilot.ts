@@ -1,4 +1,4 @@
-import { StravaAthleteId } from '@ploufbag/common';
+import type { StravaAthleteId } from '@ploufbag/common';
 
 export type { StravaAthleteId };
 
