@@ -30,7 +30,16 @@ test('Pilots.upsert()', async () => {
     // before it was a flight that got thrown away.
     expect(flight!.wing_id).toBeNull()
 
-    const {slug, wing_id, ...writtenFields} = flight!
+    // And a third of the same kind. This one only appeared once the suite began
+    // building its database from the manifest the deploy applies: the column has
+    // been on the live flights table for as long as descriptions have been
+    // generated from stored preferences, and the test container never had it. A
+    // green suite against a schema production does not have is exactly the drift
+    // the manifest exists to end -- this assertion is what that drift looked
+    // like from here.
+    expect(flight!.description_preferences_snapshot).toBeNull()
+
+    const {slug, wing_id, description_preferences_snapshot, ...writtenFields} = flight!
     expect(writtenFields).toStrictEqual(activity1)
 
     // The slug is published to Strava, so re-syncing the activity must not
