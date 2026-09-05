@@ -2,6 +2,7 @@ import { PostgreSqlContainer, StartedPostgreSqlContainer } from "@testcontainers
 import { connect, Client } from "ts-postgres";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { splitStatements } from '@ploufbag/common';
 
 /**
  * Where to look for an already-running Postgres before reaching for Docker.
@@ -194,43 +195,27 @@ export class TestDatabaseSetup {
         
         const sqlContent = fs.readFileSync(filePath, 'utf8');
         
-        // Handle different SQL file formats in the project
+        // One splitter for every file, whichever convention it was written in.
+        // There used to be two paths here -- `;;;` files split naively, and
+        // everything else through a local parser that did not know about
+        // dollar-quoted plpgsql bodies. Loading the whole manifest brings files
+        // of both kinds, including one that is dollar-quoted without `;;;`, so
+        // the shared splitter in @ploufbag/common handles both.
         try {
-          if (sqlContent.includes(';;;')) {
-            // Files with triple semicolon separators - split and execute separately
-            const queries = sqlContent.split(';;;').map(q => q.trim()).filter(q => q);
-            for (let i = 0; i < queries.length; i++) {
-              const query = queries[i];
-              try {
-                console.log(`Executing query ${i + 1}/${queries.length} in ${fileName}`);
-                await this.client!.query(query);
-              } catch (queryError: any) {
-                if (queryError.message?.includes('already exists') ||
-                    queryError.code === '42P07' || queryError.code === '42710' || queryError.code === '42723') {
-                  console.log(`Ignoring existing object error in ${fileName}`);
-                } else {
-                  throw queryError;
-                }
-              }
-            }
-          } else {
-            // Files with regular SQL statements - need to parse them carefully
-            console.log(`Parsing and executing SQL file: ${fileName}`);
-            const queries = this.parseSQLStatements(sqlContent);
-            
-            for (let i = 0; i < queries.length; i++) {
-              const query = queries[i];
-              try {
-                console.log(`Executing statement ${i + 1}/${queries.length} in ${fileName}`);
-                await this.client!.query(query);
-              } catch (queryError: any) {
-                if (queryError.message?.includes('already exists') ||
-                    queryError.code === '42P07' || queryError.code === '42710' || queryError.code === '42723') {
-                  console.log(`Ignoring existing object error in ${fileName}`);
-                } else {
-                  console.error(`Error in statement ${i + 1}:`, query.substring(0, 100) + '...');
-                  throw queryError;
-                }
+          const queries = splitStatements(sqlContent);
+
+          for (let i = 0; i < queries.length; i++) {
+            const query = queries[i];
+            try {
+              console.log(`Executing statement ${i + 1}/${queries.length} in ${fileName}`);
+              await this.client!.query(query);
+            } catch (queryError: any) {
+              if (queryError.message?.includes('already exists') ||
+                  queryError.code === '42P07' || queryError.code === '42710' || queryError.code === '42723') {
+                console.log(`Ignoring existing object error in ${fileName}`);
+              } else {
+                console.error(`Error in statement ${i + 1}:`, query.substring(0, 100) + '...');
+                throw queryError;
               }
             }
           }
@@ -259,57 +244,6 @@ export class TestDatabaseSetup {
     }
   }
 
-  private static parseSQLStatements(sqlContent: string): string[] {
-    // Remove comments and normalize whitespace
-    const cleaned = sqlContent
-      .replace(/--[^\n]*\n/g, '\n') // Remove line comments
-      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-
-    const statements: string[] = [];
-    let current = '';
-    let inString = false;
-    let stringChar = '';
-    let parenCount = 0;
-
-    for (let i = 0; i < cleaned.length; i++) {
-      const char = cleaned[i];
-      const prev = i > 0 ? cleaned[i - 1] : '';
-
-      if (!inString) {
-        if (char === "'" || char === '"') {
-          inString = true;
-          stringChar = char;
-        } else if (char === '(') {
-          parenCount++;
-        } else if (char === ')') {
-          parenCount--;
-        } else if (char === ';' && parenCount === 0) {
-          // End of statement
-          if (current.trim()) {
-            statements.push(current.trim());
-            current = '';
-            continue;
-          }
-        }
-      } else {
-        if (char === stringChar && prev !== '\\') {
-          inString = false;
-          stringChar = '';
-        }
-      }
-
-      current += char;
-    }
-
-    // Add the last statement if it exists
-    if (current.trim()) {
-      statements.push(current.trim());
-    }
-
-    return statements.filter(s => s && s !== ';');
-  }
 
   static async cleanup(): Promise<void> {
     try {

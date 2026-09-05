@@ -8,6 +8,7 @@ export * from './trackColours';
 export * from './wingCatalogue';
 export * from './classify';
 export * from './flightWindow';
+export * from './sqlStatements';
 
 // Export database access classes
 export { Pilots } from './database/Pilots';

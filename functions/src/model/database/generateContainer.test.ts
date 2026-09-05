@@ -1,7 +1,7 @@
 import {PostgreSqlContainer, StartedPostgreSqlContainer} from "@testcontainers/postgresql";
 import {connect} from "ts-postgres";
 import {end, setClient} from "./client";
-import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess} from "@ploufbag/common";
+import {DescriptionPreference, FlightRow, PilotRowFull, Site, isSuccess, splitStatements} from "@ploufbag/common";
 import {Pilots} from "./Pilots";
 import {Flights} from "./Flights";
 import * as fs from "node:fs";
@@ -85,9 +85,13 @@ export namespace TestContainer {
         // applies. A list kept here instead is a list that can disagree with
         // production, and one that did: the suite ran green against tables the
         // live database had never been given.
+        //
+        // Split properly rather than on `;;;`: only some of the scripts use that
+        // convention, and ts-postgres refuses a query holding more than one
+        // command.
         const queries = schemaManifest()
             .map((filename) => fs.readFileSync(`./src/model/database/scripts/${filename}.sql`, 'utf8'))
-            .flatMap(query => query.split(";;;"))
+            .flatMap(splitStatements)
 
         for await (const query of queries) {
             try {
