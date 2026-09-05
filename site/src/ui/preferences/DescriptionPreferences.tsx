@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { updateDescriptionPreferences } from '@actions/updatePreferences';
 import { generateDescriptionPreview } from '@actions/generateDescriptionPreview';
-import { type DescriptionPreference } from '@database/descriptionPreferences';
+import type { DescriptionPreference } from '@database/descriptionPreferences';
 import styles from './DescriptionPreferences.module.css';
 
 type Props = {

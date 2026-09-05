@@ -7,7 +7,17 @@
  * already appearing in. Two implementations that have to agree exactly should
  * not sit in a package the other cannot import.
  */
-import { flightTrackColour } from '@ploufbag/common'
+// Deep import, and it has to be. `@ploufbag/common` is a barrel that re-exports
+// ./database -- ts-postgres and generic-pool -- and it compiles to CommonJS with
+// no sideEffects flag, so no bundler can tree-shake that back out. A *value*
+// imported from the barrel by anything in a client graph therefore drags Node's
+// `net` into the browser bundle, where it fails to resolve and takes the route's
+// error boundary with it. That is what broke /flights and /sites: server HTML
+// rendered fine, hydration threw, and the page showed "Something went wrong".
+//
+// siteRole.ts next door already carries this warning. This file is what happens
+// when it is not heeded. Type-only imports from the barrel are fine.
+import { flightTrackColour } from '@ploufbag/common/dist/trackColours'
 
 /**
  * The colour a flight's track is drawn in.

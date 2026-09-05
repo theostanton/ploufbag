@@ -1,4 +1,4 @@
-import { Polyline } from '@ploufbag/common'
+import type { Polyline } from '@ploufbag/common'
 
 /**
  * Ramer-Douglas-Peucker simplification for flight tracks.
