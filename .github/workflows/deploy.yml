@@ -99,9 +99,39 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           fi
 
-          connection="$(terraform -chdir=infra output -raw database_connection_name)"
-          password="$(terraform -chdir=infra output -raw database_password)"
+          # Read from the state itself rather than from `terraform output`.
+          #
+          # Outputs only exist in state once an apply has written them, and this
+          # step runs before the apply -- so on the very deploy that introduces
+          # an output, reading it fails with "Output not found" and takes the
+          # deploy down with it. Which is exactly what happened. The resources
+          # are already in state, so ask them directly and the step works on the
+          # first run and every run after.
+          state="$(terraform -chdir=infra show -json)"
+          value() {
+            jq -r --arg address "$1" --arg attribute "$2" '
+              [ (.values.root_module.resources // [])[]
+                | select(.address == $address)
+                | .values[$attribute]
+              ] | first // empty
+            ' <<<"$state"
+          }
+
+          connection="$(value google_sql_database_instance.instance connection_name)"
+          database="$(value google_sql_database.database name)"
+          username="$(value google_sql_user.functions name)"
+          password="$(value random_password.database result)"
           echo "::add-mask::$password"
+
+          # Say which one is missing rather than handing psql an empty string
+          # and letting it fail on something that reads like a network problem.
+          for pair in "connection:$connection" "database:$database" \
+                      "username:$username" "password:$password"; do
+            if [ -z "${pair#*:}" ]; then
+              echo "::error::Could not read ${pair%%:*} from the Terraform state."
+              exit 1
+            fi
+          done
 
           # The instance's authorized_networks are two home addresses, so a
           # runner cannot reach its public IP. The proxy goes through the Cloud
@@ -123,8 +153,8 @@ jobs:
 
           DATABASE_HOST=127.0.0.1 \
           DATABASE_PORT=55432 \
-          DATABASE_NAME="$(terraform -chdir=infra output -raw database_name)" \
-          DATABASE_USER="$(terraform -chdir=infra output -raw database_user)" \
+          DATABASE_NAME="$database" \
+          DATABASE_USER="$username" \
           DATABASE_PASSWORD="$password" \
           scripts/migrate.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
