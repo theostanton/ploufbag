@@ -79,6 +79,55 @@ jobs:
       - run: terraform init -input=false
         working-directory: infra
 
+      # ---------------------------------------------------------------------
+      # Database schema
+      # ---------------------------------------------------------------------
+
+      # Before the apply, deliberately. Every script in the manifest is additive
+      # and guarded, so the revision currently running keeps working against the
+      # new schema, where a new revision would not work against the old one.
+      # That asymmetry is the whole reason this goes first.
+      #
+      # It also fails the deploy rather than shipping code whose schema is not
+      # there. create_activities.sql shipped in #34 and was applied to nothing:
+      # every Strava upload from that merge onwards died on
+      # Activities.upsertScanned before it could create a flight, and the only
+      # trace was a webhook_events row nobody was reading.
+      - name: Apply database migrations
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+          connection="$(terraform -chdir=infra output -raw database_connection_name)"
+          password="$(terraform -chdir=infra output -raw database_password)"
+          echo "::add-mask::$password"
+
+          # The instance's authorized_networks are two home addresses, so a
+          # runner cannot reach its public IP. The proxy goes through the Cloud
+          # SQL Admin API instead, authorised by the same workload identity
+          # credentials as the rest of this job -- which needs
+          # roles/cloudsql.client on the deploy service account. That grant is
+          # made once by hand; a permission failure here is what it looks like
+          # when it is missing.
+          curl -sSfL -o cloud-sql-proxy \
+            "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64"
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy --address 127.0.0.1 --port 55432 "$connection" &
+          trap 'kill %1' EXIT
+
+          for _ in $(seq 30); do
+            pg_isready -h 127.0.0.1 -p 55432 -q && break
+            sleep 1
+          done
+
+          DATABASE_HOST=127.0.0.1 \
+          DATABASE_PORT=55432 \
+          DATABASE_NAME="$(terraform -chdir=infra output -raw database_name)" \
+          DATABASE_USER="$(terraform -chdir=infra output -raw database_user)" \
+          DATABASE_PASSWORD="$password" \
+          scripts/migrate.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Terraform plan
         working-directory: infra
         env:

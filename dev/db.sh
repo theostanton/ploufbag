@@ -91,29 +91,16 @@ do_start() {
 }
 
 # The schema files use `;;;` as a statement separator, because several of them
-# contain plpgsql bodies full of ordinary semicolons. The order below is the one
-# functions/src/model/database/generateContainer.test.ts uses, extended with the
-# migrations the site itself reads (profile images, analytics, indexes).
-SCHEMA_FILES=(
-    create_flights
-    create_pilots
-    create_sites
-    create_description_preferences
-    # /admin reads webhook_events and task_executions. Without this the three
-    # monitoring endpoints 500 and the admin page can only ever show its error
-    # state, which is how it was reviewed for a while.
-    create_monitoring_tables
-    add_profile_image_url_to_pilots
-    add_created_at_to_pilots
-    add_description_preferences_snapshot
-    create_analytics_events
-    add_indexes
-    # After create_flights: it adds flights.wing_id and relaxes flights.wing.
-    # The site's flight queries left-join wings, so without this every list and
-    # the map 500 against a locally-built database.
-    create_wings
-    # After create_pilots: adds pilots.flight_activity_types.
-    create_activities
+# contain plpgsql bodies full of ordinary semicolons.
+#
+# The order itself lives in the scripts directory's manifest.txt, which is the
+# same list the deploy applies and the test suites load. It used to be repeated
+# here, and the repetition is exactly how a developer's laptop came to have
+# tables production did not: four copies of one order, and adding a table meant
+# remembering all four.
+mapfile -t SCHEMA_FILES < <(
+    sed 's/#.*//' "$REPO_ROOT/functions/src/model/database/scripts/manifest.txt" |
+        awk 'NF { print $1 }'
 )
 
 # Applied after the fixtures, not with the schema.

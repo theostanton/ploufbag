@@ -174,20 +174,15 @@ export class TestDatabaseSetup {
 
     // Read and execute schema files
     const scriptsDir = path.resolve(__dirname, '../../../functions/src/model/database/scripts');
-    const schemaFiles = [
-      'create_pilots.sql',
-      'create_flights.sql', 
-      'create_sites.sql',
-      'create_description_preferences.sql',
-      'create_monitoring_tables.sql',
-      // After create_flights.sql: it alters that table.
-      'create_wings.sql',
-      // After create_pilots.sql: it adds pilots.flight_activity_types.
-      'create_activities.sql',
-      // After create_activities.sql: it adds activities.description_checked_at,
-      // which upsertScanned writes on every scan.
-      'add_description_checked_at_to_activities.sql'
-    ];
+    // The order lives in manifest.txt, which is also what the deploy applies
+    // and what dev/db.sh builds a local cluster from. A list maintained here
+    // instead is one that can quietly disagree with production -- and did.
+    const schemaFiles = fs
+      .readFileSync(path.join(scriptsDir, 'manifest.txt'), 'utf8')
+      .split('\n')
+      .map(line => line.replace(/#.*/, '').trim())
+      .filter(line => line.length > 0)
+      .map(name => `${name}.sql`);
 
     for (const fileName of schemaFiles) {
       const filePath = path.join(scriptsDir, fileName);

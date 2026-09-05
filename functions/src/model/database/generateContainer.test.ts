@@ -7,6 +7,7 @@ import {Flights} from "./Flights";
 import * as fs from "node:fs";
 import {Mocks} from "./Mocks.test";
 import {Sites} from "./Sites";
+import {schemaManifest} from "./schemaManifest";
 
 
 export namespace TestContainer {
@@ -80,9 +81,11 @@ export namespace TestContainer {
             port: container.getPort(),
         })
 
-        // create_wings must follow create_flights: it alters that table, adding
-        // flights.wing_id and relaxing flights.wing to nullable.
-        const queries = ['create_flights', 'create_pilots', 'create_sites', 'create_description_preferences', 'create_wings', 'create_activities', 'add_description_checked_at_to_activities']
+        // The order lives in manifest.txt, which is also what the deploy
+        // applies. A list kept here instead is a list that can disagree with
+        // production, and one that did: the suite ran green against tables the
+        // live database had never been given.
+        const queries = schemaManifest()
             .map((filename) => fs.readFileSync(`./src/model/database/scripts/${filename}.sql`, 'utf8'))
             .flatMap(query => query.split(";;;"))
 

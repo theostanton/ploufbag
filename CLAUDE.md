@@ -83,7 +83,13 @@ yarn test         # Run unit tests
 - **`description_preferences`** - User preferences for AI-generated flight descriptions
 
 ### Migration Scripts
-Database schema changes are managed via SQL files in `functions/src/model/database/scripts/`. Apply manually to database instances.
+Database schema changes are SQL files in `functions/src/model/database/scripts/`, listed in the order they must be applied in `manifest.txt` alongside them.
+
+The deploy applies the manifest — `scripts/migrate.sh`, run before Terraform in both `task deploy` and the GitHub Actions workflow — and records what ran in `schema_migrations`. Nothing is applied by hand.
+
+Adding a script means adding it to `manifest.txt`; a test fails if a `.sql` file is in neither the manifest nor the documented exclusions. Every script there is re-applied on every deploy, so it must be guarded (`create table if not exists`, `add column if not exists`) and must not drop or truncate — `migrate.sh` refuses anything that does.
+
+`scripts/migrate.sh --check` reports what a database is missing without changing it (`task db:check`).
 
 ## Task System
 
