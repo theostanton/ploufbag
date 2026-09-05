@@ -415,6 +415,23 @@ export namespace Activities {
      * GPS on Strava, or edits it into something else, and the next scan changes
      * its mind. Left unreconciled, the flight stays on the map for ever with
      * nothing behind it.
+     *
+     * Never on the strength of a summary alone, though, which is what
+     * `description_checked_at` is doing here. A flight exists because a path
+     * that read the description created it, and the history scan cannot read
+     * descriptions -- so a scan-only verdict is the worse-informed of the two
+     * and must not be allowed to delete the better-informed one's work.
+     *
+     * That is not hypothetical. Measured against a real account, a re-scan
+     * demoted seven flights it had itself imported: two-minute sled rides
+     * ("short"), a dune session recorded across a whole afternoon ("slow"), one
+     * with no GPS at all. Every one of them scores as a flight the moment the
+     * 🪂 line is read, and every one would have been deleted and had our text
+     * stripped back off Strava before the review pass got to it.
+     *
+     * Once an activity has been read properly, this reaches it again the moment
+     * a scan legitimately changes its mind: an edit on Strava clears the column
+     * and puts the activity back in front of the review pass first.
      */
     export async function getDemotable(
         pilotId: StravaAthleteId,
@@ -429,6 +446,7 @@ export namespace Activities {
                                    on a.strava_activity_id = f.strava_activity_id
                      where f.pilot_id = $1::integer
                        and coalesce(a.pilot_verdict, a.verdict) <> 'flight'::activity_verdict
+                       and (a.pilot_verdict is not null or a.description_checked_at is not null)
                      limit ${limit}`,
                     [pilotId]
                 )
