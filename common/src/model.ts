@@ -299,6 +299,18 @@ export type TaskResult = TaskSuccess | TaskFailure
 
 export type TaskSuccess = {
     success: true
+    /**
+     * What the task found, for a caller that has to decide whether to run it
+     * again.
+     *
+     * FetchAllActivities is bounded per run -- promotion is batched, because
+     * each flight costs two Strava requests against a limit counted per fifteen
+     * minutes -- so "did that finish the job?" is a real question, and a bare
+     * `{ success: true }` cannot answer it. Anything dispatching the task from
+     * outside had to guess, which is why the sync workflow re-dispatches until
+     * `remaining` reaches zero rather than hoping one run was enough.
+     */
+    summary?: Record<string, unknown>
 }
 
 export type TaskFailure = {
@@ -317,6 +329,15 @@ export type TaskHandler<T extends BaseTask> = (task: T) => Promise<TaskResult>
 export interface FetchAllActivitiesTask extends BaseTask {
     name: "FetchAllActivities";
     pilotId: StravaAthleteId;
+    /**
+     * Scan and report, promote nothing.
+     *
+     * The promotion is the half that writes: it creates flights and publishes a
+     * statistics block into the pilot's Strava description. Being able to see
+     * what a scan makes of an account before any of that happens is what makes
+     * a backfill checkable rather than a leap.
+     */
+    dryRun?: boolean
 }
 
 export interface UpdateDescriptionTask extends BaseTask {

@@ -47,6 +47,27 @@ export async function executeFetchAllActivitiesTask(
         return { success: false, message: `Scan failed: ${scan.error}` };
     }
 
+    if (task.dryRun) {
+        console.log(`FetchAllActivities for ${task.pilotId}: dry run, nothing promoted`);
+        return {
+            success: true,
+            summary: {
+                dryRun: true,
+                scanned: scan.summary?.scanned ?? 0,
+                flight: scan.summary?.flight ?? 0,
+                unsure: scan.summary?.unsure ?? 0,
+                not_flight: scan.summary?.not_flight ?? 0,
+                reviewed: scan.summary?.reviewed ?? 0,
+                reconsidered: scan.summary?.reconsidered ?? 0,
+                promoted: 0,
+                demoted: 0,
+                // Nothing was promoted, so nothing is left to come back for.
+                remaining: 0,
+                rateLimited: false,
+            },
+        };
+    }
+
     const promotion = await promotePilotFlights(pilot.pilot_id, api);
     if (promotion.error) {
         return { success: false, message: `Promotion failed: ${promotion.error}` };
@@ -65,5 +86,23 @@ export async function executeFetchAllActivitiesTask(
         `scanned ${scan.summary?.scanned}, promoted ${summary.promoted}, ` +
         `demoted ${summary.demoted}, more to do: ${summary.remaining > 0}`);
 
-    return { success: true };
+    // Returned rather than only logged, so a caller can see what happened and
+    // decide whether to run it again. `remaining` is the one that matters:
+    // promotion is batched, so a backlog needs several runs and nothing outside
+    // this function could previously tell.
+    return {
+        success: true,
+        summary: {
+            scanned: scan.summary?.scanned ?? 0,
+            flight: scan.summary?.flight ?? 0,
+            unsure: scan.summary?.unsure ?? 0,
+            not_flight: scan.summary?.not_flight ?? 0,
+            reviewed: scan.summary?.reviewed ?? 0,
+            reconsidered: scan.summary?.reconsidered ?? 0,
+            promoted: summary.promoted,
+            demoted: summary.demoted,
+            remaining: summary.remaining,
+            rateLimited: summary.rateLimited,
+        },
+    };
 }

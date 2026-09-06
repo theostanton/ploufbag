@@ -91,6 +91,25 @@ Adding a script means adding it to `manifest.txt`; a test fails if a `.sql` file
 
 `scripts/migrate.sh --check` reports what a database is missing without changing it (`task db:check`).
 
+## Re-syncing a pilot from Strava
+
+`.github/workflows/sync.yml`, dispatched by hand from the Actions tab. Inputs: a
+Strava athlete id (or a comma-separated list; blank means every pilot), and a
+dry-run flag that scans and reports without creating flights or writing anything
+to Strava.
+
+The workflow dispatches and nothing else: it POSTs a `FetchAllActivities` task
+to the deployed tasks service — the same body Cloud Tasks sends — and prints the
+summary that comes back, re-dispatching until `remaining` reaches zero, because
+promotion is batched and a backlog takes several runs. It holds no database
+credentials and runs no import logic of its own; a runner executing source from
+a branch is not the same thing as the bundle that is deployed.
+
+Before this, the only way to re-read a pilot's history was to answer the activity
+type question on `/welcome` again, which triggered `FetchAllActivities` as a side
+effect. That is not a remedy anyone would find, and when `/welcome` itself was
+broken it silently did nothing at all.
+
 ## Task System
 
 Background jobs are processed via Google Cloud Tasks:

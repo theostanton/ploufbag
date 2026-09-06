@@ -37,7 +37,10 @@ export default async function handler(req: Request, res: Response): Promise<void
             res.status(200).json({
                 status: "success",
                 task: task.name,
-                message: "Task completed successfully"
+                message: "Task completed successfully",
+                // Undefined for tasks that report nothing, which JSON.stringify
+                // omits, so the shape is unchanged for every existing caller.
+                summary: result.summary
             });
         } else {
             console.error(`Task ${task.name} failed: ${result.message}`);
