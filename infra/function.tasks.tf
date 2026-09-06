@@ -71,7 +71,15 @@ resource "google_cloudfunctions2_function" "tasks" {
 
   service_config {
     available_memory   = "256Mi"
-    timeout_seconds    = 60
+    # A scan of a whole history plus a batch of promotions -- each costing a
+    # Strava detail fetch and a description write -- does not fit in a minute,
+    # and being killed part way through wastes the requests it already spent.
+    # Nine minutes is comfortably more than a bounded run needs.
+    #
+    # max_instance_count stays at 1: uploads do not queue behind this, because
+    # the webhook service runs UpdateSingleActivity in its own process rather
+    # than dispatching it here.
+    timeout_seconds    = 540
     ingress_settings   = "ALLOW_ALL"
     max_instance_count = 1
     environment_variables = merge(local.functions_variables, {

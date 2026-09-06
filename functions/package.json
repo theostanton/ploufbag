@@ -12,8 +12,7 @@
     "updateProdPackage": "cp package.prod.json dist/package.json",
     "devApi": "tsc -p dev.tsconfig.json && node --watch -r ts-node/register -r tsconfig-paths/register src/api/dev.ts",
     "devTasks": "tsc -p dev.tsconfig.json && node --watch -r ts-node/register -r tsconfig-paths/register src/tasks/dev.ts",
-    "devWebhooks": "tsc -p dev.tsconfig.json && nodemon --exec \"node --inspect -r ts-node/register -r tsconfig-paths/register\" src/webhooks/dev.ts",
-    "sync": "tsx src/scripts/sync.ts"
+    "devWebhooks": "tsc -p dev.tsconfig.json && nodemon --exec \"node --inspect -r ts-node/register -r tsconfig-paths/register\" src/webhooks/dev.ts"
   },
   "dependencies": {
     "@google-cloud/tasks": "^6.2.1",
@@ -40,7 +39,6 @@
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
-    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   }

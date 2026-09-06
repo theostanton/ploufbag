@@ -98,11 +98,12 @@ Strava athlete id (or a comma-separated list; blank means every pilot), and a
 dry-run flag that scans and reports without creating flights or writing anything
 to Strava.
 
-It runs the same `scanPilotActivities` and `promotePilotFlights` the task service
-runs — `functions/src/scripts/sync.ts` is a thin entry point, not a second
-implementation — reaching the database through cloud-sql-proxy the way the
-migration step does. No Cloud Tasks queue is involved, because neither the scan
-nor the promotion needs one.
+The workflow dispatches and nothing else: it POSTs a `FetchAllActivities` task
+to the deployed tasks service — the same body Cloud Tasks sends — and prints the
+summary that comes back, re-dispatching until `remaining` reaches zero, because
+promotion is batched and a backlog takes several runs. It holds no database
+credentials and runs no import logic of its own; a runner executing source from
+a branch is not the same thing as the bundle that is deployed.
 
 Before this, the only way to re-read a pilot's history was to answer the activity
 type question on `/welcome` again, which triggered `FetchAllActivities` as a side

@@ -1,17 +1,17 @@
 name: Sync Strava
 
-# Manual only. This reads pilots' Strava histories and writes flights and
-# activity descriptions, which is not something that should happen because
-# somebody pushed a branch.
+# Manual only. This re-reads a pilot's Strava history and, unless it is a dry
+# run, creates flights and publishes statistics into their Strava descriptions.
+# Not something that should happen because somebody pushed a branch.
 on:
   workflow_dispatch:
     inputs:
       pilot:
-        description: 'Strava athlete id, or a comma-separated list. Blank syncs every pilot.'
-        required: false
+        description: 'Strava athlete id to sync.'
+        required: true
         type: string
       dry_run:
-        description: 'Scan and report only: create no flights, write nothing to Strava.'
+        description: 'Scan and report only: promote nothing, write nothing to Strava.'
         required: false
         type: boolean
         default: false
@@ -28,8 +28,18 @@ permissions:
   id-token: write
 
 env:
-  PROJECT_ID: para-stats
-  REGION: europe-west1
+  # The deployed tasks service, which is where the logic runs. This workflow
+  # dispatches and nothing else. Running the scan in the runner instead would
+  # mean a second execution environment -- executing source from whatever branch
+  # was dispatched rather than the bundle that is deployed -- and holding the
+  # production database password in CI to do it.
+  TASKS_URL: https://tasks.ploufbag.com
+  # How many times to come back for the rest. Promotion is batched -- each
+  # flight costs two Strava requests against a limit counted per fifteen minutes
+  # -- so a backlog takes several runs, and `remaining` in the response says when
+  # to stop. The cap only guards against looping for ever on a task that always
+  # reports work left.
+  MAX_ROUNDS: 12
 
 jobs:
   sync:
@@ -37,96 +47,81 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-
+      # An identity token for the tasks service, minted from the same workload
+      # identity credentials the deploy uses. The service currently allows
+      # unauthenticated callers, so this is not required yet; it is here so that
+      # locking that down does not also break this workflow.
       - uses: google-github-actions/auth@v2
+        id: auth
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: https://tasks.ploufbag.com
+          id_token_include_email: true
 
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install
-        run: |
-          yarn --cwd common install --frozen-lockfile
-          yarn --cwd common build
-          yarn --cwd functions install --frozen-lockfile
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-
-      - run: terraform init -input=false
-        working-directory: infra
-
-      # The same route the migration step takes: the instance's
-      # authorized_networks are two home addresses, so a runner reaches it
-      # through cloud-sql-proxy on the job's workload identity credentials.
-      # Connection details come off the state's resources rather than from
-      # outputs, which only exist after an apply.
       - name: Sync
         env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          # Through the environment rather than interpolated into the script
-          # below. A dispatch input pasted straight into a shell command is a
-          # command injection, however trusted whoever presses the button is.
+          # Through the environment rather than interpolated into the script. A
+          # dispatch input pasted into a command line is a command injection,
+          # however trusted whoever presses the button is.
           PILOT: ${{ inputs.pilot }}
           DRY_RUN: ${{ inputs.dry_run }}
+          ID_TOKEN: ${{ steps.auth.outputs.id_token }}
         run: |
-          state="$(terraform -chdir=infra show -json)"
-          value() {
-            jq -r --arg address "$1" --arg attribute "$2" '
-              [ (.values.root_module.resources // [])[]
-                | select(.address == $address)
-                | .values[$attribute]
-              ] | first // empty
-            ' <<<"$state"
-          }
-
-          connection="$(value google_sql_database_instance.instance connection_name)"
-          database="$(value google_sql_database.database name)"
-          username="$(value google_sql_user.functions name)"
-          password="$(value random_password.database result)"
-          echo "::add-mask::$password"
-
-          for pair in "connection:$connection" "database:$database" \
-                      "username:$username" "password:$password"; do
-            if [ -z "${pair#*:}" ]; then
-              echo "::error::Could not read ${pair%%:*} from the Terraform state."
+          case "$PILOT" in
+            ''|*[!0-9]*)
+              echo "::error::Pilot must be a Strava athlete id, got '$PILOT'."
               exit 1
+              ;;
+          esac
+
+          dry_run=false
+          if [ "$DRY_RUN" = "true" ]; then
+            dry_run=true
+          fi
+
+          body="$(jq -nc \
+            --argjson pilotId "$PILOT" \
+            --argjson dryRun "$dry_run" \
+            '{name: "FetchAllActivities", pilotId: $pilotId, dryRun: $dryRun}')"
+
+          echo "### Sync for pilot $PILOT" >> "$GITHUB_STEP_SUMMARY"
+
+          for round in $(seq 1 "$MAX_ROUNDS"); do
+            response="$(curl -sS -X POST "$TASKS_URL" \
+              -H "Authorization: Bearer $ID_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d "$body" \
+              -w $'\n%{http_code}')"
+
+            status="$(tail -n1 <<<"$response")"
+            payload="$(sed '$d' <<<"$response")"
+
+            if [ "$status" != "200" ]; then
+              echo "::error::Task returned HTTP $status: $(jq -r '.message // .' <<<"$payload" 2>/dev/null || echo "$payload")"
+              exit 1
+            fi
+
+            jq -r --arg round "$round" '
+              .summary
+              | if . == null then "round \($round): no summary returned"
+                else "round \($round): scanned \(.scanned), \(.flight) flights, \(.unsure) unsure"
+                     + (if .reviewed > 0 then ", reviewed \(.reviewed) (\(.reconsidered) changed)" else "" end)
+                     + ", +\(.promoted) imported, -\(.demoted) removed, \(.remaining) left"
+                end
+            ' <<<"$payload" | tee -a "$GITHUB_STEP_SUMMARY"
+
+            if [ "$(jq -r '.summary.rateLimited // false' <<<"$payload")" = "true" ]; then
+              echo "Paused on Strava's rate limit. Run this again in fifteen minutes to continue." \
+                | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            if [ "$(jq -r '.summary.remaining // 0' <<<"$payload")" -le 0 ]; then
+              echo "Nothing left to import." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
             fi
           done
 
-          curl -sSfL -o cloud-sql-proxy \
-            "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64"
-          chmod +x cloud-sql-proxy
-          ./cloud-sql-proxy --address 127.0.0.1 --port 55432 "$connection" &
-          trap 'kill %1' EXIT
-
-          # Bash's own /dev/tcp rather than pg_isready, so this step needs no
-          # postgresql-client that nothing else here uses.
-          for _ in $(seq 30); do
-            (echo > /dev/tcp/127.0.0.1/55432) >/dev/null 2>&1 && break
-            sleep 1
-          done
-
-          arguments=()
-          if [ -n "$PILOT" ]; then
-            arguments+=(--pilot "$PILOT")
-          fi
-          if [ "$DRY_RUN" = "true" ]; then
-            arguments+=(--dry-run)
-          fi
-
-          DATABASE_HOST=127.0.0.1 \
-          DATABASE_PORT=55432 \
-          DATABASE_NAME="$database" \
-          DATABASE_USER="$username" \
-          DATABASE_PASSWORD="$password" \
-          yarn --cwd functions sync "${arguments[@]}" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Still reporting work left after $MAX_ROUNDS rounds; run it again."
