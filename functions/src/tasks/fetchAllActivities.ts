@@ -83,6 +83,7 @@ export async function executeFetchAllActivitiesTask(
                 described: 0,
                 undescribed: 0,
                 republished: 0,
+                nothingToPublish: 0,
                 unpublishable: 0,
                 demoted: 0,
                 // Nothing was promoted, so nothing is left to come back for.
@@ -116,6 +117,7 @@ export async function executeFetchAllActivitiesTask(
                 described: 0,
                 undescribed: 0,
                 republished: 0,
+                nothingToPublish: 0,
                 unpublishable: 0,
                 demoted: 0,
                 remaining: isSuccess(left) ? left[0].length : 0,
@@ -153,7 +155,7 @@ export async function executeFetchAllActivitiesTask(
         console.log(`Republishing descriptions failed: ${republishing.error}`);
     }
     const republish = republishing.summary
-        ?? { republished: 0, failed: 0, remaining: 0, timedOut: false };
+        ?? { republished: 0, skipped: 0, failed: 0, remaining: 0, timedOut: false };
 
     console.log(`FetchAllActivities for ${task.pilotId}: ` +
         `scanned ${scan.summary?.scanned}, promoted ${summary.promoted}, ` +
@@ -178,6 +180,7 @@ export async function executeFetchAllActivitiesTask(
             described: summary.described,
             undescribed: summary.undescribed,
             republished: republish.republished,
+            nothingToPublish: republish.skipped,
             unpublishable: republish.failed,
             remaining: summary.remaining + republish.remaining,
             rateLimited: summary.rateLimited,
