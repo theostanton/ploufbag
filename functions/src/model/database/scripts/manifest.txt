@@ -54,6 +54,10 @@ create_activities
 # upsertScanned writes on every scan.
 add_description_checked_at_to_activities
 
+# After create_sites: indexes sites by position so the nearest-site lookup stops
+# being a sequential scan. The history scan asks it twice per activity.
+add_sites_location_index
+
 # Deliberately absent: migrate_monitoring_tables_to_varchar.
 #
 # It drops webhook_events and task_executions to rebuild them without enum

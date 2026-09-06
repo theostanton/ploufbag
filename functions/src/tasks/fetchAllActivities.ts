@@ -1,4 +1,4 @@
-import { isSuccess } from "@ploufbag/common";
+import { Activities, isSuccess } from "@ploufbag/common";
 import { FetchAllActivitiesTask, TaskResult } from '@ploufbag/common';
 import { Pilots } from '@/database/Pilots';
 import { StravaApi } from '@/stravaApi';
@@ -26,6 +26,23 @@ import { promotePilotFlights } from './promoteFlights';
  * pilot with two hundred newly-found flights does not exhaust Strava's fifteen
  * minute budget in one go.
  */
+
+/**
+ * How long one call gets before it stops and asks to be called again.
+ *
+ * The tasks service is given 540 seconds (infra/function.tasks.tf) and a
+ * request that overruns is killed by Cloud Run, which returns a 504 and throws
+ * away the summary -- so the caller cannot tell what was done, or that anything
+ * was. That is exactly how the first real sync of a twelve year history ended.
+ *
+ * Stopping ourselves instead turns that into an ordinary outcome: whatever was
+ * promoted stays promoted, `remaining` says there is more, and the caller comes
+ * back. The margin covers the counting queries after the loops and the response
+ * itself; overshooting the budget by a few seconds must still land inside the
+ * platform's.
+ */
+const BUDGET_MS = 420_000
+
 export async function executeFetchAllActivitiesTask(
     task: FetchAllActivitiesTask
 ): Promise<TaskResult> {
@@ -42,7 +59,9 @@ export async function executeFetchAllActivitiesTask(
 
     const api = await StravaApi.fromUserId(pilot.pilot_id);
 
-    const scan = await scanPilotActivities(pilot.pilot_id, api);
+    const deadline = Date.now() + BUDGET_MS;
+
+    const scan = await scanPilotActivities(pilot.pilot_id, api, 10_000, deadline);
     if (scan.error) {
         return { success: false, message: `Scan failed: ${scan.error}` };
     }
@@ -64,11 +83,40 @@ export async function executeFetchAllActivitiesTask(
                 // Nothing was promoted, so nothing is left to come back for.
                 remaining: 0,
                 rateLimited: false,
+                // Reported here too, or a dry run that was cut short reads
+                // exactly like one that finished -- and a scan that never
+                // reached the older half of a history is the thing a dry run
+                // exists to tell you about.
+                timedOut: Date.now() > deadline,
             },
         };
     }
 
-    const promotion = await promotePilotFlights(pilot.pilot_id, api);
+    // A scan that used the whole budget leaves no room to promote anything, and
+    // starting anyway is how a run gets killed halfway through writing to
+    // somebody's Strava account. Report the scan and let the caller come back.
+    if (Date.now() > deadline) {
+        const left = await Activities.getPromotable(pilot.pilot_id, 1);
+        console.log(`FetchAllActivities for ${task.pilotId}: out of time after the scan`);
+        return {
+            success: true,
+            summary: {
+                scanned: scan.summary?.scanned ?? 0,
+                flight: scan.summary?.flight ?? 0,
+                unsure: scan.summary?.unsure ?? 0,
+                not_flight: scan.summary?.not_flight ?? 0,
+                reviewed: scan.summary?.reviewed ?? 0,
+                reconsidered: scan.summary?.reconsidered ?? 0,
+                promoted: 0,
+                demoted: 0,
+                remaining: isSuccess(left) ? left[0].length : 0,
+                rateLimited: false,
+                timedOut: true,
+            },
+        };
+    }
+
+    const promotion = await promotePilotFlights(pilot.pilot_id, api, undefined, deadline);
     if (promotion.error) {
         return { success: false, message: `Promotion failed: ${promotion.error}` };
     }
@@ -103,6 +151,7 @@ export async function executeFetchAllActivitiesTask(
             demoted: summary.demoted,
             remaining: summary.remaining,
             rateLimited: summary.rateLimited,
+            timedOut: summary.timedOut,
         },
     };
 }

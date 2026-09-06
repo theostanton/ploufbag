@@ -34,11 +34,12 @@ env:
   # was dispatched rather than the bundle that is deployed -- and holding the
   # production database password in CI to do it.
   TASKS_URL: https://tasks.ploufbag.com
-  # How many times to come back for the rest. Promotion is batched -- each
-  # flight costs two Strava requests against a limit counted per fifteen minutes
-  # -- so a backlog takes several runs, and `remaining` in the response says when
-  # to stop. The cap only guards against looping for ever on a task that always
-  # reports work left.
+  # How many times to come back for the rest. A round is bounded twice over: by
+  # the promotion batch, and by a time budget the task stops itself on so that
+  # Cloud Run never kills it mid-write and returns a 504 with no summary at all.
+  # A backlog therefore takes several runs, and `remaining` in the response says
+  # when to stop. The cap only guards against looping for ever on a task that
+  # always reports work left.
   MAX_ROUNDS: 12
 
 jobs:
@@ -68,6 +69,11 @@ jobs:
           PILOT: ${{ inputs.pilot }}
           DRY_RUN: ${{ inputs.dry_run }}
           ID_TOKEN: ${{ steps.auth.outputs.id_token }}
+        # The default shell here is `bash -e {0}`: no `-o pipefail`, so in a
+        # pipeline only the last command's status is seen and a jq that fails
+        # mid-pipe reads as success. Set it explicitly rather than write around
+        # it.
+        shell: bash -euo pipefail {0}
         run: |
           case "$PILOT" in
             ''|*[!0-9]*)
@@ -109,6 +115,7 @@ jobs:
                 else "round \($round): scanned \(.scanned), \(.flight) flights, \(.unsure) unsure"
                      + (if .reviewed > 0 then ", reviewed \(.reviewed) (\(.reconsidered) changed)" else "" end)
                      + ", +\(.promoted) imported, -\(.demoted) removed, \(.remaining) left"
+                     + (if .timedOut then " (stopped on its time budget)" else "" end)
                 end
             ' <<<"$payload" | tee -a "$GITHUB_STEP_SUMMARY"
 
