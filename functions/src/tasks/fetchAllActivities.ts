@@ -5,6 +5,7 @@ import { StravaApi } from '@/stravaApi';
 import { scanPilotActivities } from './scanActivities';
 import { republishMissingDescriptions } from './republishDescriptions';
 import { promotePilotFlights } from './promoteFlights';
+import { reattributeNamedWings } from './reattributeWings';
 
 /**
  * Read a pilot's whole Strava history and make our flights match it.
@@ -82,6 +83,9 @@ export async function executeFetchAllActivitiesTask(
                 promoted: 0,
                 described: 0,
                 undescribed: 0,
+                wingsCreated: 0,
+                attributed: 0,
+                unattributable: 0,
                 republished: 0,
                 nothingToPublish: 0,
                 unpublishable: 0,
@@ -116,6 +120,9 @@ export async function executeFetchAllActivitiesTask(
                 promoted: 0,
                 described: 0,
                 undescribed: 0,
+                wingsCreated: 0,
+                attributed: 0,
+                unattributable: 0,
                 republished: 0,
                 nothingToPublish: 0,
                 unpublishable: 0,
@@ -141,6 +148,28 @@ export async function executeFetchAllActivitiesTask(
         console.log(`FetchAllActivities for ${task.pilotId} paused on Strava's rate limit`);
     }
 
+    // Flights with no wing whose own description names one.
+    //
+    // Promotion resolves the wing once and never revisits it, so every flight
+    // imported before it could create a glider it had not heard of is
+    // unattributed for ever -- seventeen of them in a row on one account,
+    // reading "Unknown wing" on the site while "🪂 Susi" sat in the text. The
+    // fix above only reaches flights not yet imported; this is what reaches the
+    // ones already here.
+    //
+    // Ahead of the republish pass deliberately. A flight repaired here has its
+    // block rewritten with the wing line included; run the other way round, a
+    // bare flight would be published without a wing and then published again
+    // next round with one, for two Strava writes and no better outcome.
+    const reattribution = await reattributeNamedWings(pilot.pilot_id, undefined, deadline);
+    if (reattribution.error) {
+        // Not a failure of the task, for the same reason republishing is not:
+        // the flights are imported either way.
+        console.log(`Reattributing wings failed: ${reattribution.error}`);
+    }
+    const wings = reattribution.summary
+        ?? { attributed: 0, created: 0, republished: 0, skipped: 0, failed: 0, remaining: 0, timedOut: false };
+
     // Flights that carry no stats of ours, whenever they were imported.
     //
     // Promotion writes a description once and never revisits it, so a flight
@@ -157,10 +186,12 @@ export async function executeFetchAllActivitiesTask(
     const republish = republishing.summary
         ?? { republished: 0, skipped: 0, failed: 0, remaining: 0, timedOut: false };
 
+    const remaining = summary.remaining + wings.remaining + republish.remaining;
+
     console.log(`FetchAllActivities for ${task.pilotId}: ` +
         `scanned ${scan.summary?.scanned}, promoted ${summary.promoted}, ` +
-        `demoted ${summary.demoted}, republished ${republish.republished}, ` +
-        `more to do: ${summary.remaining + republish.remaining > 0}`);
+        `demoted ${summary.demoted}, attributed ${wings.attributed}, ` +
+        `republished ${republish.republished}, more to do: ${remaining > 0}`);
 
     // Returned rather than only logged, so a caller can see what happened and
     // decide whether to run it again. `remaining` is the one that matters:
@@ -179,12 +210,18 @@ export async function executeFetchAllActivitiesTask(
             demoted: summary.demoted,
             described: summary.described,
             undescribed: summary.undescribed,
-            republished: republish.republished,
+            // Both passes can learn a glider from a description: promotion for
+            // the flights it is creating now, reattribution for the ones that
+            // were created before it could.
+            wingsCreated: summary.wingsCreated + wings.created,
+            attributed: wings.attributed,
+            unattributable: wings.skipped + wings.failed,
+            republished: republish.republished + wings.republished,
             nothingToPublish: republish.skipped,
             unpublishable: republish.failed,
-            remaining: summary.remaining + republish.remaining,
+            remaining,
             rateLimited: summary.rateLimited,
-            timedOut: summary.timedOut || republish.timedOut,
+            timedOut: summary.timedOut || wings.timedOut || republish.timedOut,
         },
     };
 }
