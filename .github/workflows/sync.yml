@@ -115,8 +115,11 @@ jobs:
                 else "round \($round): scanned \(.scanned), \(.flight) flights, \(.unsure) unsure"
                      + (if .reviewed > 0 then ", reviewed \(.reviewed) (\(.reconsidered) changed)" else "" end)
                      + ", +\(.promoted) imported, -\(.demoted) removed, \(.remaining) left"
-                     + (if (.undescribed // 0) > 0
-                        then " — ⚠️ \(.undescribed) of \(.promoted) got no Strava description"
+                     + (if (.republished // 0) > 0
+                        then ", \(.republished) descriptions published"
+                        else "" end)
+                     + (if ((.undescribed // 0) + (.unpublishable // 0)) > 0
+                        then " — ⚠️ \((.undescribed // 0) + (.unpublishable // 0)) got no Strava description"
                         else "" end)
                      + (if .timedOut then " (stopped on its time budget)" else "" end)
                 end

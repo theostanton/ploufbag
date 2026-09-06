@@ -68,7 +68,7 @@ export const DESCRIPTION_FOOTER = descriptionFooter();
  */
 export const SAMPLE_SLUG = 'a45nz';
 
-const ALL_DESCRIPTION_DOMAINS = [DESCRIPTION_DOMAIN, ...LEGACY_DESCRIPTION_DOMAINS];
+export const ALL_DESCRIPTION_DOMAINS = [DESCRIPTION_DOMAIN, ...LEGACY_DESCRIPTION_DOMAINS];
 
 /**
  * Alternation of every domain we have ever stamped, dots escaped, each allowing
