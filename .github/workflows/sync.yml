@@ -1,0 +1,132 @@
+name: Sync Strava
+
+# Manual only. This reads pilots' Strava histories and writes flights and
+# activity descriptions, which is not something that should happen because
+# somebody pushed a branch.
+on:
+  workflow_dispatch:
+    inputs:
+      pilot:
+        description: 'Strava athlete id, or a comma-separated list. Blank syncs every pilot.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Scan and report only: create no flights, write nothing to Strava.'
+        required: false
+        type: boolean
+        default: false
+
+# Never two syncs at once: they would race for the same rows and burn the same
+# Strava rate limit twice. Queue rather than cancel -- a half-finished sync is
+# not harmful, but killing one mid-promotion wastes the requests it spent.
+concurrency:
+  group: sync-strava
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: para-stats
+  REGION: europe-west1
+
+jobs:
+  sync:
+    name: Re-read Strava
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: |
+          yarn --cwd common install --frozen-lockfile
+          yarn --cwd common build
+          yarn --cwd functions install --frozen-lockfile
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - run: terraform init -input=false
+        working-directory: infra
+
+      # The same route the migration step takes: the instance's
+      # authorized_networks are two home addresses, so a runner reaches it
+      # through cloud-sql-proxy on the job's workload identity credentials.
+      # Connection details come off the state's resources rather than from
+      # outputs, which only exist after an apply.
+      - name: Sync
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          # Through the environment rather than interpolated into the script
+          # below. A dispatch input pasted straight into a shell command is a
+          # command injection, however trusted whoever presses the button is.
+          PILOT: ${{ inputs.pilot }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          state="$(terraform -chdir=infra show -json)"
+          value() {
+            jq -r --arg address "$1" --arg attribute "$2" '
+              [ (.values.root_module.resources // [])[]
+                | select(.address == $address)
+                | .values[$attribute]
+              ] | first // empty
+            ' <<<"$state"
+          }
+
+          connection="$(value google_sql_database_instance.instance connection_name)"
+          database="$(value google_sql_database.database name)"
+          username="$(value google_sql_user.functions name)"
+          password="$(value random_password.database result)"
+          echo "::add-mask::$password"
+
+          for pair in "connection:$connection" "database:$database" \
+                      "username:$username" "password:$password"; do
+            if [ -z "${pair#*:}" ]; then
+              echo "::error::Could not read ${pair%%:*} from the Terraform state."
+              exit 1
+            fi
+          done
+
+          curl -sSfL -o cloud-sql-proxy \
+            "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.1/cloud-sql-proxy.linux.amd64"
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy --address 127.0.0.1 --port 55432 "$connection" &
+          trap 'kill %1' EXIT
+
+          # Bash's own /dev/tcp rather than pg_isready, so this step needs no
+          # postgresql-client that nothing else here uses.
+          for _ in $(seq 30); do
+            (echo > /dev/tcp/127.0.0.1/55432) >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+          arguments=()
+          if [ -n "$PILOT" ]; then
+            arguments+=(--pilot "$PILOT")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            arguments+=(--dry-run)
+          fi
+
+          DATABASE_HOST=127.0.0.1 \
+          DATABASE_PORT=55432 \
+          DATABASE_NAME="$database" \
+          DATABASE_USER="$username" \
+          DATABASE_PASSWORD="$password" \
+          yarn --cwd functions sync "${arguments[@]}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
