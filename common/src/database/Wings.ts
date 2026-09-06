@@ -1,5 +1,7 @@
 import { Either, failure, success, StravaAthleteId, Wing, WingId } from '../model';
 import { withPooledClient, Client } from '../database';
+import { normaliseWingName } from '../classify';
+import { flightTrackColour } from '../trackColours';
 
 /** A wing plus how many flights are attributed to it. */
 export type WingWithCount = Wing & { flights: number }
@@ -121,6 +123,85 @@ export namespace Wings {
                 return success(result.rows[0].reify())
             } catch (error) {
                 return failure(`Wings.get failed for wingId=${wingId}: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * The wing a pilot calls this, creating it if they have never named it here.
+     *
+     * The gap this closes: a pilot who buys a glider and types "🪂 Susi" into
+     * their Strava description had that name read correctly, matched against a
+     * wings table that did not contain it, and then discarded -- so the flight
+     * imported unattributed, the site showed "Unknown wing", and the stats block
+     * we published carried no 🪂 line at all. The name was right there in the
+     * text the whole time.
+     *
+     * Deliberately not exposed to anything a stranger can reach. The two callers
+     * are the import path and the backfill that repairs what it imported before
+     * this existed, and both act on activities already believed to be flights.
+     * That is the limit on what can end up in here: not a filter on the name,
+     * which is the pilot's own word for their own glider and not ours to judge,
+     * but on which activities are allowed to name one at all.
+     *
+     * No dates and no manufacturer: everything beyond the name is a guess, and a
+     * guessed flown_from would silently pull other unattributed flights onto this
+     * wing through resolveForDate. The pilot fills those in on the wings screen
+     * if they care to; until then it is a named glider with a colour, which is
+     * exactly what the free-text era gave them and no less.
+     *
+     * The colour is the one the map is *already* drawing these tracks in --
+     * flightTrackColour over the same pilot-and-wing key -- so a wing gaining a
+     * row does not repaint anything, the same property backfill_wings was
+     * written to preserve.
+     *
+     * @returns the wing, and whether this call is what created it.
+     */
+    export async function ensureNamed(
+        pilotId: StravaAthleteId,
+        rawName: string
+    ): Promise<Either<{ wing: Wing; created: boolean }>> {
+        const name = normaliseWingName(rawName)
+        if (!name) {
+            return failure(`Wings.ensureNamed: ${JSON.stringify(rawName)} is not a usable wing name`)
+        }
+
+        return withPooledClient(async (database: Client) => {
+            try {
+                // wing_key on both sides, so this finds the row the unique index
+                // would collide with rather than a merely equal string -- "Zeno
+                // 2" must find "zeno2" or the insert below fails and the name is
+                // discarded all over again.
+                const find = `select ${COLUMNS} from wings
+                              where pilot_id = $1::integer and wing_key(name) = wing_key($2)`
+
+                const existing = await database.query<Wing>(find, [pilotId, name])
+                if (existing.rows.length > 0) {
+                    return success({ wing: existing.rows[0].reify(), created: false })
+                }
+
+                // `do nothing` rather than a bare insert: two activities naming
+                // the same new glider are promoted in one loop, and a concurrent
+                // webhook can be doing the same thing. Losing the race means the
+                // row exists, which is the outcome we wanted.
+                const inserted = await database.query<{ wing_id: WingId }>(
+                    `insert into wings (pilot_id, name, colour)
+                     values ($1::integer, $2, $3)
+                     on conflict (pilot_id, wing_key(name)) do nothing
+                     returning wing_id`,
+                    [pilotId, name, flightTrackColour(pilotId, name)]
+                )
+
+                const settled = await database.query<Wing>(find, [pilotId, name])
+                if (settled.rows.length === 0) {
+                    return failure(`Wings.ensureNamed stored no wing called ${name} for pilot ${pilotId}`)
+                }
+                return success({
+                    wing: settled.rows[0].reify(),
+                    created: inserted.rows.length > 0,
+                })
+            } catch (error) {
+                return failure(`Wings.ensureNamed failed for pilotId=${pilotId} name=${name}: ${error}`)
             }
         });
     }

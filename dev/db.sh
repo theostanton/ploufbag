@@ -109,6 +109,11 @@ mapfile -t SCHEMA_FILES < <(
 # has nothing to work with until the seed has inserted some flights. Running it
 # here mirrors production, where the schema goes on first and the backfill runs
 # over six years of existing rows.
+#
+# It is now in the manifest too, so do_schema also runs it -- over an empty
+# flights table, where every statement matches nothing. That is the point of it
+# being idempotent, and running it twice here is cheaper than a second list that
+# can disagree with the first.
 BACKFILL_FILES=(
     backfill_wings
 )

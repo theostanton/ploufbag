@@ -77,6 +77,40 @@ describe('create_wings.sql', () => {
         await client.query(`delete from flights where strava_activity_id = 'nullwing'`)
     })
 
+    /**
+     * The padding the free-text era captured, and why it is not cosmetic.
+     *
+     * flights.wing is what gets published to Strava, what the per-wing pages
+     * route on, and what the map hashes for a track colour when the flight has
+     * no wing row -- so "ronin      ", read verbatim off a padded aggregate
+     * column, is a different colour and a different URL from "ronin". A real
+     * account carries three of them. The backfill has always chosen one
+     * spelling for the wing; this is it putting that spelling back on the
+     * flights, which is the half that was missing.
+     */
+    it('settles every flight on the one spelling its wing has', async () => {
+        const flights = await rows<{ strava_activity_id: string, wing: string }>(
+            `select strava_activity_id, wing
+             from flights
+             where strava_activity_id in ('w1', 'w4', 'w5', 'w6')
+             order by strava_activity_id`
+        )
+
+        expect(flights.map(flight => flight.wing)).toEqual(
+            ['Zeno 2', 'Zeno 2', 'Zeno 2', 'Zeno 2']
+        )
+    })
+
+    it('leaves the text alone on a flight it did not attribute', async () => {
+        // Whitespace-only, so it produced no wing and must keep whatever it has
+        // rather than being pulled onto somebody's glider.
+        const [flight] = await rows<{ wing: string | null, wing_id: string | null }>(
+            `select wing, wing_id from flights where strava_activity_id = 'w10'`
+        )
+        expect(flight.wing_id).toBeNull()
+        expect(flight.wing).toBe('   ')
+    })
+
     it('is safe to re-run', async () => {
         await expect(runScript('create_wings')).resolves.not.toThrow()
     })

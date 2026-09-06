@@ -55,7 +55,7 @@ export default function FlightItem({flight}: { flight: FlightSummary }) {
         <Link href={`/flights/${flight.strava_activity_id}`} className={styles.mainContent}>
             <div className={styles.header}>
                 <div className={styles.flightInfo}>
-                    <div className={styles.wing}>🪂 {flight.wing || 'Unknown wing'}</div>
+                    <div className={styles.wing}>🪂 {flight.wing?.trim() || 'Unknown wing'}</div>
                     {flight.pilot && (
                         <div className={styles.pilot}>
                             <Link href={`/pilots/${flight.pilot.pilot_id}`} className={styles.pilotLink}>

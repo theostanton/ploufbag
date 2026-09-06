@@ -115,17 +115,26 @@ jobs:
                 else "round \($round): scanned \(.scanned), \(.flight) flights, \(.unsure) unsure"
                      + (if .reviewed > 0 then ", reviewed \(.reviewed) (\(.reconsidered) changed)" else "" end)
                      + ", +\(.promoted) imported, -\(.demoted) removed, \(.remaining) left"
+                     + (if (.attributed // 0) > 0
+                        then ", \(.attributed) wings recovered from descriptions"
+                        else "" end)
+                     + (if (.wingsCreated // 0) > 0
+                        then " (\(.wingsCreated) new)"
+                        else "" end)
                      + (if (.republished // 0) > 0
                         then ", \(.republished) descriptions published"
                         else "" end)
                      + (if (.remaining // 0) > 0
-                        then " (\(.remaining) still bare)"
+                        then " (\(.remaining) still to do)"
                         else "" end)
                      + (if ((.undescribed // 0) + (.unpublishable // 0)) > 0
                         then " — ⚠️ \((.undescribed // 0) + (.unpublishable // 0)) got no Strava description"
                         else "" end)
                      + (if (.nothingToPublish // 0) > 0
                         then " — ⚠️ \(.nothingToPublish) had nothing to publish and will come back next round"
+                        else "" end)
+                     + (if (.unattributable // 0) > 0
+                        then " — ⚠️ \(.unattributable) named a wing we could not store and will come back next round"
                         else "" end)
                      + (if .timedOut then " (stopped on its time budget)" else "" end)
                 end

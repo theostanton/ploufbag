@@ -32,11 +32,6 @@ const NOT_DEPLOYED: Record<string, string> = {
     // time -- including the failures that are the record of what went wrong.
     migrate_monitoring_tables_to_varchar:
         'destructive, one-off, already applied',
-    // Turns the free text in flights.wing into rows in wings. A data backfill
-    // over six years of rows, not schema, and slow enough that re-running it on
-    // every deploy is a different kind of risk. dev/db.sh runs it after seeding.
-    backfill_wings:
-        'data backfill, applied once by hand',
 }
 
 function scriptNames(): string[] {
@@ -97,5 +92,29 @@ describe('the schema manifest', () => {
         expect(at('create_activities')).toBeGreaterThan(at('create_pilots'))
         expect(at('add_description_checked_at_to_activities'))
             .toBeGreaterThan(at('create_activities'))
+
+        // backfill_wings reads flights and writes wings, so it needs both
+        // tables and the wing_key/track_colour functions create_wings defines.
+        expect(at('backfill_wings')).toBeGreaterThan(at('create_wings'))
+        expect(at('backfill_wings')).toBeGreaterThan(at('create_flights'))
+    })
+
+    /**
+     * The backfill the deploy skipped, and the bug that came of skipping it.
+     *
+     * It was on NOT_DEPLOYED as a data backfill, which was true and was the
+     * wrong call: it is the only thing that turns six years of free text into
+     * the wings rows the resolver matches against, so with it unapplied
+     * production had an empty wings table, every flight naming a glider
+     * imported unattributed, and the site said "Unknown wing" over a
+     * description that plainly said which one.
+     *
+     * Pinned as a test rather than a comment because the reason it was excluded
+     * is a rule that still holds for every other backfill, and this is the
+     * exception that has to survive the next reading of that rule.
+     */
+    it('applies the wings backfill, which is why it is not on the excluded list', () => {
+        expect(schemaManifest(SCRIPTS_DIR)).toContain('backfill_wings')
+        expect(Object.keys(NOT_DEPLOYED)).not.toContain('backfill_wings')
     })
 })
