@@ -1,0 +1,31 @@
+-- Finding the site nearest a point, without reading every site to do it.
+--
+-- `Sites.getNearestWithin` is asked twice per activity by the history scan --
+-- once for the takeoff, once for the landing -- and the scan reads a pilot's
+-- whole Strava history. Against an account with twelve years on it that is
+-- thousands of calls in one request, and each one was:
+--
+--     select ..., distance(lat, lng, $1, $2) as distance_meters
+--     from sites order by distance_meters limit 1
+--
+-- `order by` a computed expression over an unrestricted table is a sequential
+-- scan of every site plus a sort, whatever indexes exist, because no index can
+-- answer "closest to an argument I get at run time". Measured against a table
+-- the size of the FFVL list, that is ~26ms a call on a warm local database, and
+-- the deployed database is a shared-core instance across a socket. It is why
+-- FetchAllActivities ran for its full nine minute timeout and the sync workflow
+-- got a 504 back instead of a summary.
+--
+-- earthdistance's own index type answers it directly. `ll_to_earth` maps a
+-- lat/lng to a point in 3-space and is immutable, so it can be indexed; the
+-- caller then restricts to `earth_box(centre, radius)` -- a bounding cube the
+-- GiST index can search -- and sorts only what comes back. Same rows, same
+-- order, 26ms down to 0.5ms.
+--
+-- The box is a superset of the sphere of that radius, never a subset, so a site
+-- within the limit cannot be missed; anything extra it lets through is beyond
+-- the nearest and is dropped by the `limit 1`.
+--
+-- cube and earthdistance both come from create_sites.sql, which runs first.
+create index if not exists sites_earth_idx
+    on sites using gist (ll_to_earth(lat, lng));;;

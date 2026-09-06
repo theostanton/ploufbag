@@ -34,6 +34,8 @@ export type PromotionSummary = {
     demoted: number
     remaining: number
     rateLimited: boolean
+    /** Stopped because the request ran out of time, not because it ran out of work. */
+    timedOut: boolean
 }
 
 /** How many flights one run will create. Two Strava requests each. */
@@ -62,7 +64,8 @@ function wingFromDescription(description: string, wings: Wing[]): Wing | null {
 export async function promotePilotFlights(
     pilotId: StravaAthleteId,
     api: StravaApi,
-    batch: number = DEFAULT_BATCH
+    batch: number = DEFAULT_BATCH,
+    deadline: number = Infinity
 ): Promise<{ summary?: PromotionSummary; error?: string }> {
     const promotable = await Activities.getPromotable(pilotId, batch)
     if (!isSuccess(promotable)) {
@@ -74,8 +77,19 @@ export async function promotePilotFlights(
 
     let promoted = 0
     let rateLimited = false
+    let timedOut = false
 
     for (const activity of promotable[0]) {
+        // Checked before the requests rather than after, so what stops is a
+        // whole promotion and not one half-written. Same shape as the rate
+        // limit below: the work list is untouched, `remaining` says there is
+        // more, and the next run continues from here.
+        if (Date.now() > deadline) {
+            console.log(`Out of time after promoting ${promoted}; stopping`)
+            timedOut = true
+            break
+        }
+
         const detail = await api.fetchActivity(activity.strava_activity_id)
         if (!isSuccess(detail)) {
             if (detail[1] === 'Rate limited') {
@@ -156,6 +170,11 @@ export async function promotePilotFlights(
     const demotable = await Activities.getDemotable(pilotId, batch)
     if (isSuccess(demotable)) {
         for (const activityId of demotable[0]) {
+            if (Date.now() > deadline) {
+                console.log(`Out of time after demoting ${demoted}; stopping`)
+                timedOut = true
+                break
+            }
             const removed = await FlightsCommon.remove(pilotId, activityId)
             if (isSuccess(removed) && removed[0]) {
                 demoted++
@@ -174,5 +193,5 @@ export async function promotePilotFlights(
 
     console.log(`Promotion for pilot ${pilotId}: +${promoted} flights, -${demoted}, more=${remaining > 0}`)
 
-    return { summary: { promoted, demoted, remaining, rateLimited } }
+    return { summary: { promoted, demoted, remaining, rateLimited, timedOut } }
 }

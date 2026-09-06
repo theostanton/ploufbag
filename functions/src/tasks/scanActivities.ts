@@ -55,10 +55,17 @@ export type ScanSummary = {
 const REVIEW_BUDGET = 12
 
 /**
- * Site lookups are one database round trip each, and a pilot who flies from the
- * same launch every weekend asks the same question hundreds of times. Rounding
- * to five decimal places is about a metre -- finer than the GPS in a vario -- so
- * two starts from the same launch share a cache entry.
+ * Site lookups are one database round trip each, and the scan makes two per
+ * candidate activity across a pilot's whole history.
+ *
+ * The cache earns much less than it looks like it should: five decimal places
+ * is about a metre, and two flights off the same launch are never recorded from
+ * the same square metre, so in practice almost every activity misses. Widening
+ * the key would trade correctness near a site boundary for hit rate, which is
+ * the wrong trade -- the round trip is the thing to make cheap, and
+ * add_sites_location_index.sql is what made it cheap. What the cache does still
+ * pay for is the repeat within one activity, and the pilot who does record from
+ * the same spot.
  */
 type NearestSite = { ffvl_sid: string; name: string } | null
 
@@ -105,7 +112,8 @@ function decodeTrack(summary: StravaActivitySummary): Polyline | null {
 export async function scanPilotActivities(
     pilotId: StravaAthleteId,
     api: StravaApi,
-    limit: number = 10_000
+    limit: number = 10_000,
+    deadline: number = Infinity
 ): Promise<{ summary?: ScanSummary; error?: string }> {
     const typesResult = await PilotsCommon.getFlightActivityTypes(pilotId)
     // Not being able to read the setting is not a reason to refuse to scan; the
@@ -207,7 +215,7 @@ export async function scanPilotActivities(
         return { error: `Activities.upsertScanned failed: ${upserted[1]}` }
     }
 
-    await reviewUnreadActivities(pilotId, api, candidateIds, candidateTypes, siteCache, counts)
+    await reviewUnreadActivities(pilotId, api, candidateIds, candidateTypes, siteCache, counts, deadline)
 
     console.log(`Scanned ${counts.scanned} activities for pilot ${pilotId}: ` +
         `${counts.flight} flights, ${counts.unsure} unsure, ${counts.not_flight} not flights` +
@@ -240,7 +248,8 @@ async function reviewUnreadActivities(
     candidateIds: StravaActivityId[],
     candidateTypes: string[],
     siteCache: Map<string, NearestSite>,
-    counts: ScanSummary
+    counts: ScanSummary,
+    deadline: number = Infinity
 ): Promise<void> {
     const unread = await Activities.getUnreadCandidates(pilotId, candidateIds, REVIEW_BUDGET)
     if (!isSuccess(unread)) {
@@ -252,6 +261,14 @@ async function reviewUnreadActivities(
     const rescanned: ScannedActivity[] = []
 
     for (const activity of unread[0]) {
+        // Whatever has been read so far is stored and marked below, so running
+        // out of time here costs nothing but the rest of this budget: the
+        // unread ones stay unread and are first in the queue next time.
+        if (Date.now() > deadline) {
+            console.log(`Out of time after reviewing ${checked.length}; stopping`)
+            break
+        }
+
         const detail = await api.fetchActivity(activity.strava_activity_id)
         if (!isSuccess(detail)) {
             if (detail[1] === 'Rate limited') {

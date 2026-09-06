@@ -93,13 +93,30 @@ export namespace Sites {
             type Nearest = { ffvl_sid: string; name: string; distance_meters: number }
             const [lat, lng] = latLng;
             const result = await client.query<Nearest>(
+                // Restricted to a box before it is sorted, so the GiST index
+                // from add_sites_location_index.sql can answer it.
+                //
+                // `order by distance(...) limit 1` over the whole table is a
+                // sequential scan of every site and a sort, on every call. The
+                // history scan makes two calls per activity across a whole
+                // Strava history, which is thousands in one request: measured at
+                // ~26ms each against a table the size of the FFVL list, that
+                // alone ran FetchAllActivities past its nine minute timeout.
+                //
+                // earth_box is a bounding cube around the point, so it is a
+                // superset of the circle of that radius and cannot hide a site
+                // that is inside the limit. Sites it lets through that are
+                // outside get dropped by the distance check below, exactly as
+                // they were before -- and the `limit 1` is over the same rows
+                // in the same order. Same answer, 0.5ms.
                 `select ffvl_sid,
                         name,
                         distance(lat, lng, $1, $2) as distance_meters
                  from sites
+                 where earth_box(ll_to_earth($1, $2), $3) @> ll_to_earth(lat, lng)
                  order by distance_meters
                  limit 1`,
-                [lat, lng]
+                [lat, lng, limitMeters]
             )
             if (result.rows.length === 0) {
                 return null
