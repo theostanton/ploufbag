@@ -154,12 +154,24 @@ export async function promotePilotFlights(
         // what the pilot came for; DescriptionFormatter omits the wing line
         // rather than publishing a blank one, and the next update fills it in
         // once they say which glider it was.
-        const written = await executeUpdateDescriptionTask({
-            name: "UpdateDescription",
-            flightId: activity.strava_activity_id,
-        })
-        if (!written.success) {
-            console.log(`Flight ${activity.strava_activity_id} stored but description not written: ${written.message}`)
+        //
+        // Wrapped, because the flight above is already stored and a description
+        // is the lesser half of the job. The failure path here was written for a
+        // task that returns `{success: false}`, and said nothing about one that
+        // throws -- so a single unexpected row took down the whole run: the
+        // remaining promotions never happened, the summary never came back, and
+        // the workflow saw a 500 rather than a count. One activity we cannot
+        // describe is one line in the log.
+        try {
+            const written = await executeUpdateDescriptionTask({
+                name: "UpdateDescription",
+                flightId: activity.strava_activity_id,
+            })
+            if (!written.success) {
+                console.log(`Flight ${activity.strava_activity_id} stored but description not written: ${written.message}`)
+            }
+        } catch (error) {
+            console.log(`Flight ${activity.strava_activity_id} stored but describing it threw: ${error}`)
         }
     }
 
@@ -178,12 +190,19 @@ export async function promotePilotFlights(
             const removed = await FlightsCommon.remove(pilotId, activityId)
             if (isSuccess(removed) && removed[0]) {
                 demoted++
-                // And take our text back off the Strava activity.
-                await executeReconcileDescriptionTask({
-                    name: "ReconcileDescription",
-                    pilotId,
-                    activityId,
-                })
+                // And take our text back off the Strava activity. Isolated for
+                // the same reason as the write above: the flight is already
+                // gone, and failing to tidy Strava must not lose the count of
+                // what was removed.
+                try {
+                    await executeReconcileDescriptionTask({
+                        name: "ReconcileDescription",
+                        pilotId,
+                        activityId,
+                    })
+                } catch (error) {
+                    console.log(`Flight ${activityId} removed but cleaning Strava threw: ${error}`)
+                }
             }
         }
     }

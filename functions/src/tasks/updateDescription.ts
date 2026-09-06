@@ -42,20 +42,26 @@ export async function executeUpdateDescriptionTask(
         };
     }
 
+    // Read once, through a null guard, because the column is nullable on
+    // instances whose flights table predates create_flights.sql and every line
+    // below treats it as a string. `flight.description.replace` on a NULL row
+    // is the same crash as the one above, three lines further on.
+    const existing = flight.description ?? '';
+
     // Check if description is already formatted. Recognises legacy domains as well
     // as the current one — activities published before the ploufbag.com migration
     // still carry the old footer, and misreading those as unformatted would send
     // them down the append path below and give them a second stats block.
-    const alreadyFormatted = isFormattedDescription(flight.description);
+    const alreadyFormatted = isFormattedDescription(existing);
 
     // Generate the new description
     let updatedDescription: string;
     if (alreadyFormatted) {
         console.log("Updating existing formatted description");
-        updatedDescription = flight.description.replace(formattedStatsPattern(), newStats);
+        updatedDescription = existing.replace(formattedStatsPattern(), newStats);
     } else {
         console.log("Appending stats to description");
-        updatedDescription = flight.description.replace(`🪂 ${flight.wing}`, newStats);
+        updatedDescription = existing.replace(`🪂 ${flight.wing}`, newStats);
     }
 
     console.log('Updated description:');
@@ -69,7 +75,7 @@ export async function executeUpdateDescriptionTask(
     // pass computes the same text, stops here, and no further event is raised.
     // It also spares the rate limit a write per webhook on activities nobody
     // has touched since we last published them.
-    if (updatedDescription === flight.description) {
+    if (updatedDescription === existing) {
         console.log(`Description for ${task.flightId} is already what we would publish; leaving it alone`);
         return {
             success: true

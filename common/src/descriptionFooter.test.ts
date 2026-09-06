@@ -50,6 +50,15 @@ describe("isFormattedDescription", () => {
     it("does not match a description that merely mentions the domain in prose", () => {
         expect(isFormattedDescription(`Stats are on ${DESCRIPTION_DOMAIN} by the way`)).toBe(false);
     });
+
+    // The type says string; the database says otherwise. flights.description is
+    // nullable on any instance whose table predates create_flights.sql, and one
+    // NULL row threw `Cannot read properties of null (reading 'includes')` out
+    // of a promotion, aborting an entire sync and returning a 500 to the
+    // workflow. Nothing written there is formatted, so the answer is false.
+    it.each([null, undefined, ""])("treats %p as unformatted rather than throwing", (missing) => {
+        expect(isFormattedDescription(missing as string | null | undefined)).toBe(false);
+    });
 });
 
 describe("formattedStatsPattern", () => {
