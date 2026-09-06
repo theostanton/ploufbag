@@ -139,6 +139,57 @@ export function extractWingName(description: string | null | undefined): string 
     return named[0] ?? null
 }
 
+/**
+ * The longest wing name we will store.
+ *
+ * A cap rather than a rejection, and the distinction matters: the backfill pass
+ * selects its work with a SQL predicate and this function decides what to do
+ * with it, so anything this refuses is a row the query keeps offering and the
+ * pass keeps declining -- the treadmill #44 was about. Truncating always makes
+ * progress. Sixty characters is longer than "Ozone Zeno 2 (the small one)" and
+ * far shorter than a paragraph pasted onto the line by accident.
+ */
+const MAX_WING_NAME_LENGTH = 60
+
+/**
+ * A wing name fit to store, or nothing.
+ *
+ * Internal whitespace is collapsed, not merely trimmed, for the same reason
+ * wing_key() folds it: "Zeno 2", "Zeno  2" and "Zeno 2 " are one glider, and the
+ * display name should agree with the key that decides identity rather than
+ * preserving whichever spacing happened to survive a padded stats column. That
+ * padding is not hypothetical -- production carries flights whose wing reads
+ * "ronin      ", captured verbatim from an aggregate line, which the map then
+ * draws in a different colour from "ronin" because the colour is a hash of the
+ * raw string.
+ */
+export function normaliseWingName(raw: string | null | undefined): string | null {
+    if (!raw) {
+        return null
+    }
+    const collapsed = raw.replace(/\s+/g, ' ').trim()
+    if (collapsed.length === 0) {
+        return null
+    }
+    const capped = collapsed.slice(0, MAX_WING_NAME_LENGTH)
+    // Slicing by code unit can cut a surrogate pair in half, and half a pair is
+    // an invalid string that Postgres will reject rather than store. Emoji in a
+    // wing name are rare; a failed write on one is not worth the risk.
+    return /[\uD800-\uDBFF]$/.test(capped) ? capped.slice(0, -1) : capped
+}
+
+/**
+ * The wing a description names, ready to be looked up or created.
+ *
+ * extractWingName reads the line; this decides whether what it read is a name we
+ * are willing to write into the wings table. Callers that are about to create a
+ * row should use this one, so that the name stored, the name published back to
+ * Strava and the key the unique index is built over all agree.
+ */
+export function wingNameFromDescription(description: string | null | undefined): string | null {
+    return normaliseWingName(extractWingName(description))
+}
+
 /** Metres between two points, good enough for "did this end where it started". */
 export function haversineMetres(a: LatLng, b: LatLng): number {
     const R = 6_371_000
