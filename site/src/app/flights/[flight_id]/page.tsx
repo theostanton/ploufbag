@@ -85,7 +85,7 @@ export default async function FlightDetail({params}: {
                 // that one we cannot attribute survives rather than being
                 // discarded. The panel is still about a flight, so it gets a
                 // title either way.
-                title={flight.wing || 'Flight'}
+                title={flight.wing?.trim() || 'Flight'}
                 subtitle={
                     <>
                         {flight.pilot && (

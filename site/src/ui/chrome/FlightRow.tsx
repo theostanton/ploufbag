@@ -35,7 +35,12 @@ export default function FlightRow({ flight }: { flight: FlightSummary }) {
     const isHovered = useIsFlightHovered(id)
     const isCurrent = useIsCurrent(href)
 
-    const wing = flight.wing || 'unknown'
+    // Trimmed, because the pre-wings importer captured the wing from a padded
+    // stats column and stored the padding with it: "ronin      " is the same
+    // glider as "ronin", but it hashes to a different track colour and links to
+    // a per-wing page holding only itself. backfill_wings settles the stored
+    // text; this keeps the rendering right for anything it has not reached.
+    const wing = flight.wing?.trim() || 'unknown'
     const takeoff = flight.takeoff ? formatSiteNameShort(flight.takeoff.name) : 'Unknown'
     const landing = flight.landing ? formatSiteNameShort(flight.landing.name) : 'Unknown'
 

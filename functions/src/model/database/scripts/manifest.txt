@@ -17,9 +17,19 @@
 #     run unattended on merge to main.
 #   * Order matters and is not alphabetical. Say what depends on what.
 #
-# Data backfills are deliberately not here. They are one-off, they are slow, and
-# re-running one on every deploy is a different risk from re-running a
+# Data backfills are mostly not here. They are one-off, they are slow, and
+# re-applying one is a different risk from re-applying a
 # `create table if not exists`. dev/db.sh keeps its own short list of those.
+#
+# The exception is a backfill the product does not work without, and the reason
+# the rule now has one: backfill_wings was kept out on that principle and so was
+# never applied to production at all. `wings` was empty there and full in every
+# test container, so wing resolution had nothing to resolve against and every
+# flight naming a glider imported unattributed -- "Unknown wing" on the site and
+# no 🪂 line in the stats we published. A backfill that must have run for the
+# code to be correct is not one-off work; it is part of the schema the deploy is
+# responsible for, and leaving it to a hand that never came is the same failure
+# create_activities.sql caused above.
 
 create_flights
 create_pilots
@@ -69,3 +79,10 @@ backfill_null_flight_descriptions
 # types. It has already been applied, it is not idempotent, and running it on
 # every deploy would erase the monitoring history each time -- including the
 # webhook failures that are the only record of why a flight went missing.
+
+# After create_wings, and last, because it reads flights and wings together.
+# Turns six years of free text in flights.wing into rows, links every flight to
+# the row it produced, and settles each glider on one spelling. Guarded
+# throughout; see the header for why it is here rather than on the excluded
+# list with the destructive one-off.
+backfill_wings

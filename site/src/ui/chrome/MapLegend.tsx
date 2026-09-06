@@ -36,7 +36,10 @@ function buildEntries(flights: FlightSummary[]): Entry[] {
     const byKey = new Map<string, Entry>()
 
     for (const flight of flights) {
-        const wing = flight.wing || 'unknown'
+        // Trimmed before it becomes a grouping key: the pre-wings importer
+        // stored "ronin      " alongside "ronin", and untrimmed they are two
+        // legend rows for one glider.
+        const wing = flight.wing?.trim() || 'unknown'
         const pilotId = String(flight.pilot_id)
         const key = `${pilotId}:${wing}`
         const existing = byKey.get(key)
