@@ -118,8 +118,14 @@ jobs:
                      + (if (.republished // 0) > 0
                         then ", \(.republished) descriptions published"
                         else "" end)
+                     + (if (.remaining // 0) > 0
+                        then " (\(.remaining) still bare)"
+                        else "" end)
                      + (if ((.undescribed // 0) + (.unpublishable // 0)) > 0
                         then " — ⚠️ \((.undescribed // 0) + (.unpublishable // 0)) got no Strava description"
+                        else "" end)
+                     + (if (.nothingToPublish // 0) > 0
+                        then " — ⚠️ \(.nothingToPublish) had nothing to publish and will come back next round"
                         else "" end)
                      + (if .timedOut then " (stopped on its time budget)" else "" end)
                 end

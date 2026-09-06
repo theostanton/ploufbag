@@ -258,8 +258,10 @@ export namespace Flights {
      * counts: an activity carrying a legacy footer has been described, and
      * rewriting it is the update path's job, not this one's.
      *
-     * Oldest first so a long backlog converges instead of re-reading the same
-     * recent flights each run.
+     * Newest first. Either order converges, and the flights a pilot is waiting
+     * on are the ones they flew this week -- a backfill that starts in 2019 and
+     * works forwards spends its first several runs on activities nobody is
+     * looking at while the ones that prompted the whole exercise stay bare.
      */
     export async function getUndescribed(
         pilotId: StravaAthleteId,
@@ -272,13 +274,41 @@ export namespace Flights {
                      from flights
                      where pilot_id = $1::integer
                        and (description is null or description not like all ($2))
-                     order by start_date
+                     order by start_date desc
                      limit ${limit}`,
                     [pilotId, ALL_DESCRIPTION_DOMAINS.map(domain => `%🌐 ${domain}%`)]
                 )
                 return success(result.rows.map(row => row.reify().strava_activity_id))
             } catch (error) {
                 return failure(`Flights.getUndescribed failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * How many flights carry none of our stats. The whole number, not a page of
+     * them.
+     *
+     * `getUndescribed(pilot, 40).length` was standing in for this and cannot
+     * exceed the limit it was given, so a backlog of four hundred and a backlog
+     * of forty both reported forty. That is not a cosmetic difference: it is the
+     * number the caller loops on, and with it pinned at the batch size there is
+     * no way to tell a pass that is working through the list from one that is
+     * failing to and re-reading the same page every round.
+     */
+    export async function countUndescribed(pilotId: StravaAthleteId): Promise<Either<number>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ count: number }>(
+                    `select count(*)::integer as count
+                     from flights
+                     where pilot_id = $1::integer
+                       and (description is null or description not like all ($2))`,
+                    [pilotId, ALL_DESCRIPTION_DOMAINS.map(domain => `%🌐 ${domain}%`)]
+                )
+                return success(result.rows[0].reify().count)
+            } catch (error) {
+                return failure(`Flights.countUndescribed failed: ${error}`)
             }
         });
     }

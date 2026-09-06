@@ -38,6 +38,7 @@ export async function executeUpdateDescriptionTask(
         console.log("Skipping because description is null");
         return {
             success: true,
+            summary: { published: false, reason: 'nothing to say' },
         };
     }
 
@@ -69,7 +70,8 @@ export async function executeUpdateDescriptionTask(
     if (updatedDescription === existing) {
         console.log(`Description for ${task.flightId} is already what we would publish; leaving it alone`);
         return {
-            success: true
+            success: true,
+            summary: { published: false, reason: 'unchanged' },
         };
     }
 
@@ -105,7 +107,15 @@ export async function executeUpdateDescriptionTask(
 
     console.log(`Successfully updated description for flight ${task.flightId}`);
     return {
-        success: true
+        success: true,
+        // The one return that means a description reached Strava.
+        //
+        // Every branch above also reports success, correctly -- there was
+        // nothing to do -- and a caller counting successes therefore counts
+        // those too. The republish pass did: it reported forty published in
+        // each of two rounds with no way to tell whether that was forty writes
+        // or the same forty flights declining to change twice.
+        summary: { published: true },
     };
 }
 
