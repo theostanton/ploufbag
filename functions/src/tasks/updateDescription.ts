@@ -4,8 +4,7 @@ import {
     TaskResult,
     StravaActivityId,
     FlightRow,
-    isFormattedDescription,
-    formattedStatsPattern
+    withStatsBlock
 } from "@ploufbag/common";
 import {Pilots} from '@/database/Pilots';
 import {Flights} from '@/database/Flights';
@@ -44,25 +43,17 @@ export async function executeUpdateDescriptionTask(
 
     // Read once, through a null guard, because the column is nullable on
     // instances whose flights table predates create_flights.sql and every line
-    // below treats it as a string. `flight.description.replace` on a NULL row
-    // is the same crash as the one above, three lines further on.
+    // below treats it as a string.
     const existing = flight.description ?? '';
 
-    // Check if description is already formatted. Recognises legacy domains as well
-    // as the current one — activities published before the ploufbag.com migration
-    // still carry the old footer, and misreading those as unformatted would send
-    // them down the append path below and give them a second stats block.
-    const alreadyFormatted = isFormattedDescription(existing);
-
-    // Generate the new description
-    let updatedDescription: string;
-    if (alreadyFormatted) {
-        console.log("Updating existing formatted description");
-        updatedDescription = existing.replace(formattedStatsPattern(), newStats);
-    } else {
-        console.log("Appending stats to description");
-        updatedDescription = existing.replace(`🪂 ${flight.wing}`, newStats);
-    }
+    // Where the block goes: over one of ours if the activity already carries
+    // one, over the pilot's own 🪂 line if it does not, and at the end if there
+    // is neither. That last case is the one this used to drop on the floor --
+    // it replaced the literal `🪂 ${flight.wing}`, so a flight with no wing, or
+    // one naming a glider we do not have a row for, produced no change, matched
+    // the `=== existing` check below, and reported success having published
+    // nothing. See withStatsBlock.
+    const updatedDescription = withStatsBlock(existing, newStats);
 
     console.log('Updated description:');
     console.log(updatedDescription);

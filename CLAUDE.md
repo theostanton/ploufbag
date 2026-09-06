@@ -154,6 +154,26 @@ Test database operations thoroughly as they involve complex geospatial queries f
 - All work must be done on feature branches
 - Delete feature branches after PR merge
 
+**After a PR merges, start the next piece of work from a fresh base.** PRs here
+are squash-merged, so the branch's own commits never become ancestors of `main`:
+carrying on committing to the same local branch puts the merged changes on both
+sides under different identities, and every one of them comes back as a conflict.
+It has happened twice.
+
+Re-branch, and check before pushing rather than finding out on the PR:
+
+```bash
+git fetch origin main
+git checkout -B <branch> origin/main     # after a merge, always
+...
+git merge-base --is-ancestor origin/main HEAD \
+  || git rebase --onto origin/main <last-merged-commit>
+```
+
+That check is the whole guardrail: if `origin/main` is not an ancestor of `HEAD`,
+the PR will conflict, and rebasing the unmerged commits onto `origin/main` is the
+fix. Run it before every push.
+
 ### 3. Pre-Commit Requirements
 Before EVERY commit, Claude Code must:
 1. Run full test suite for affected packages:

@@ -33,6 +33,17 @@ export type PromotionSummary = {
     promoted: number
     demoted: number
     remaining: number
+    /**
+     * Of those promoted, how many got their stats onto Strava.
+     *
+     * Reported because the alternative was believing it had happened. A run
+     * that imported twenty-six flights and published none of them said
+     * `+26 imported` and nothing else -- the failures were a log line in a
+     * service nobody reads. A promotion that the pilot cannot see on Strava is
+     * half a promotion, and the summary should say so.
+     */
+    described: number
+    undescribed: number
     rateLimited: boolean
     /** Stopped because the request ran out of time, not because it ran out of work. */
     timedOut: boolean
@@ -76,6 +87,8 @@ export async function promotePilotFlights(
     const wings = isSuccess(wingsResult) ? wingsResult[0] : []
 
     let promoted = 0
+    let described = 0
+    let undescribed = 0
     let rateLimited = false
     let timedOut = false
 
@@ -167,10 +180,14 @@ export async function promotePilotFlights(
                 name: "UpdateDescription",
                 flightId: activity.strava_activity_id,
             })
-            if (!written.success) {
+            if (written.success) {
+                described++
+            } else {
+                undescribed++
                 console.log(`Flight ${activity.strava_activity_id} stored but description not written: ${written.message}`)
             }
         } catch (error) {
+            undescribed++
             console.log(`Flight ${activity.strava_activity_id} stored but describing it threw: ${error}`)
         }
     }
@@ -210,7 +227,8 @@ export async function promotePilotFlights(
     const left = await Activities.getPromotable(pilotId, 1)
     const remaining = isSuccess(left) ? left[0].length : 0
 
-    console.log(`Promotion for pilot ${pilotId}: +${promoted} flights, -${demoted}, more=${remaining > 0}`)
+    console.log(`Promotion for pilot ${pilotId}: +${promoted} flights ` +
+        `(${described} described, ${undescribed} not), -${demoted}, more=${remaining > 0}`)
 
-    return { summary: { promoted, demoted, remaining, rateLimited, timedOut } }
+    return { summary: { promoted, described, undescribed, demoted, remaining, rateLimited, timedOut } }
 }

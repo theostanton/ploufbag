@@ -3,6 +3,7 @@ import { FetchAllActivitiesTask, TaskResult } from '@ploufbag/common';
 import { Pilots } from '@/database/Pilots';
 import { StravaApi } from '@/stravaApi';
 import { scanPilotActivities } from './scanActivities';
+import { republishMissingDescriptions } from './republishDescriptions';
 import { promotePilotFlights } from './promoteFlights';
 
 /**
@@ -79,6 +80,10 @@ export async function executeFetchAllActivitiesTask(
                 reviewed: scan.summary?.reviewed ?? 0,
                 reconsidered: scan.summary?.reconsidered ?? 0,
                 promoted: 0,
+                described: 0,
+                undescribed: 0,
+                republished: 0,
+                unpublishable: 0,
                 demoted: 0,
                 // Nothing was promoted, so nothing is left to come back for.
                 remaining: 0,
@@ -108,6 +113,10 @@ export async function executeFetchAllActivitiesTask(
                 reviewed: scan.summary?.reviewed ?? 0,
                 reconsidered: scan.summary?.reconsidered ?? 0,
                 promoted: 0,
+                described: 0,
+                undescribed: 0,
+                republished: 0,
+                unpublishable: 0,
                 demoted: 0,
                 remaining: isSuccess(left) ? left[0].length : 0,
                 rateLimited: false,
@@ -130,9 +139,26 @@ export async function executeFetchAllActivitiesTask(
         console.log(`FetchAllActivities for ${task.pilotId} paused on Strava's rate limit`);
     }
 
+    // Flights that carry no stats of ours, whenever they were imported.
+    //
+    // Promotion writes a description once and never revisits it, so a flight
+    // created while the writer was broken is bare for ever -- and the twenty-six
+    // imported by the run that published nothing were exactly that: already
+    // promoted, so the pass that describes flights had no work left to find.
+    // Sharing the deadline means this yields to the clock like everything else.
+    const republishing = await republishMissingDescriptions(pilot.pilot_id, undefined, deadline);
+    if (republishing.error) {
+        // Not a failure of the task: the flights are imported either way, and
+        // saying so beats discarding a summary that reports real work done.
+        console.log(`Republishing descriptions failed: ${republishing.error}`);
+    }
+    const republish = republishing.summary
+        ?? { republished: 0, failed: 0, remaining: 0, timedOut: false };
+
     console.log(`FetchAllActivities for ${task.pilotId}: ` +
         `scanned ${scan.summary?.scanned}, promoted ${summary.promoted}, ` +
-        `demoted ${summary.demoted}, more to do: ${summary.remaining > 0}`);
+        `demoted ${summary.demoted}, republished ${republish.republished}, ` +
+        `more to do: ${summary.remaining + republish.remaining > 0}`);
 
     // Returned rather than only logged, so a caller can see what happened and
     // decide whether to run it again. `remaining` is the one that matters:
@@ -149,9 +175,13 @@ export async function executeFetchAllActivitiesTask(
             reconsidered: scan.summary?.reconsidered ?? 0,
             promoted: summary.promoted,
             demoted: summary.demoted,
-            remaining: summary.remaining,
+            described: summary.described,
+            undescribed: summary.undescribed,
+            republished: republish.republished,
+            unpublishable: republish.failed,
+            remaining: summary.remaining + republish.remaining,
             rateLimited: summary.rateLimited,
-            timedOut: summary.timedOut,
+            timedOut: summary.timedOut || republish.timedOut,
         },
     };
 }

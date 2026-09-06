@@ -1,5 +1,6 @@
 import { withPooledClient, Client } from '../database';
 import { Either, failure, success, FlightRow, StravaActivityId, StravaAthleteId, DescriptionPreference } from '../model';
+import { ALL_DESCRIPTION_DOMAINS } from '../descriptionFooter';
 
 export namespace Flights {
     export async function get(flightId: StravaActivityId): Promise<Either<FlightRow>> {
@@ -237,6 +238,51 @@ export namespace Flights {
      * one thing worth quietly nudging about, because it is a question only the
      * pilot can answer and it takes one tap.
      */
+    /**
+     * Flights carrying none of our stats, oldest first.
+     *
+     * Publishing is tied to promotion: the description is written once, in the
+     * same loop that creates the flight, and nothing revisits it. So a flight
+     * imported while the writer was broken stays bare for ever -- there is no
+     * state that says "this one still needs saying", only the absence of a
+     * footer on Strava, which is what this asks about.
+     *
+     * That is not hypothetical. Twenty-six flights were imported by a sync whose
+     * description writer silently published nothing, and by the time it was
+     * fixed they were already promoted, so the pass that would have described
+     * them had no work left to find.
+     *
+     * Matched on the stored description rather than by asking Strava, because
+     * the row is what we wrote and a request each would cost the rate limit the
+     * republishing itself needs. Every domain we have ever published under
+     * counts: an activity carrying a legacy footer has been described, and
+     * rewriting it is the update path's job, not this one's.
+     *
+     * Oldest first so a long backlog converges instead of re-reading the same
+     * recent flights each run.
+     */
+    export async function getUndescribed(
+        pilotId: StravaAthleteId,
+        limit: number = 40
+    ): Promise<Either<StravaActivityId[]>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ strava_activity_id: StravaActivityId }>(
+                    `select strava_activity_id
+                     from flights
+                     where pilot_id = $1::integer
+                       and (description is null or description not like all ($2))
+                     order by start_date
+                     limit ${limit}`,
+                    [pilotId, ALL_DESCRIPTION_DOMAINS.map(domain => `%🌐 ${domain}%`)]
+                )
+                return success(result.rows.map(row => row.reify().strava_activity_id))
+            } catch (error) {
+                return failure(`Flights.getUndescribed failed: ${error}`)
+            }
+        });
+    }
+
     export async function countUnattributed(pilotId: StravaAthleteId): Promise<Either<number>> {
         return withPooledClient(async (database: Client) => {
             try {
