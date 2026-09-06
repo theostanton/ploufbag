@@ -72,10 +72,23 @@ export namespace Flights {
                 for (const flight of flights) {
                     console.log(`Inserting flight strava_activity_id=${flight.strava_activity_id}`)
                     try {
+                        // wing_id alongside wing, and it has to be both.
+                        //
+                        // This wrote the text and dropped the link. Promotion
+                        // has always computed `wing_id` and put it on the row it
+                        // passes here, and every one of them was discarded on
+                        // the way to the database -- so every flight imported
+                        // since wings became a table has a name on it and points
+                        // at nothing. The site still reads the text, which is
+                        // why nobody noticed; what was silently empty is the
+                        // flight count beside each wing on the management screen
+                        // and the wing's own colour on the map, both of which
+                        // are joins through this column.
                         await database.query(`
                                     insert into flights(pilot_id,
                                                         strava_activity_id,
                                                         wing,
+                                                        wing_id,
                                                         duration_sec,
                                                         distance_meters,
                                                         start_date,
@@ -83,21 +96,23 @@ export namespace Flights {
                                                         polyline,
                                                         landing_id,
                                                         takeoff_id)
-                                    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                                    values ($1, $2, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11)
                                     on conflict(strava_activity_id)
-                                        do update set wing=$11,
-                                                      duration_sec=$12,
-                                                      distance_meters=$13,
-                                                      start_date=$14,
-                                                      description=$15,
-                                                      polyline=$16,
-                                                      landing_id=$17,
-                                                      takeoff_id=$18;
+                                        do update set wing=$12,
+                                                      wing_id=$13::uuid,
+                                                      duration_sec=$14,
+                                                      distance_meters=$15,
+                                                      start_date=$16,
+                                                      description=$17,
+                                                      polyline=$18,
+                                                      landing_id=$19,
+                                                      takeoff_id=$20;
                             `,
                             [
                                 flight.pilot_id,
                                 flight.strava_activity_id,
                                 flight.wing,
+                                flight.wing_id ?? null,
                                 flight.duration_sec,
                                 flight.distance_meters,
                                 flight.start_date,
@@ -107,6 +122,7 @@ export namespace Flights {
                                 flight.takeoff_id ?? null,
 
                                 flight.wing,
+                                flight.wing_id ?? null,
                                 flight.duration_sec,
                                 flight.distance_meters,
                                 flight.start_date,
@@ -309,6 +325,91 @@ export namespace Flights {
                 return success(result.rows[0].reify().count)
             } catch (error) {
                 return failure(`Flights.countUndescribed failed: ${error}`)
+            }
+        });
+    }
+
+    /**
+     * A flight whose description names a glider we never attributed it to.
+     *
+     * The two callers below share this predicate rather than each writing their
+     * own, because one of them is a work list and the other is the `remaining`
+     * the sync workflow loops on: a page and a count that disagree about what
+     * counts as work is precisely how a pass reports a backlog it is not
+     * actually working through.
+     *
+     * `wing is null`, not `wing_id is null`. A flight carrying free text from
+     * the pre-wings importer has a name on it and shows that name on the site;
+     * it is missing a *row*, which is what backfill_wings.sql exists to give it.
+     * The flights this is about have nothing at all, and it is the site's
+     * "Unknown wing" that says so.
+     *
+     * The regex is deliberately a little wider than extractWingName: a 🪂 line
+     * with any non-space character on it. It has to be wide enough that nothing
+     * this returns gets declined by the code -- a row the query keeps offering
+     * and the pass keeps skipping never leaves the count, and `remaining` then
+     * reports a backlog that cannot go down. normaliseWingName truncates rather
+     * than rejects for the same reason.
+     */
+    const NAMES_A_WING = `coalesce(description, '') ~ '(^|\\n)🪂 [^\\n]*[^ \\n]'`
+
+    /**
+     * Flights that could be attributed from what the pilot already wrote,
+     * newest first.
+     *
+     * Promotion resolves the wing once, when it creates the flight, and nothing
+     * revisits it -- so every flight imported before wings could be created from
+     * a description is unattributed for ever, however plainly its own text says
+     * "🪂 Susi". Seventeen of them accumulated on one account, which is the
+     * seventeen most recent flights that account has.
+     *
+     * Newest first for the same reason the republish pass is: the flights a
+     * pilot is looking at are the ones they flew this week, and a repair that
+     * starts in 2019 spends its first rounds on activities nobody has open.
+     */
+    export async function getUnattributedNamingAWing(
+        pilotId: StravaAthleteId,
+        limit: number = 40
+    ): Promise<Either<Array<{ strava_activity_id: StravaActivityId; description: string }>>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{
+                    strava_activity_id: StravaActivityId
+                    description: string
+                }>(
+                    `select strava_activity_id, coalesce(description, '') as description
+                     from flights
+                     where pilot_id = $1::integer
+                       and wing is null
+                       and ${NAMES_A_WING}
+                     order by start_date desc
+                     limit ${limit}`,
+                    [pilotId]
+                )
+                return success(result.rows.map(row => row.reify()))
+            } catch (error) {
+                return failure(`Flights.getUnattributedNamingAWing failed: ${error}`)
+            }
+        });
+    }
+
+    /** How many are left, whole -- not a page of them. See countUndescribed. */
+    export async function countUnattributedNamingAWing(
+        pilotId: StravaAthleteId
+    ): Promise<Either<number>> {
+        return withPooledClient(async (database: Client) => {
+            try {
+                const result = await database.query<{ n: number }>(
+                    `select count(1)::int as n
+                     from flights
+                     where pilot_id = $1::integer
+                       and wing is null
+                       and ${NAMES_A_WING}`,
+                    [pilotId]
+                )
+                return success(result.rows[0].reify().n)
+            } catch (error) {
+                return failure(`Flights.countUnattributedNamingAWing failed: ${error}`)
             }
         });
     }

@@ -8,6 +8,7 @@ import {
     Wings,
     extractWingName,
     isSuccess,
+    wingNameFromDescription,
 } from "@ploufbag/common";
 import { StravaApi } from "@/stravaApi";
 import { executeUpdateDescriptionTask } from "./updateDescription";
@@ -33,6 +34,15 @@ export type PromotionSummary = {
     promoted: number
     demoted: number
     remaining: number
+    /**
+     * Gliders this run learned about from a description.
+     *
+     * Reported for the same reason `described` is: it is a write nobody asked
+     * for, onto a table the pilot owns and edits, and a summary that stayed
+     * silent about it would leave "where did these eight wings come from?"
+     * answerable only from the logs.
+     */
+    wingsCreated: number
     /**
      * Of those promoted, how many got their stats onto Strava.
      *
@@ -87,6 +97,7 @@ export async function promotePilotFlights(
     const wings = isSuccess(wingsResult) ? wingsResult[0] : []
 
     let promoted = 0
+    let wingsCreated = 0
     let described = 0
     let undescribed = 0
     let rateLimited = false
@@ -124,6 +135,36 @@ export async function promotePilotFlights(
         // date. Failing all three, the flight is created with no wing -- an
         // unattributed flight is a flight, where before it was one thrown away.
         let wing = wingFromDescription(stravaActivity.description ?? '', wings)
+
+        // A named glider we have no row for. This used to be the end of it: the
+        // name was read correctly, found no match, and was dropped -- so a pilot
+        // who bought a wing and wrote "🪂 Susi" got "Unknown wing" on the site
+        // and a stats block with no 🪂 line at all, for every flight, for ever.
+        //
+        // The activity is already believed to be a flight to be in this loop at
+        // all, which is the limit on what can create a wing here: the guard is
+        // on which activities may name one, not on what the pilot is allowed to
+        // call their own glider.
+        if (!wing) {
+            const named = wingNameFromDescription(stravaActivity.description)
+            if (named) {
+                const ensured = await Wings.ensureNamed(pilotId, named)
+                if (isSuccess(ensured)) {
+                    wing = ensured[0].wing
+                    if (ensured[0].created) {
+                        wingsCreated++
+                        console.log(`Created wing "${wing.name}" for pilot ${pilotId}`)
+                    }
+                    // So the rest of this batch matches it without another
+                    // round trip -- a pilot's newly-found flights are usually
+                    // all on the same new glider.
+                    wings.push(wing)
+                } else {
+                    console.log(`Could not settle wing "${named}" for ${activity.strava_activity_id}: ${ensured[1]}`)
+                }
+            }
+        }
+
         if (!wing) {
             const resolved = await Wings.resolveForDate(pilotId, activity.start_date)
             wing = isSuccess(resolved) ? resolved[0] : null
@@ -228,7 +269,8 @@ export async function promotePilotFlights(
     const remaining = isSuccess(left) ? left[0].length : 0
 
     console.log(`Promotion for pilot ${pilotId}: +${promoted} flights ` +
-        `(${described} described, ${undescribed} not), -${demoted}, more=${remaining > 0}`)
+        `(${described} described, ${undescribed} not, ${wingsCreated} new wings), ` +
+        `-${demoted}, more=${remaining > 0}`)
 
-    return { summary: { promoted, described, undescribed, demoted, remaining, rateLimited, timedOut } }
+    return { summary: { promoted, wingsCreated, described, undescribed, demoted, remaining, rateLimited, timedOut } }
 }
