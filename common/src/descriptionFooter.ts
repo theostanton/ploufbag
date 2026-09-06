@@ -147,6 +147,77 @@ export function isFormattedDescription(description: string | null | undefined): 
  * description writer corrupted live activities; the same care applies here, and
  * the same rule: if there is no block to remove, change nothing at all.
  */
+/**
+ * A line the pilot wrote to name their wing: `🪂 Ronin12`.
+ *
+ * Built rather than written as a literal, the same way formattedStatsPattern is:
+ * the site typechecks this package's source against a target that rejects the
+ * `u` flag on a regex literal, and a bare surrogate pair in a pattern is the
+ * kind of thing that works until it does not.
+ */
+const WING_LINE = new RegExp('^\\s*🪂', 'u');
+
+/**
+ * A description with our stats block in it, wherever it belongs.
+ *
+ * There are three shapes a description arrives in and only two of them were
+ * handled. It used to be, in effect:
+ *
+ *     description.replace(`🪂 ${flight.wing}`, stats)
+ *
+ * which publishes nothing at all when that exact text is not present -- and
+ * then compares the result to the original, finds it unchanged, and reports
+ * success. Two ordinary situations hit it:
+ *
+ *   * The flight has no wing. `flights.wing` is nullable, and promoteFlights
+ *     deliberately imports an unattributed flight rather than discarding it --
+ *     its own comment says the stats get written anyway. They did not: the
+ *     replace looked for the literal text `🪂 null`.
+ *   * The wing named in the description is not one we know. A pilot who buys a
+ *     glider and types `🪂 Ronin12` before adding it to their wings has a
+ *     flight whose wing resolves to nothing, for exactly the same outcome.
+ *
+ * Both published nothing and said nothing, which is how a backfill of
+ * twenty-six flights left twenty-six Strava activities untouched and still
+ * reported success.
+ *
+ * So: replace a block of ours if there is one, replace the pilot's own 🪂 line
+ * if there is one -- matched as a whole line rather than as a substring, so
+ * that a wing called `Ronin` no longer chews the front off `🪂 Ronin12` -- and
+ * otherwise put the stats at the end, which is what "append" claimed to mean.
+ *
+ * Idempotent by construction: whatever branch runs, the result carries a footer,
+ * so the next call takes the first branch and replaces in place.
+ */
+export function withStatsBlock(
+    description: string | null | undefined,
+    stats: string
+): string {
+    const existing = description ?? '';
+
+    if (isFormattedDescription(existing)) {
+        return existing.replace(formattedStatsPattern(), stats);
+    }
+
+    // The pilot's 🪂 line is theirs, and we only take it over when we are
+    // putting a better one back: our block opens with its own 🪂 line whenever
+    // the flight has a wing. When it does not -- an unattributed flight, or one
+    // naming a glider we have no row for -- replacing would quietly delete the
+    // one thing the pilot did tell us about it. Then the stats go underneath and
+    // the annotation stays.
+    const statsNamesTheWing = stats.split('\n').some(line => WING_LINE.test(line));
+    if (statsNamesTheWing) {
+        const lines = existing.split('\n');
+        const wingLine = lines.findIndex(line => WING_LINE.test(line));
+        if (wingLine >= 0) {
+            lines[wingLine] = stats;
+            return lines.join('\n');
+        }
+    }
+
+    return existing.trim().length === 0 ? stats : `${existing}\n${stats}`;
+}
+
 export function withoutStatsBlock(description: string): string {
     if (!isFormattedDescription(description)) {
         return description

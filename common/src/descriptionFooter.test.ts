@@ -6,6 +6,7 @@ import {
     flightUrl,
     formattedStatsPattern,
     isFormattedDescription,
+    withStatsBlock,
     LEGACY_DESCRIPTION_DOMAINS,
     SLUG_PATTERN,
     withoutStatsBlock,
@@ -334,3 +335,61 @@ describe('withoutStatsBlock', () => {
         expect(withoutStatsBlock(once)).toBe(once)
     })
 })
+
+describe("withStatsBlock", () => {
+    const STATS = [
+        "↗️ Planpraz",
+        "🪂 Ronin12  1 flight / 4min",
+        `🌐 ${DESCRIPTION_DOMAIN}/sis4g`,
+    ].join("\n");
+
+    it("replaces a block we already published, rather than adding a second", () => {
+        const updated = withStatsBlock(describedFlight(DESCRIPTION_DOMAIN), STATS);
+
+        expect(updated).toBe(`Lovely evening at Saint-Hilaire\n${STATS}`);
+        // Idempotent: running it again lands in the same branch, same result.
+        expect(withStatsBlock(updated, STATS)).toBe(updated);
+    });
+
+    it("replaces the pilot's own wing line, keeping the prose around it", () => {
+        expect(withStatsBlock("🪂 Ronin12\nNew wing day!", STATS))
+            .toBe(`${STATS}\nNew wing day!`);
+    });
+
+    /**
+     * Only when we are putting a wing line back. An unattributed flight gets a
+     * block with no 🪂 line in it, and taking the pilot's line over with that
+     * would delete the one thing they told us about the glider.
+     */
+    it("leaves the pilot's wing line alone when our block names no wing", () => {
+        const wingless = ["2026        1 flight / 4min", `🌐 ${DESCRIPTION_DOMAIN}/sis4g`].join("\n");
+
+        expect(withStatsBlock("🪂 Ronin12\nNew wing day!", wingless))
+            .toBe(`🪂 Ronin12\nNew wing day!\n${wingless}`);
+    });
+
+    /**
+     * The one that cost twenty-six flights. `flights.wing` is nullable, and the
+     * old code replaced the literal `🪂 ${flight.wing}` -- so an unattributed
+     * flight looked for the text "🪂 null", changed nothing, compared equal to
+     * the original, and reported success without publishing anything.
+     */
+    it("appends when there is no wing line to replace", () => {
+        expect(withStatsBlock("Cracking day out", STATS)).toBe(`Cracking day out\n${STATS}`);
+    });
+
+    it("is the whole description when there was none", () => {
+        for (const empty of ["", "   ", null, undefined]) {
+            expect(withStatsBlock(empty, STATS)).toBe(STATS);
+        }
+    });
+
+    /**
+     * A pilot types the glider they actually flew; the wings table holds
+     * "Ronin". Matching `🪂 Ronin` as a substring bit the front off `🪂 Ronin12`
+     * and published `<stats>12`. The line is matched whole.
+     */
+    it("replaces a wing line naming a glider we do not have a row for", () => {
+        expect(withStatsBlock("🪂 Ronin12", STATS)).toBe(STATS);
+    });
+});

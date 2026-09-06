@@ -115,6 +115,9 @@ jobs:
                 else "round \($round): scanned \(.scanned), \(.flight) flights, \(.unsure) unsure"
                      + (if .reviewed > 0 then ", reviewed \(.reviewed) (\(.reconsidered) changed)" else "" end)
                      + ", +\(.promoted) imported, -\(.demoted) removed, \(.remaining) left"
+                     + (if (.undescribed // 0) > 0
+                        then " — ⚠️ \(.undescribed) of \(.promoted) got no Strava description"
+                        else "" end)
                      + (if .timedOut then " (stopped on its time budget)" else "" end)
                 end
             ' <<<"$payload" | tee -a "$GITHUB_STEP_SUMMARY"
