@@ -118,8 +118,19 @@ export function formattedStatsPattern(): RegExp {
 /**
  * True when this description already carries a stats block we wrote, under the
  * current domain or any legacy one.
+ *
+ * Takes a nullable description because the database hands one over. The column
+ * is declared `not null` in create_flights.sql, but that file has only ever run
+ * as `create table if not exists`, so the constraint never reached an instance
+ * whose flights table predates it -- and one NULL row there was enough to throw
+ * `Cannot read properties of null (reading 'includes')` out of a promotion,
+ * abort the whole sync, and return a 500 to the workflow. A missing description
+ * is not an error; it is an activity the pilot never typed anything on.
  */
-export function isFormattedDescription(description: string): boolean {
+export function isFormattedDescription(description: string | null | undefined): boolean {
+    if (!description) {
+        return false;
+    }
     return ALL_DESCRIPTION_DOMAINS.some(domain => description.includes(`🌐 ${domain}`));
 }
 

@@ -58,6 +58,11 @@ add_description_checked_at_to_activities
 # being a sequential scan. The history scan asks it twice per activity.
 add_sites_location_index
 
+# After create_flights. Gives description the `not null` the file has always
+# declared but never applied to instances that predate it, backfilling the rows
+# that are null first. A single null there aborted a whole sync.
+backfill_null_flight_descriptions
+
 # Deliberately absent: migrate_monitoring_tables_to_varchar.
 #
 # It drops webhook_events and task_executions to rebuild them without enum
