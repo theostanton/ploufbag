@@ -3,6 +3,7 @@ import {
     CONFIDENT_SCORE,
     classifyActivity,
     effectiveVerdict,
+    extractWingName,
     haversineMetres,
     type ClassifierInput,
 } from './classify'
@@ -394,5 +395,27 @@ describe('recordings that contain the ground as well as the flight', () => {
         expect(result.verdict).toBe('flight')
         expect(result.reasons.some(reason => reason.code === 'climbing')).toBe(false)
         expect(result.reasons.some(reason => reason.code === 'slow')).toBe(false)
+    })
+})
+
+describe('extractWingName', () => {
+    it('reads the wing the pilot wrote', () => {
+        expect(extractWingName('🪂 Ronin12')).toBe('Ronin12')
+    })
+
+    it('steps over the statistics we publish on the same line', () => {
+        expect(extractWingName('🪂 Ronin12    15 flights / 18h 45min')).toBe('Ronin12')
+    })
+
+    it('reads a description with Windows line endings', () => {
+        expect(extractWingName('🪂 Ronin12\r\nNew wing day!')).toBe('Ronin12')
+    })
+
+    it('reads a 🪂 line with leading whitespace', () => {
+        expect(extractWingName('Good day\n  🪂 Ronin12')).toBe('Ronin12')
+    })
+
+    it('ignores a wing mentioned mid-sentence', () => {
+        expect(extractWingName('Flew my Ronin12')).toBeNull()
     })
 })

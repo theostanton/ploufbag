@@ -129,9 +129,11 @@ export function extractWingName(description: string | null | undefined): string 
     if (!description) {
         return null
     }
+    // Split on CRLF as well as LF, and allow leading whitespace as WING_LINE
+    // does: either one used to leave the line unread, and the flight with it.
     const named = description
-        .split('\n')
-        .map(line => line.match(/^🪂 (.+?)(?:\s{2,}\d|\s+\d+ flights?|$)/))
+        .split(/\r?\n/)
+        .map(line => line.trimStart().match(/^🪂 (.+?)(?:\s{2,}\d|\s+\d+ flights?|$)/))
         .filter(match => match != null)
         .map(match => match!![1].trim())
         .filter(name => name.length > 0)

@@ -324,6 +324,12 @@ async function processActivityEvent(
             console.log(`Triggered UpdateDescription task for activity ${payload.object_id}`);
         }
 
+        try {
+            await scheduleRecheck(payload, activityId);
+        } catch (error) {
+            console.log(`Could not schedule a re-check of activity ${activityId}:`, error);
+        }
+
         return taskExecutionId;
 
     } catch (error) {
