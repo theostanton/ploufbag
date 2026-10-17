@@ -324,7 +324,7 @@ async function reviewUnreadActivities(
     }
 
     if (rescanned.length > 0) {
-        const upserted = await Activities.upsertScanned(rescanned)
+        const upserted = await Activities.upsertScanned(rescanned, {readDescription: true})
         if (!isSuccess(upserted)) {
             console.log(`Activities.upsertScanned failed for reviewed activities: ${upserted[1]}`)
             return

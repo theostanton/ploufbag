@@ -110,7 +110,7 @@ export async function executeUpdateSingleActivityTask(
         reasons: classification.reasons,
         takeoff_id: takeoff?.ffvl_sid ?? null,
         landing_id: landing?.ffvl_sid ?? null,
-    }])
+    }], {readDescription: true})
     if (!isSuccess(recorded)) {
         return { success: false, message: `Could not record activity: ${recorded[1]}` };
     }

@@ -124,8 +124,19 @@ export namespace Activities {
      * That omission is the whole contract of this function, so it is not a
      * detail to tidy up later: adding either column to it makes every re-scan
      * overwrite what a pilot told us.
+     *
+     * `readDescription` is for callers that classified the full activity, 🪂
+     * line included. Their verdict is as well informed as any stored one and
+     * always replaces it. Without it, the first webhook's verdict for an
+     * activity -- usually reached before the pilot had added the wing line --
+     * was kept for good, and every later webhook that did see the line was
+     * thrown away, so the flight was never created and the description never
+     * written.
      */
-    export async function upsertScanned(activities: ScannedActivity[]): Promise<Either<void>> {
+    export async function upsertScanned(
+        activities: ScannedActivity[],
+        {readDescription = false}: { readDescription?: boolean } = {},
+    ): Promise<Either<void>> {
         if (activities.length === 0) {
             return success(undefined)
         }
@@ -174,15 +185,15 @@ export namespace Activities {
                                           -- puts the row in front of the review
                                           -- pass in the same run.
                                           verdict              = case
-                                                                    when activities.description_checked_at is not null
+                                                                    when not $20::boolean and activities.description_checked_at is not null
                                                                         then activities.verdict
                                                                     else excluded.verdict end,
                                           score                = case
-                                                                    when activities.description_checked_at is not null
+                                                                    when not $20::boolean and activities.description_checked_at is not null
                                                                         then activities.score
                                                                     else excluded.score end,
                                           reasons              = case
-                                                                    when activities.description_checked_at is not null
+                                                                    when not $20::boolean and activities.description_checked_at is not null
                                                                         then activities.reasons
                                                                     else excluded.reasons end,
                                           takeoff_id           = excluded.takeoff_id,
@@ -226,6 +237,7 @@ export namespace Activities {
                         JSON.stringify(activity.reasons ?? []),
                         activity.takeoff_id ?? null,
                         activity.landing_id ?? null,
+                        readDescription,
                     ])
                 } catch (error) {
                     errors.push(`${activity.strava_activity_id}: ${error}`)

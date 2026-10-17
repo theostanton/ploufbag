@@ -122,6 +122,40 @@ describe('the pilot always wins', () => {
     })
 })
 
+describe('a verdict reached with the description', () => {
+    /**
+     * The 🪂 line is usually added after upload. The create webhook classifies
+     * the activity without it and marks it read; a later webhook that does see
+     * the line has to be able to replace that verdict, or the flight is never
+     * created and its description never written.
+     */
+    it('replaces one stored from an earlier read', async () => {
+        await Activities.upsertScanned([scanned({strava_activity_id: 'w1', verdict: 'unsure', score: 40})],
+            {readDescription: true})
+        await Activities.markDescriptionChecked(['w1'])
+
+        await Activities.upsertScanned([scanned({strava_activity_id: 'w1', verdict: 'flight', score: 140})],
+            {readDescription: true})
+
+        const found = await Activities.get(PILOT, 'w1')
+        if (!isSuccess(found)) throw new Error(found[1])
+        expect(found[0].verdict).toBe('flight')
+        expect(found[0].score).toBe(140)
+    })
+
+    it('is still kept from a scan that cannot see the description', async () => {
+        await Activities.upsertScanned([scanned({strava_activity_id: 'w2', verdict: 'flight', score: 140})],
+            {readDescription: true})
+        await Activities.markDescriptionChecked(['w2'])
+
+        await Activities.upsertScanned([scanned({strava_activity_id: 'w2', verdict: 'unsure', score: 40})])
+
+        const found = await Activities.get(PILOT, 'w2')
+        if (!isSuccess(found)) throw new Error(found[1])
+        expect(found[0].verdict).toBe('flight')
+    })
+})
+
 describe('the empty state', () => {
     /**
      * What turns "we found nothing" from a dead end into one question: a pilot
