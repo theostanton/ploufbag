@@ -415,6 +415,12 @@ describe('extractWingName', () => {
         expect(extractWingName('Good day\n  🪂 Ronin12')).toBe('Ronin12')
     })
 
+    it('reads a 🪂 line however the keyboard spaced it', () => {
+        expect(extractWingName('🪂Ronin12')).toBe('Ronin12')
+        expect(extractWingName('🪂️ Ronin12')).toBe('Ronin12')
+        expect(extractWingName('🪂 Ronin12')).toBe('Ronin12')
+    })
+
     it('ignores a wing mentioned mid-sentence', () => {
         expect(extractWingName('Flew my Ronin12')).toBeNull()
     })
