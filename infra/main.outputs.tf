@@ -28,6 +28,10 @@ locals {
     API_PORT                 = 81
     FFVL_KEY                 = var.ffvl_key
     NEXT_PUBLIC_MAPBOX_TOKEN = var.mapbox_token
+
+    # All three services post to Slack: tasks and webhooks on failure, api
+    # because /admin runs retryFailedTasks there. Empty disables it.
+    SLACK_EVENTS_WEBHOOK_URL = var.slack_events_webhook_url
   }
   compose_variables = {
     SESSION_SECRET              = random_id.session_secret.b64_std

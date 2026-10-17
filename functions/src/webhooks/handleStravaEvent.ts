@@ -15,6 +15,7 @@ import { executeUpdateDescriptionTask } from "../tasks/updateDescription";
 import { Flights } from "../model/database/Flights";
 import { Pilots } from "../model/database/Pilots";
 import trigger, { RECHECK_DELAY_SEC } from "../tasks/trigger";
+import { formatWebhookFailure, notifySlack } from "../monitoring/slackNotifier";
 
 /**
  * Handle incoming Strava webhook events
@@ -148,15 +149,30 @@ async function processWebhookEvent(
                 });
             });
         } else {
-            // Mark webhook as failed
-            await withPooledClient(async (client) => {
-                await WebhookEvents.updateStatus(client, webhookEventId, {
-                    status: WebhookEventStatus.Failed,
-                    processed_at: new Date(),
-                    processing_duration_ms: processingTime,
-                    error_message: error instanceof Error ? error.message : String(error)
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            try {
+                // Mark webhook as failed
+                await withPooledClient(async (client) => {
+                    await WebhookEvents.updateStatus(client, webhookEventId, {
+                        status: WebhookEventStatus.Failed,
+                        processed_at: new Date(),
+                        processing_duration_ms: processingTime,
+                        error_message: errorMessage
+                    });
                 });
-            });
+            } finally {
+                // Awaited, but notifySlack never throws, so it cannot change
+                // the webhook status or the response.
+                await notifySlack(formatWebhookFailure({
+                    webhookEventId,
+                    eventType: payload.aspect_type,
+                    objectType: payload.object_type,
+                    objectId: payload.object_id,
+                    pilotId: payload.owner_id,
+                    errorMessage,
+                    durationMs: processingTime
+                }));
+            }
         }
     }
 }

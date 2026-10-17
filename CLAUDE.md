@@ -121,6 +121,25 @@ Background jobs are processed via Google Cloud Tasks:
 
 Task handlers and their business logic are both in `functions/src/tasks/`.
 
+## Slack notifications
+
+`functions/src/monitoring/slackNotifier.ts` mirrors the monitoring failures that
+`/admin` records to `#ploufbag-events`, through a Slack Incoming Webhook. It posts
+exactly three things and nothing else:
+
+- a task execution that failed (`executeMonitoredTask`, either a `success: false`
+  result or a thrown error), with its retry number
+- a Strava webhook event that failed (`processWebhookEvent`; ignored events are not
+  failures)
+- a retried task that succeeded ("recovered"); a first-time success posts nothing
+
+The URL comes from `SLACK_EVENTS_WEBHOOK_URL`, set on the api, tasks and webhooks
+services from the Terraform variable `slack_events_webhook_url`
+(`TF_VAR_slack_events_webhook_url` in the deploy workflow). Unset or empty means
+disabled: nothing is sent. The notifier is awaited but never throws and gives up
+after 3 seconds, so Slack being down cannot change a task result or a webhook
+response.
+
 ## Testing
 
 Use `yarn test` in any package. Functions package uses Testcontainers to spin up PostgreSQL for integration tests with 60-second timeout.

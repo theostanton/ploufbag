@@ -6,6 +6,11 @@ import {
     withPooledClient
 , isSuccess} from "@ploufbag/common";
 import { taskHandlers } from "./model";
+import {
+    formatTaskFailure,
+    formatTaskRecovered,
+    notifySlack
+} from "../monitoring/slackNotifier";
 
 /**
  * Execute a task with monitoring and logging
@@ -17,9 +22,12 @@ export async function executeMonitoredTask(
         triggeredBy?: string;
         triggeredByWebhookId?: string;
         executionId?: string;
+        /** Which retry this is; 0 (the default) for a first attempt. */
+        retryCount?: number;
     } = {}
 ): Promise<TaskResult> {
     const startTime = Date.now();
+    const retryCount = options.retryCount ?? 0;
     let executionId = options.executionId;
 
     try {
@@ -77,7 +85,27 @@ export async function executeMonitoredTask(
         }
 
         console.log(`Task execution ${executionId} ${result.success ? 'completed' : 'failed'} in ${executionTime}ms`);
-        
+
+        // Awaited, but notifySlack never throws, so it cannot change the result.
+        if (!result.success) {
+            await notifySlack(formatTaskFailure({
+                executionId,
+                taskName: task.name,
+                pilotId: extractPilotId(task),
+                retryCount,
+                errorMessage: result.message,
+                durationMs: executionTime
+            }));
+        } else if (retryCount > 0) {
+            await notifySlack(formatTaskRecovered({
+                executionId,
+                taskName: task.name,
+                pilotId: extractPilotId(task),
+                retryCount,
+                durationMs: executionTime
+            }));
+        }
+
         return result;
 
     } catch (error) {
@@ -101,6 +129,15 @@ export async function executeMonitoredTask(
                 console.error("Failed to update task execution status:", monitoringError);
             }
         }
+
+        await notifySlack(formatTaskFailure({
+            executionId,
+            taskName: task.name,
+            pilotId: extractPilotId(task),
+            retryCount,
+            errorMessage,
+            durationMs: executionTime
+        }));
 
         return {
             success: false,
@@ -168,6 +205,7 @@ export async function retryFailedTasks(maxRetries: number = 3): Promise<void> {
                     {
                         executionId: taskExecution.id,
                         triggeredBy: `retry_${taskExecution.retry_count + 1}`,
+                        retryCount: taskExecution.retry_count + 1,
                         triggeredByWebhookId: taskExecution.triggered_by_webhook_id || undefined
                     }
                 );
