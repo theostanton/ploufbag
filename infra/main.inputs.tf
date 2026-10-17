@@ -32,6 +32,7 @@ variable "client_secret" {
   type      = string
   sensitive = true
 }
+
 # Slack Incoming Webhook URL for #ploufbag-events. The functions post failed
 # tasks, failed Strava webhook events, and retried tasks that recovered to it
 # (functions/src/monitoring/slackNotifier.ts). Empty disables notifications,
