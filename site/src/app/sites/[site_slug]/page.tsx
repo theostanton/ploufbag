@@ -86,7 +86,7 @@ export default async function SiteDetail({params}: {
             {flights.length > 0 && (
                 <PanelSection title="Flights here">
                     {flights.map(flight => (
-                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                        <FlightRow key={flight.strava_activity_id} flight={flight} dateStyle="full"/>
                     ))}
                 </PanelSection>
             )}

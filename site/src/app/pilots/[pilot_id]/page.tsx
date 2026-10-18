@@ -149,7 +149,7 @@ export default async function PilotPage({params}: {
             {flights.length > 0 && (
                 <PanelSection title="Flights">
                     {flights.map(flight => (
-                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                        <FlightRow key={flight.strava_activity_id} flight={flight} dateStyle="full"/>
                     ))}
                 </PanelSection>
             )}

@@ -213,7 +213,7 @@ export default async function Dashboard() {
             >
                 {flights.length > 0 ? (
                     flights.map(flight => (
-                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                        <FlightRow key={flight.strava_activity_id} flight={flight} dateStyle="full"/>
                     ))
                 ) : (
                     <PanelEmpty

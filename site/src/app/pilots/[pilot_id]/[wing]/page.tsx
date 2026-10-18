@@ -17,8 +17,11 @@ import {PanelEmpty, PanelHeader, PanelSection} from "@ui/chrome/Panel";
 export default async function PilotWingPage({params}: {
     params: Promise<{ pilot_id: string, wing: string }>
 }) {
-    const {pilot_id: pilotIdParam, wing} = await params
+    const {pilot_id: pilotIdParam, wing: wingParam} = await params
     const pilotId = parseInt(pilotIdParam)
+    // Next hands the segment over still percent-encoded (`gin%20bonanza%203`),
+    // and every wing name has a space in it, so undecoded it matched nothing.
+    const wing = decodeURIComponent(wingParam)
 
     const [pilot] = await get(pilotId);
     if (!pilot) {
@@ -41,7 +44,7 @@ export default async function PilotWingPage({params}: {
     }
 
     // The wing as the pilot spells it, rather than the lowercased URL segment.
-    const wingName = flights[0]?.wing ?? decodeURIComponent(wing);
+    const wingName = flights[0]?.wing ?? wing;
 
     return (
         <>
@@ -63,7 +66,7 @@ export default async function PilotWingPage({params}: {
             {flights.length > 0 ? (
                 <PanelSection>
                     {flights.map(flight => (
-                        <FlightRow key={flight.strava_activity_id} flight={flight}/>
+                        <FlightRow key={flight.strava_activity_id} flight={flight} dateStyle="full"/>
                     ))}
                 </PanelSection>
             ) : (
