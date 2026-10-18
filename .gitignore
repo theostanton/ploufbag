@@ -65,3 +65,8 @@ coverage/
 # the repo by default; these are the bits that can land inside it.
 dev/.env.local
 dev/shots/
+
+# Screenshots of other products for design research: the repo is public,
+# so they are not committed (see design/README.md).
+design/**/research/refs/
+design/**/research/*.pdf
