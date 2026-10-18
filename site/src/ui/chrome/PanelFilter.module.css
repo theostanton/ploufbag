@@ -68,3 +68,46 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
 }
+
+/* Empty State: what a search on /flights that matched nothing leaves behind,
+   with a way out (Decision 9). */
+.noResults {
+    padding: var(--space-8) 0;
+    text-align: center;
+}
+
+.noResultsTitle {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+}
+
+.noResultsDetail {
+    margin: var(--space-3) 0 var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/* Button / Secondary */
+.clear {
+    padding: var(--space-2) var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-base);
+    background-color: var(--color-surface);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.clear:hover {
+    border-color: var(--color-text-muted);
+}
+
+.clear:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+}

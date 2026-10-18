@@ -1,0 +1,81 @@
+/*
+ * A month is laid out and painted only when it is near the viewport. The panel
+ * holds every flight -- hundreds, and a thousand is the target -- and almost all
+ * of it is below the fold. The intrinsic size is an estimate of a collapsed
+ * older month (heading, a couple of standouts, the toggle); `auto` lets the
+ * browser remember the real size once a month has been rendered, so the
+ * scrollbar settles rather than jumping as months come into view.
+ */
+.group {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+    margin-bottom: var(--space-6);
+}
+
+.group:last-child {
+    margin-bottom: 0;
+}
+
+/* Group Heading / Month. Not sticky (Decision 5). */
+.head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-3);
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.label {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-tight);
+    color: var(--color-text-primary);
+}
+
+.summary {
+    flex: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Group Footer / Show All: text in the primary colour with a chevron (Decision 6). */
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin: var(--space-2) 0 0;
+    /* The left inset lines the text up with the row titles above it, past the
+       row's padding and colour bar. */
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-8);
+    border: none;
+    border-radius: var(--border-radius-lg);
+    background: none;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--transition-fast);
+}
+
+.toggle:hover {
+    background-color: rgba(0, 163, 221, 0.10);
+}
+
+.toggle:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+}
+
+.chevron {
+    flex: none;
+    transition: transform var(--transition-fast);
+}
+
+.chevron[data-expanded] {
+    transform: rotate(180deg);
+}
