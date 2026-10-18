@@ -12,12 +12,16 @@
 # generateContainer.test.ts applies, in the same `;;;`-delimited way.
 #
 # Usage:
-#   dev/db.sh up       # initdb if needed, start, apply schema, seed
-#   dev/db.sh down     # stop the cluster
-#   dev/db.sh reset    # destroy the data directory and start over
-#   dev/db.sh psql     # interactive shell against the dev database
-#   dev/db.sh status   # is it running?
-#   dev/db.sh env      # print the DATABASE_* exports the site needs
+#   dev/db.sh up [--flights N]      # initdb if needed, start, apply schema, seed
+#   dev/db.sh reseed [--flights N]  # replace the seeded data, keep the cluster
+#   dev/db.sh down                  # stop the cluster
+#   dev/db.sh reset [--flights N]   # destroy the data directory and start over
+#   dev/db.sh psql                  # interactive shell against the dev database
+#   dev/db.sh status                # is it running?
+#   dev/db.sh env                   # print the DATABASE_* exports the site needs
+#
+# --flights N sizes the fixture (default 165, as seed.mjs); the same N always
+# gives the same rows.
 
 set -euo pipefail
 
@@ -99,7 +103,9 @@ do_start() {
     fi
     echo "==> starting postgres on port $PGPORT"
     ensure_dirs
-    as_pg "$PGBIN/pg_ctl -D $PGDATA -l $PGLOG -o '-p $PGPORT -c listen_addresses=127.0.0.1 -c fsync=off -c synchronous_commit=off' -w start"
+    # LC_ALL=C for the same reason as initdb: with no locale in the environment
+    # the postmaster stops with "postmaster became multithreaded during startup".
+    as_pg "LC_ALL=C $PGBIN/pg_ctl -D $PGDATA -l $PGLOG -o '-p $PGPORT -c listen_addresses=127.0.0.1 -c fsync=off -c synchronous_commit=off' -w start"
     if ! as_pg "$PGBIN/psql -h 127.0.0.1 -p $PGPORT -U $PGUSER_NAME -lqt" | cut -d'|' -f1 | grep -qw "$PGDB"; then
         as_pg "$PGBIN/createdb -h 127.0.0.1 -p $PGPORT -U $PGUSER_NAME $PGDB"
     fi
@@ -197,10 +203,13 @@ do_backfill() {
     apply_scripts "${BACKFILL_FILES[@]}"
 }
 
+# Set by --flights; empty means seed.mjs's own default.
+FLIGHTS=""
+
 do_seed() {
-    echo "==> seeding fixtures"
+    echo "==> seeding fixtures${FLIGHTS:+ (--flights $FLIGHTS)}"
     local sql="$DEV_ROOT/seed.sql"
-    node "$REPO_ROOT/dev/seed.mjs" > "$sql"
+    node "$REPO_ROOT/dev/seed.mjs" ${FLIGHTS:+--flights "$FLIGHTS"} > "$sql"
     if [ -n "$RUN_AS" ]; then
         chmod 644 "$sql"
     fi
@@ -209,6 +218,21 @@ do_seed() {
         (select count(*) from pilots) as pilots,
         (select count(*) from sites) as sites,
         (select count(*) from flights) as flights'"
+}
+
+# The backfill gives every wing its hash colour, the same one the map derives
+# from the wing's name -- so locally there is no wing whose swatch would differ
+# if a component ignored wings.colour and hashed the name instead. One wing gets
+# a colour outside the hash palette (track_colour in create_wings.sql) so that
+# mistake is visible. The first wing by pilot and name, so it is the same wing
+# at every --flights N that flies it.
+CUSTOM_WING_COLOUR="#0d9488"
+
+do_custom_colour() {
+    echo "==> custom wing colour"
+    psql_cmd "-c \"update wings set colour = '$CUSTOM_WING_COLOUR'
+        where wing_id = (select wing_id from wings order by pilot_id, name limit 1)
+        returning pilot_id, name, colour as wing_colour, track_colour(pilot_id::text || name) as hash_colour\""
 }
 
 do_env() {
@@ -221,13 +245,42 @@ DATABASE_PASSWORD=
 EOF
 }
 
-case "${1:-up}" in
+COMMAND="${1:-up}"
+[ $# -gt 0 ] && shift
+
+# --flights is the only option, and only the commands that seed take it.
+parse_seed_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --flights)
+                FLIGHTS="${2:-}"
+                shift 2 || { echo "--flights needs a value" >&2; exit 1; }
+                ;;
+            --flights=*)
+                FLIGHTS="${1#--flights=}"
+                shift
+                ;;
+            *)
+                echo "unknown option for $COMMAND: $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+    if [ -n "$FLIGHTS" ] && ! [[ "$FLIGHTS" =~ ^[1-9][0-9]*$ ]]; then
+        echo "--flights needs a positive whole number, got '$FLIGHTS'" >&2
+        exit 1
+    fi
+}
+
+case "$COMMAND" in
     up)
+        parse_seed_args "$@"
         do_init
         do_start
         do_schema
         do_seed
         do_backfill
+        do_custom_colour
         echo
         echo "==> ready. Point the site at it with:"
         do_env | sed 's/^/    /'
@@ -239,15 +292,28 @@ case "${1:-up}" in
             echo "==> not running"
         fi
         ;;
+    reseed)
+        # Same data as a fresh `up` with the same N, without the initdb and
+        # schema pass. seed.mjs deletes what it owns before inserting.
+        parse_seed_args "$@"
+        if [ ! -f "$PGDATA/PG_VERSION" ]; then
+            echo "no cluster at $PGDATA; run $0 up first" >&2
+            exit 1
+        fi
+        do_start
+        do_seed
+        do_backfill
+        do_custom_colour
+        ;;
     reset)
+        parse_seed_args "$@"
         if is_running; then
             as_pg "$PGBIN/pg_ctl -D $PGDATA -m immediate -w stop" || true
         fi
         rm -rf "$PGDATA"
-        "$0" up
+        "$0" up ${FLIGHTS:+--flights "$FLIGHTS"}
         ;;
     psql)
-        shift
         as_pg "$PGBIN/psql -h 127.0.0.1 -p $PGPORT -U $PGUSER_NAME -d $PGDB $*"
         ;;
     status)
@@ -257,7 +323,7 @@ case "${1:-up}" in
         do_env
         ;;
     *)
-        echo "usage: $0 {up|down|reset|psql|status|env}" >&2
+        echo "usage: $0 {up|reseed|down|reset|psql|status|env} [--flights N]" >&2
         exit 1
         ;;
 esac
