@@ -8,7 +8,7 @@ import { PanelSection } from './Panel'
 import filterStyles from './PanelFilter.module.css'
 import styles from './SitesPanel.module.css'
 
-type SiteWithFlightCount = Site & { flightCount: number }
+type SiteWithFlightCount = Site & { flightCount: number, takeoffCount: number, landingCount: number }
 
 /**
  * The /sites list: search, plus the "only sites we have flights from" toggle.

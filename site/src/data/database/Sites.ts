@@ -80,10 +80,19 @@ export namespace Sites {
         });
     }
 
-    export async function getAllWithFlightCounts(): Promise<Either<Array<Site & { flightCount: number }>>> {
+    export type SiteWithFlightCounts = Site & { flightCount: number, takeoffCount: number, landingCount: number }
+
+    /**
+     * Every site for the /sites list, busiest first. The split counts are
+     * there for the row's role colour, which has to match the map marker's;
+     * see getAllForMap for why `sites.type` alone isn't enough.
+     */
+    export async function getAllWithFlightCounts(): Promise<Either<SiteWithFlightCounts[]>> {
         return withPooledClient(async (database) => {
-            const result = await database.query<Site & { flight_count: string }>(`
+            const result = await database.query<Site & { flight_count: string, takeoff_count: string, landing_count: string }>(`
                 SELECT s.*,
+                       COALESCE(takeoff_flights.count, 0) as takeoff_count,
+                       COALESCE(landing_flights.count, 0) as landing_count,
                        COALESCE(takeoff_flights.count, 0) + COALESCE(landing_flights.count, 0) as flight_count
                 FROM sites s
                          LEFT JOIN (SELECT takeoff_id, COUNT(*) as count
@@ -104,7 +113,9 @@ export namespace Sites {
                     const site = row.reify();
                     return {
                         ...site,
-                        flightCount: parseInt(site.flight_count)
+                        flightCount: parseInt(site.flight_count),
+                        takeoffCount: parseInt(site.takeoff_count),
+                        landingCount: parseInt(site.landing_count),
                     };
                 }));
             } else {
@@ -154,7 +165,6 @@ export namespace Sites {
     /**
      * Every site with its takeoff and landing counts kept apart.
      *
-     * getAllWithFlightCounts sums the two, which is all the /sites list needs.
      * The map needs them separately: a site's marker colour is its role, and
      * `sites.type` is nullable and frequently null, so the honest answer comes
      * from how the site is actually used. A site flown from *and* landed at is a
