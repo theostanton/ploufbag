@@ -21,11 +21,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
     assertReachable,
+    consoleErrorText,
     contextOptionsFor,
+    isIgnorable,
     launchChromium,
     loadChromium,
     mintSessionCookie,
     signIn,
+    waitForMap,
 } from './browser.mjs';
 
 function parseArgs(argv) {
@@ -38,7 +41,8 @@ function parseArgs(argv) {
         pilot: null,
         'wait-for': null,
         'full-page': 'false',
-        settle: '1500',
+        map: 'auto',
+        settle: '1200',
         timeout: '45000',
     };
     for (let i = 0; i < argv.length; i += 2) {
@@ -52,6 +56,11 @@ function parseArgs(argv) {
     if (!options.path || !options.out) {
         console.error('usage: node dev/capture.mjs --path <route> --out <file.png> [--viewport desktop|mobile]');
         console.error('       [--theme light|dark] [--pilot <id>] [--wait-for <selector>] [--full-page true]');
+        console.error('       [--map auto|ambient|none] [--settle <ms>]');
+        process.exit(1);
+    }
+    if (!['auto', 'ambient', 'none'].includes(options.map)) {
+        console.error(`unknown --map ${options.map} (expected auto | ambient | none)`);
         process.exit(1);
     }
     if (!['light', 'dark'].includes(options.theme)) {
@@ -83,9 +92,13 @@ async function main() {
 
     const page = await context.newPage();
     const pageErrors = [];
-    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('pageerror', (error) => {
+        if (!isIgnorable(String(error))) pageErrors.push(error.message);
+    });
     page.on('console', (message) => {
-        if (message.type() === 'error') pageErrors.push(message.text());
+        if (message.type() !== 'error') return;
+        const text = consoleErrorText(message);
+        if (!isIgnorable(text)) pageErrors.push(text);
     });
 
     const url = new URL(options.path, options.base).toString();
@@ -93,8 +106,20 @@ async function main() {
     if (options['wait-for']) {
         await page.waitForSelector(options['wait-for'], { timeout: Number(options.timeout) });
     }
-    // Map tiles and transitions keep painting after network idle.
-    await page.waitForTimeout(Number(options.settle));
+    // Every route has the map (it lives in the root layout), and it keeps
+    // painting long after network idle -- a fixed delay caught "Loading map..."
+    // on a slow machine. Wait for Mapbox itself. `auto` detects routes whose
+    // camera never stops (home, login, welcome); `none` skips the wait.
+    let mapProblem = null;
+    if (options.map === 'none') {
+        await page.waitForTimeout(Number(options.settle));
+    } else {
+        mapProblem = await waitForMap(page, {
+            ambient: options.map === 'ambient' ? true : 'auto',
+            timeout: Number(options.timeout),
+            settle: Number(options.settle),
+        });
+    }
 
     const out = path.resolve(options.out);
     fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -106,6 +131,11 @@ async function main() {
     console.log(`${out}`);
     console.log(`  url: ${url}${finalPath !== new URL(url).pathname ? ` (redirected to ${finalPath})` : ''}`);
     console.log(`  viewport: ${options.viewport} · theme: ${options.theme} · ${options.pilot ? `pilot ${options.pilot}` : 'logged out'}`);
+
+    if (mapProblem) {
+        console.error(`\n${mapProblem} -- this screenshot may show the map half-drawn.`);
+        process.exit(1);
+    }
 
     if (pageErrors.length > 0) {
         console.error(`\n${pageErrors.length} page error(s) -- this screenshot is not valid evidence:`);

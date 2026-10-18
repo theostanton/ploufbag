@@ -84,7 +84,12 @@ do_init() {
     ensure_dirs
     # trust auth: this cluster listens on loopback only and holds nothing but
     # generated fixtures.
-    as_pg "$PGBIN/initdb -D $PGDATA -U $PGUSER_NAME --auth=trust --encoding=UTF8 --no-sync" >/dev/null
+    #
+    # --no-locale, and LC_ALL=C for initdb itself: otherwise initdb takes its
+    # locale from the environment, and a launchd daemon (the Mac mini's agent
+    # user) has none set, so it stops with "invalid locale settings". The C
+    # collation sorts by byte value, which only matters for fixture ordering.
+    as_pg "LC_ALL=C $PGBIN/initdb -D $PGDATA -U $PGUSER_NAME --auth=trust --encoding=UTF8 --no-locale --no-sync" >/dev/null
 }
 
 do_start() {

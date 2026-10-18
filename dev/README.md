@@ -115,6 +115,16 @@ node dev/capture.mjs --path /flights --wait-for "main" --out flights.png
 without it you get the logged-out view. It exits non-zero if the page throws,
 so a screenshot of a crashed page is never passed off as evidence.
 
+It waits for Mapbox to report the map idle, as the tour does, rather than for a
+fixed delay, which on a slow machine caught "Loading map…". Routes whose camera
+never stops (home, login, welcome) are detected from the page and captured once
+their tiles are in. `--map none` skips the wait; `--settle <ms>` adds time after
+it.
+
+Console errors that belong to the environment rather than the site -- blocked
+Mapbox telemetry, Google Fonts, aborted tile fetches -- are ignored by both
+scripts; the list is `IGNORED_CONSOLE_ERRORS` in `browser.mjs`.
+
 Both scripts share their browser plumbing in `browser.mjs`. Playwright is found
 via `PLAYWRIGHT_MODULE`, the agent-container path, or `npm root -g`, so a global
 `npm install -g playwright` (plus `npx playwright install chromium`) is enough

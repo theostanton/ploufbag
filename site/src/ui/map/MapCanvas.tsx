@@ -198,6 +198,9 @@ export default function MapCanvas() {
         <div
             className={styles.canvas}
             data-chrome={scene.chrome}
+            // Lets dev/capture.mjs tell a camera that never stops from one that
+            // has not settled yet.
+            data-ambient={scene.ambient ? 'true' : undefined}
             // The Mapbox wordmark and attribution are pinned to the canvas
             // corner by Mapbox's own control. The sheet is draggable, so how far
             // to lift them is only knowable from the measured chrome.

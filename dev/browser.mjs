@@ -2,9 +2,10 @@
 // Browser plumbing shared by dev/shots.mjs (the fixed tour) and dev/capture.mjs
 // (one screenshot of one page, for visual QA).
 //
-// Both need the same three things: a Playwright chromium that is not a project
+// Both need the same things: a Playwright chromium that is not a project
 // dependency, the same viewports, and a signed-in session that involves no
-// Strava round trip.
+// Strava round trip -- plus the same idea of when the map is ready and which
+// console errors are noise.
 
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
@@ -55,6 +56,101 @@ export function launchChromium(chromium) {
         executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
         args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
     });
+}
+
+// --------------------------------------------------------------- page errors
+//
+// Both scripts treat a console error as a failure -- a screenshot of a broken
+// page must not pass as evidence -- except for the noise below.
+
+/**
+ * Console noise that is a property of the environment rather than of the site.
+ *
+ * Two kinds:
+ *  - Requests the container's egress policy blocks outright. The browser here
+ *    has no direct outbound HTTPS at all (Mapbox goes through the dev proxy),
+ *    so the Google Fonts stylesheet in globals.css always fails.
+ *  - Tile fetches aborted mid-flight. The tour navigates as fast as it can and
+ *    every camera move cancels the tiles for the view it left; mapbox-gl
+ *    reports those as failed fetches. They are normal operation, not a defect.
+ *
+ * Everything else still fails the run.
+ */
+export const IGNORED_CONSOLE_ERRORS = [
+    /fonts\.googleapis\.com/,
+    /ERR_CONNECTION_RESET/,
+    // Same cause as ERR_CONNECTION_RESET, different symptom: outbound HTTPS
+    // from the browser goes through this container's proxy, whose CA is not in
+    // Chromium's store. Seeded pilots carry Strava CDN avatar URLs, so /pilots
+    // trips this on every run. The site handles the failure -- PilotRow falls
+    // back when the image errors -- which is exactly what a real expired
+    // avatar URL does.
+    /ERR_CERT_AUTHORITY_INVALID/,
+    /Failed to fetch[\s\S]*\/api\/dev\/mapbox/,
+    // An aborted tile request, identified by the stack pointing into
+    // mapbox-gl. Matched on the stack rather than on the message alone so a
+    // "Failed to fetch" from our own code still fails the run.
+    /Failed to fetch[\s\S]*mapbox-gl/,
+    /AbortError/,
+    // Mapbox telemetry. Some networks (the Mac mini's included) refuse it, and
+    // the map does not depend on it. Only matchable by URL: Chromium's
+    // "Failed to load resource" message does not name the request, which is
+    // why consoleErrorText appends the location.
+    /events\.mapbox\.com/,
+]
+
+export const isIgnorable = (text) => IGNORED_CONSOLE_ERRORS.some((pattern) => pattern.test(text));
+
+/** A console message's text plus the URL it came from, for matching above. */
+export function consoleErrorText(message) {
+    const { url } = message.location() ?? {};
+    return url ? `${message.text()} (${url})` : message.text();
+}
+
+// ----------------------------------------------------------------------- map
+//
+// The map keeps painting long after the network settles, so `networkidle` is
+// not enough for a stable frame. Wait for Mapbox to say it is idle.
+//
+// Two waits, not one. MapCanvas publishes the instance from its load handler,
+// so immediately after a goto there is no map object yet -- checking for one and
+// giving up is how the tour once captured "Loading map..." on every frame.
+//
+// `ambient` is true, false, or 'auto'. Returns null when the map is ready, or
+// a description of what went wrong.
+
+export async function waitForMap(page, { ambient = false, timeout = 45000, settle = 1200 } = {}) {
+    const appeared = await page
+        .waitForFunction(() => Boolean(window.__ploufbagMap), { timeout })
+        .then(() => true)
+        .catch(() => false);
+    if (!appeared) return 'map instance never appeared';
+
+    // On ambient routes the camera never stops -- that is the feature -- so
+    // waiting for the map to stop moving would always time out. Wait for the
+    // tiles instead and accept a frame mid-rotation. 'auto' asks the page:
+    // MapCanvas marks an ambient scene with data-ambient.
+    const idle = await page
+        .waitForFunction(
+            (mode) => {
+                const map = window.__ploufbagMap;
+                if (!map) return false;
+                const isAmbient =
+                    mode === true ||
+                    (mode === 'auto' && Boolean(document.querySelector('[data-ambient="true"]')));
+                if (isAmbient) return map.isStyleLoaded() && map.areTilesLoaded();
+                return map.loaded() && !map.isMoving() && !map.isZooming();
+            },
+            ambient,
+            { timeout }
+        )
+        .then(() => true)
+        .catch(() => false);
+
+    // Tile fade-in plus a frame to paint it. Longer than it looks like it should
+    // need because headless Chromium here falls back to software rendering.
+    await page.waitForTimeout(settle);
+    return idle ? null : 'map never reached idle';
 }
 
 // ------------------------------------------------------------------- viewports
