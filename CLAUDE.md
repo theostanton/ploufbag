@@ -14,6 +14,7 @@ Plouf Bag is a paragliding flight tracking application that integrates with Stra
 - **`/site`** - Next.js frontend application
 - **`/infra`** - Terraform infrastructure definitions
 - **`/dev`** - Scripts for running Postgres and the site locally without Docker
+- **`/design`** - pen.dev UI designs, approved by PR before implementation (see `design/README.md`)
 
 ### Key Technologies
 - **Database**: PostgreSQL with PostGIS extension for geospatial queries
