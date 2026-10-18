@@ -6,10 +6,16 @@ Ploufbag process*) so nobody has to remember them:
 
 1. **Project status says who it is waiting on.** On every issue change in a
    project — and every 10 minutes as a safety net — it recomputes:
-   - **Agent working** if any open issue is delegated to Cyrus and isn't waiting
+   - **Agent working** if Cyrus has an agent session running (or is delegated
+     an issue and hasn't started one yet) on an open issue that isn't waiting
      on a person (Needs Human, or a PR In Code Review);
    - otherwise **Awaiting Human** if an issue is in Needs Human or In Code
-     Review, or an open `[Human]` issue has nothing blocking it.
+     Review, an agent issue's session has ended while the issue is still open
+     (Cyrus leaves a no-PR issue In Progress, so someone has to look and close
+     it), or an open `[Human]` issue has nothing blocking it.
+
+   The agent session decides "running", not the issue's state: an issue stays
+   In Progress after Cyrus has finished with it.
 
    Only projects already in *Speccing*, *Agent working* or *Awaiting Human* are
    touched, so *Idea*, *Shipped* and *Canceled* are never overridden. *Speccing*

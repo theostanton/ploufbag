@@ -36,6 +36,7 @@ export function createClient(apiKey) {
                         state { name type }
                         labels { nodes { name } }
                         delegate { id }
+                        agentSessions(first: 20) { nodes { status createdAt appUser { id } } }
                         relations { nodes { type relatedIssue { id } } }
                         inverseRelations { nodes { type issue { id } } }
                     }
@@ -57,6 +58,10 @@ export function createClient(apiKey) {
                 state: node.state,
                 labels: node.labels.nodes.map((label) => label.name),
                 delegateId: node.delegate?.id ?? null,
+                // Newest first, sorted here rather than trusting the API's order.
+                sessions: [...node.agentSessions.nodes]
+                    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+                    .map((session) => ({ status: session.status, appUserId: session.appUser?.id ?? null })),
                 blocks: node.relations.nodes
                     .filter((relation) => relation.type === 'blocks')
                     .map((relation) => relation.relatedIssue.id),
