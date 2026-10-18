@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Installed to /Library/LaunchDaemons/ on the Mac mini; see README.md. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.theo.linear-relay</string>
+    <key>UserName</key>
+    <string>cyrus</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/opt/node@22/bin/node</string>
+        <string>--env-file=/Users/cyrus/.linear-relay.env</string>
+        <string>/Users/cyrus/ploufbag-tools/tools/linear-relay/server.mjs</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/cyrus/Library/Logs/linear-relay.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/cyrus/Library/Logs/linear-relay.log</string>
+</dict>
+</plist>
