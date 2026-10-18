@@ -25,11 +25,14 @@ import {
     VIEWPORTS,
     TOUR_PILOT_ID,
     assertReachable,
+    consoleErrorText,
     contextOptionsFor,
+    isIgnorable,
     launchChromium,
     loadChromium,
     mintSessionCookie,
     signIn,
+    waitForMap,
 } from './browser.mjs';
 
 const chromium = loadChromium();
@@ -409,41 +412,8 @@ async function hideDevOverlay(page) {
     });
 }
 
-/**
- * Console noise that is a property of this sandbox rather than of the site.
- *
- * Two kinds:
- *  - Requests the container's egress policy blocks outright. The browser here
- *    has no direct outbound HTTPS at all (Mapbox goes through the dev proxy),
- *    so the Google Fonts stylesheet in globals.css always fails.
- *  - Tile fetches aborted mid-flight. The tour navigates as fast as it can and
- *    every camera move cancels the tiles for the view it left; mapbox-gl
- *    reports those as failed fetches. They are normal operation, not a defect.
- *
- * Everything else still fails the run.
- */
-const IGNORED_CONSOLE_ERRORS = [
-    /fonts\.googleapis\.com/,
-    /ERR_CONNECTION_RESET/,
-    // Same cause as ERR_CONNECTION_RESET, different symptom: outbound HTTPS
-    // from the browser goes through this container's proxy, whose CA is not in
-    // Chromium's store. Seeded pilots carry Strava CDN avatar URLs, so /pilots
-    // trips this on every run. The site handles the failure -- PilotRow falls
-    // back when the image errors -- which is exactly what a real expired
-    // avatar URL does.
-    /ERR_CERT_AUTHORITY_INVALID/,
-    /Failed to fetch[\s\S]*\/api\/dev\/mapbox/,
-    // An aborted tile request, identified by the stack pointing into
-    // mapbox-gl. Matched on the stack rather than on the message alone so a
-    // "Failed to fetch" from our own code still fails the run.
-    /Failed to fetch[\s\S]*mapbox-gl/,
-    /AbortError/,
-]
-
 /** Snap points in Sheet.tsx; the handle cycles through them in order. */
 const SNAP_CYCLE_LENGTH = 3;
-
-const isIgnorable = (text) => IGNORED_CONSOLE_ERRORS.some((pattern) => pattern.test(text))
 
 function makeHelpers(page, failures, stepName) {
     const expect = (condition, message) => {
@@ -615,46 +585,9 @@ function makeHelpers(page, failures, stepName) {
         return href;
     };
 
-    // The map keeps painting long after the network settles, so `networkidle` is
-    // not enough for a stable frame. Wait for Mapbox to say it is idle.
-    //
-    // Two waits, not one. MapCanvas publishes the instance from its load
-    // handler, so immediately after a goto there is no map object yet --
-    // checking for one and giving up is how this captured "Loading map..."
-    // on every frame. Every route has a map now (it lives in the root layout),
-    // so a map that never appears is a real failure, not a page without one.
     const waitForMapIdle = async (ambient = false) => {
-        const appeared = await page
-            .waitForFunction(() => Boolean(window.__ploufbagMap), { timeout: options.timeout })
-            .then(() => true)
-            .catch(() => false);
-
-        if (!appeared) {
-            failures.push(`${stepName}: map instance never appeared`);
-            return;
-        }
-
-        // On ambient routes the camera never stops -- that is the feature -- so
-        // waiting for the map to stop moving would always time out. Wait for the
-        // tiles instead and accept a frame mid-rotation.
-        await page
-            .waitForFunction(
-                (isAmbient) => {
-                    const map = window.__ploufbagMap;
-                    if (!map) return false;
-                    if (isAmbient) return map.isStyleLoaded() && map.areTilesLoaded();
-                    return map.loaded() && !map.isMoving() && !map.isZooming();
-                },
-                ambient,
-                { timeout: options.timeout }
-            )
-            .catch(() => {
-                failures.push(`${stepName}: map never reached idle`);
-            });
-        // Tile fade-in plus a frame to paint it. Longer than it looks like it
-        // should need because this environment has no GPU and falls back to
-        // software rendering.
-        await page.waitForTimeout(1200);
+        const problem = await waitForMap(page, { ambient, timeout: options.timeout });
+        if (problem) failures.push(`${stepName}: ${problem}`);
     };
 
     return {
@@ -693,7 +626,7 @@ async function runSteps(context, steps, viewportName, outDir, failures, label) {
     });
     page.on('console', (message) => {
         if (message.type() !== 'error') return;
-        const text = message.text();
+        const text = consoleErrorText(message);
         if (!isIgnorable(text)) pageErrors.push(`console: ${text}`);
     });
 
