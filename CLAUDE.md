@@ -14,7 +14,7 @@ Plouf Bag is a paragliding flight tracking application that integrates with Stra
 - **`/site`** - Next.js frontend application
 - **`/infra`** - Terraform infrastructure definitions
 - **`/dev`** - Scripts for running Postgres and the site locally without Docker
-- **`/design`** - pen.dev UI designs, approved by PR before implementation (see `design/README.md`)
+- **`/design`** - UI research decks and pen.dev designs, approved before implementation (see `design/README.md`)
 
 ### Key Technologies
 - **Database**: PostgreSQL with PostGIS extension for geospatial queries
@@ -167,6 +167,10 @@ process*. In a Cyrus session the guardrails below apply, **except**:
 - **Never** edit `.github/workflows/`, merge to `main`, run `task deploy` or
   `scripts/migrate.sh` against a real database, or use production credentials.
   Anything only a human can do becomes a `[Human]` issue in Linear.
+
+- **The shell is zsh** on the Mac mini. Don't use `path`, `status`, `argv` or
+  other zsh specials as variable names: `path` is tied to `$PATH`, and
+  assigning it breaks every later command lookup.
 
 `cyrus-setup.sh` runs in every new worktree (dependencies + building
 `common`); keep it working when changing package layout.
