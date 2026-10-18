@@ -1,6 +1,9 @@
 'use client'
 
-import { ReactNode, useLayoutEffect, useRef } from 'react'
+import { ReactNode, useLayoutEffect, useMemo, useRef } from 'react'
+import type { FlightSummary } from '@database/flights'
+import { getFlightColor } from '@ui/map/colors'
+import { useHoveredFlightAmong } from '@ui/map/store'
 import styles from './MonthGroup.module.css'
 
 export type MonthGroupToggle = {
@@ -10,6 +13,13 @@ export type MonthGroupToggle = {
     /** `September 2026` */
     label: string
     onToggle: () => void
+    /**
+     * The month's flights and its standouts, as grouped: what is hidden while
+     * collapsed is the difference. Stable references, so the hover
+     * subscription below is not rebuilt on every render of the panel.
+     */
+    flights: readonly FlightSummary[]
+    standouts: readonly FlightSummary[]
 }
 
 /**
@@ -25,6 +35,11 @@ export type MonthGroupToggle = {
  * screen, the rows above it grow or shrink, and focus stays on the toggle --
  * collapsing a long month at the bottom of the panel would otherwise throw the
  * reader somewhere they never asked to go.
+ *
+ * Pointing at the track of a flight the month is hiding lights up the toggle
+ * the way it would have lit up the row, colour bar and all (D-3). It does not
+ * expand the month or scroll to it: the map is where the pointer is, and the
+ * list moving under it would be the surprise.
  */
 export default function MonthGroup({
     monthKey,
@@ -53,8 +68,23 @@ export default function MonthGroup({
     )
 }
 
-function ToggleRow({ expanded, total, label, onToggle }: MonthGroupToggle) {
+function ToggleRow({ expanded, total, label, onToggle, flights, standouts }: MonthGroupToggle) {
     const button = useRef<HTMLButtonElement>(null)
+
+    // Flights this month is not showing, by id. Nothing is hidden once the
+    // month is open, so an expanded month subscribes to nothing in particular.
+    const hidden = useMemo(() => {
+        if (expanded) return null
+        const shown = new Set(standouts)
+        const byId = new Map<string, FlightSummary>()
+        for (const flight of flights) {
+            if (!shown.has(flight)) byId.set(String(flight.strava_activity_id), flight)
+        }
+        return byId
+    }, [expanded, flights, standouts])
+    const hoveredId = useHoveredFlightAmong(hidden)
+    const hovered = hoveredId !== null ? hidden?.get(hoveredId) : undefined
+
     // Where the button sat on screen before the click, to hold it there after.
     const anchor = useRef<number | null>(null)
 
@@ -80,11 +110,26 @@ function ToggleRow({ expanded, total, label, onToggle }: MonthGroupToggle) {
             type="button"
             className={styles.toggle}
             aria-expanded={expanded}
+            data-hovered={hovered ? true : undefined}
             onClick={() => {
                 anchor.current = button.current?.getBoundingClientRect().top ?? null
                 onToggle()
             }}
         >
+            {/* The hovered flight's track colour, where the row's bar would be. */}
+            {hovered && (
+                <span
+                    className={styles.swatch}
+                    style={{
+                        backgroundColor: getFlightColor(
+                            String(hovered.pilot_id),
+                            hovered.wing || 'unknown',
+                            hovered.wing_colour
+                        ),
+                    }}
+                    aria-hidden="true"
+                />
+            )}
             {text}
             <svg
                 className={styles.chevron}

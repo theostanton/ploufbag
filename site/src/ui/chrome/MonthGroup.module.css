@@ -43,6 +43,7 @@
 
 /* Group Footer / Show All: text in the primary colour with a chevron (Decision 6). */
 .toggle {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: var(--space-4);
@@ -64,6 +65,27 @@
 
 .toggle:hover {
     background-color: rgba(0, 163, 221, 0.10);
+}
+
+/*
+ * A flight this month is hiding is hovered on the map (D-3): the current-row
+ * style, across the panel like a row, and the track's colour where the row's
+ * bar would be. The text does not move; the bar sits in the left inset.
+ */
+.toggle[data-hovered] {
+    width: 100%;
+    background-color: rgba(0, 163, 221, 0.14);
+    box-shadow: inset 2px 0 0 var(--color-secondary);
+}
+
+.swatch {
+    position: absolute;
+    top: var(--space-4);
+    bottom: var(--space-4);
+    /* The row's padding: the same x as the bars of the rows above. */
+    left: var(--space-3);
+    width: 4px;
+    border-radius: 2px;
 }
 
 .toggle:focus-visible {
