@@ -1,10 +1,13 @@
 'use client'
 
-import { ReactNode, Ref, useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, ReactNode, Ref, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import styles from './Sheet.module.css'
 import { ChromeMode } from '@ui/map/scene'
 import PanelFooter from './PanelFooter'
+// Loaded here, in the root layout, so back and forward are noticed before the
+// panel they lead to has been loaded. See traversal.ts.
+import './traversal'
 
 /**
  * The panel the route renders into.
@@ -28,6 +31,23 @@ const SNAPS = { peek: 0.12, half: 0.44, full: 0.88 } as const
 type Snap = keyof typeof SNAPS
 const SNAP_ORDER: Snap[] = ['peek', 'half', 'full']
 
+/**
+ * The element the panel scrolls in.
+ *
+ * It is this one, in the root layout, rather than the document: the sheet
+ * outlives navigation, so a route remounts inside a scroller that is already
+ * scrolled, and the browser's own scroll restoration never applies. A panel
+ * that wants to remember its position (/flights, on back) has to do it itself,
+ * and this is how it finds what to read and set.
+ *
+ * Null until the sheet has mounted, which only matters on a first load.
+ */
+const PanelScrollerContext = createContext<HTMLDivElement | null>(null)
+
+export function usePanelScroller(): HTMLDivElement | null {
+    return useContext(PanelScrollerContext)
+}
+
 export default function Sheet({
     ref,
     mode,
@@ -41,6 +61,8 @@ export default function Sheet({
     const [dragHeight, setDragHeight] = useState<number | null>(null)
     const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
     const innerRef = useRef<HTMLElement | null>(null)
+    // State, not a ref, so the context updates once the element exists.
+    const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
     const pathname = usePathname()
 
     // A new route brings new content, and leaving the sheet where the previous
@@ -132,8 +154,10 @@ export default function Sheet({
                     <span className={styles.handleBar} aria-hidden="true" />
                 </button>
             )}
-            <div className={styles.scroller}>
-                {children}
+            <div ref={setScroller} className={styles.scroller}>
+                <PanelScrollerContext.Provider value={scroller}>
+                    {children}
+                </PanelScrollerContext.Provider>
                 {/* Every panel, so the Strava attribution is present wherever
                     their data is, rather than on one route. */}
                 <PanelFooter/>
