@@ -28,6 +28,26 @@ node dev/shots.mjs    # drive the tour, write dev/shots/*.png
 
 Then `dev/db.sh down` when finished, or `dev/db.sh reset` to start clean.
 
+### Sizing the fixture: `--flights N` and `reseed`
+
+```bash
+dev/db.sh up --flights 1000       # first run, 1,000 flights instead of 165
+dev/db.sh reseed --flights 1000   # replace the seeded data; cluster and schema stay
+dev/db.sh reseed                  # back to the default 165
+node dev/seed.mjs --flights 1000 > seed.sql   # the SQL on its own
+```
+
+`reseed` deletes what the seed owns (flights, wings, pilots, description
+preferences, sites from `ffvl_sid` 1000), inserts the new fixture, then runs the
+wings backfill and the custom wing colour as `up` does. It is the fast way to
+switch sizes: no `initdb`, no schema pass. `reset` takes `--flights N` too.
+
+The same N always gives the same rows; different Ns share the pinned flights
+(below) but are otherwise different fixtures.
+
+`node dev/perf.mjs` — *placeholder: the 1,000-flight scroll measurement, added by
+task 7 of the flights list redesign.*
+
 The Postgres data directory lives in `$TMPDIR/ploufbag-dev` by default, outside
 the repo, so it cannot be swept into a commit. Override with
 `PLOUFBAG_DEV_ROOT`.
@@ -45,7 +65,29 @@ built site — but scope it to localhost in the Mapbox dashboard.
 
 `dev/seed.mjs` generates SQL on stdout: 6 pilots, 32 sites across 6 real flying
 regions (Annecy, Chamonix, Saint-Hilaire, Verbier, Gourdon, Dolomites), and 165
-flights.
+flights (`--flights N` for any other size).
+
+The flights are shaped like a season, for the month-grouped flights list:
+
+- **Seasonal.** November 2024 to October 2026, shared across months by weight:
+  busy June–August, one or two flights a month December–February. The newest
+  month with flights is **October 2026** (up to the 17th), as in the approved
+  designs.
+- **Pinned edge cases**, present at every N (all ten from N = 10):
+  - 23:35 on 31 July and 00:25 on 1 August, 23:50 on 30 September and 00:10 on
+    1 October, 23:40 on 31 December 2025 and 00:20 on 1 January 2026 — Paris
+    time, so each second flight is in the *previous* month in UTC.
+  - 00:30 on 29 March 2026 for 2 h, and 00:40 on 26 October 2025 for 2 h 20:
+    in the air when the clocks change.
+  - Exactly `9000` s and `8999` s, either side of the 2h30 standout rule, in
+    October 2026.
+- **About 7% standouts** (`duration_sec >= 9000`) — exactly `round(0.07 × N)`,
+  chosen from April–September flights, with longer tracks to match.
+
+After the wings backfill, `db.sh` gives the first wing by pilot and name
+(Théo's *Gin Bonanza 3* at the default size and at 1,000) the colour `#0d9488`, which is outside the hash
+palette. Every other wing keeps the colour the map derives from its name, so
+anything that ignores `wing_colour` shows up on that wing's flights.
 
 Generated rather than dumped, because the map needs *density* to be judged
 honestly — colour-by-pilot, dimming, label collision and camera framing all look
