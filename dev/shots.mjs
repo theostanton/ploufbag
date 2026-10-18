@@ -301,6 +301,82 @@ const TOUR = [
         },
     },
     {
+        // Back from a flight puts the reader where they were (PLOUF-35, AC 19):
+        // the months they opened and the scroll position, so the first visible
+        // row is the same. Once for a row at the bottom of the panel and once
+        // for one at the top.
+        //
+        // The row is clicked by its coordinates, and only ever a row that is
+        // actually visible in the panel. A locator click first scrolls its
+        // target into view, which moves the panel before the click happens;
+        // then the panel is restored to where Playwright put it rather than
+        // where the reader left it (PLOUF-40).
+        name: '11g-back-restores-scroll',
+        path: '/flights',
+        act: async (page, { expect, waitForPath }) => {
+            const more = page.getByRole('button', { name: /^Show all \d+ flights in / }).first();
+            if (!(await more.isVisible().catch(() => false))) {
+                return { skipped: 'no collapsed month to open' };
+            }
+            await more.click();
+            // The element the panel scrolls in: the sheet's, not the document.
+            await page.evaluate(() => {
+                window.scrollerOf = (element) => {
+                    while (element && !/(auto|scroll)/.test(getComputedStyle(element).overflowY)) {
+                        element = element.parentElement;
+                    }
+                    return element;
+                };
+            });
+            // The panel's scroller, and the first row whose top is inside it.
+            const read = () => page.evaluate(() => {
+                const scroller = scrollerOf(document.querySelector('a[href^="/flights/"]'));
+                if (!scroller) return null;
+                const box = scroller.getBoundingClientRect();
+                const rows = [...scroller.querySelectorAll('a[href^="/flights/"]')]
+                    .filter((row) => row.getBoundingClientRect().height > 0);
+                const first = rows.find((row) => row.getBoundingClientRect().top >= box.top - 1);
+                const inside = rows.filter((row) => {
+                    const r = row.getBoundingClientRect();
+                    return r.top >= box.top && r.bottom <= box.bottom;
+                });
+                const centre = (row) => {
+                    const r = row?.getBoundingClientRect();
+                    return r && { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+                };
+                return {
+                    scrollTop: scroller.scrollTop,
+                    first: first?.getAttribute('href') ?? null,
+                    low: centre(inside[inside.length - 1]),
+                    high: centre(inside[0]),
+                };
+            });
+            for (const which of ['low', 'high']) {
+                await page.evaluate(() => {
+                    const scroller = scrollerOf(document.querySelector('a[href^="/flights/"]'));
+                    if (scroller) scroller.scrollTop = Math.min(900, scroller.scrollHeight / 3);
+                });
+                // Longer than the panel's save throttle.
+                await page.waitForTimeout(400);
+                const before = await read();
+                if (!before?.[which]) return { skipped: 'no row visible in the panel' };
+                await page.mouse.click(before[which].x, before[which].y);
+                await waitForPath(/^\/flights\/\d+/);
+                await page.waitForTimeout(800);
+                await page.goBack({ waitUntil: 'commit' });
+                await waitForPath(/^\/flights\/?$/);
+                await page.waitForTimeout(800);
+                const after = await read();
+                expect(
+                    after?.scrollTop === before.scrollTop && after?.first === before.first,
+                    `back after clicking a ${which} row restored scrollTop ${after?.scrollTop} ` +
+                        `(first row ${after?.first}), expected ${before.scrollTop} (${before.first})`
+                );
+            }
+            return {};
+        },
+    },
+    {
         // B3. Hovering a track should say what it is, not just thicken a line.
         name: '11e-hover-card',
         path: '/flights',
