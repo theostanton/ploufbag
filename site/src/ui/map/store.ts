@@ -158,6 +158,26 @@ export function useIsFlightHovered(id: string): boolean {
     return useMapStore(selector)
 }
 
+/**
+ * The hovered flight if it is one of `ids`, else null: for a list control that
+ * stands in for rows it is not showing (a collapsed month's "Show all").
+ *
+ * Same reasoning as useIsFlightHovered. The snapshot is a primitive, and it
+ * only changes when the pointer enters or leaves one of these flights, so
+ * moving across every other track re-renders nothing. `ids` must be stable
+ * across renders (memoise it): a Set, or a Map keyed by id. null matches nothing.
+ */
+export function useHoveredFlightAmong(ids: { has(id: string): boolean } | null): string | null {
+    const selector = useCallback(
+        (state: MapState) =>
+            ids !== null && state.hoveredFlightId !== null && ids.has(state.hoveredFlightId)
+                ? state.hoveredFlightId
+                : null,
+        [ids]
+    )
+    return useMapStore(selector)
+}
+
 export function useIsSiteHovered(id: string): boolean {
     const selector = useCallback((state: MapState) => state.hoveredSiteId === id, [id])
     return useMapStore(selector)

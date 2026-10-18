@@ -209,6 +209,8 @@ export default function FlightsPanel({
                                 total: month.flights.length,
                                 label: month.label,
                                 onToggle: () => toggle(month.key),
+                                flights: month.flights,
+                                standouts: month.standouts,
                             } : undefined}
                         >
                             {(open ? month.flights : month.standouts).map((flight) => row(flight))}
