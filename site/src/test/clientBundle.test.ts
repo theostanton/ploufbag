@@ -163,7 +163,7 @@ describe('the client bundle', () => {
     })
 
     it('walks far enough to have caught the file that actually broke', () => {
-        // colors.ts carries no 'use client' of its own -- MapLegend imports it.
+        // colors.ts carries no 'use client' of its own -- FlightRow imports it.
         // If the walk ever stops reaching it, the test above is decorative.
         expect(clientGraph()).toContain('src/ui/map/colors.ts')
     })

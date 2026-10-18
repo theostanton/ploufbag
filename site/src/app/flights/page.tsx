@@ -4,6 +4,7 @@ import {createMetadata} from "@ui/metadata";
 import MapScene from "@ui/map/MapScene";
 import FlightsPanel from "@ui/chrome/FlightsPanel";
 import {PanelEmpty, PanelHeader} from "@ui/chrome/Panel";
+import {standoutThreshold} from "@ploufbag/common/dist/flightList";
 
 export const metadata: Metadata = createMetadata('Flights')
 
@@ -18,6 +19,10 @@ export const metadata: Metadata = createMetadata('Flights')
  * The list is the full set rather than the previous first-twenty, because the
  * list and the map now describe the same thing and it was odd for the map to
  * show a flight the list denied existed.
+ *
+ * The subtitle says how to read the list, not how long it is: the count lives
+ * in the search box, where it changes as you type. The threshold comes from
+ * STANDOUT_MIN_SEC, so the sentence cannot drift from the rule it describes.
  */
 export default async function FlightsPage() {
     const [flights, errorMessage] = await Flights.getAllSummaries();
@@ -29,7 +34,7 @@ export default async function FlightsPage() {
                 title="Flights"
                 subtitle={
                     flights
-                        ? `${flights.length} tracked flights. Pick one here or on the map.`
+                        ? `Newest first. Flights of ${standoutThreshold()} or more are marked.`
                         : undefined
                 }
             />

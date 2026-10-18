@@ -1,6 +1,6 @@
 'use client'
 
-import { useId } from 'react'
+import { Ref, useId } from 'react'
 import styles from './PanelFilter.module.css'
 
 /**
@@ -13,14 +13,21 @@ import styles from './PanelFilter.module.css'
  *
  * type="search" gives the native clear affordance, which is one less control to
  * build and the one people already know.
+ *
+ * `shown` is how many items match, not how many rows are on screen: a list that
+ * collapses part of itself for reading (/flights' older months) is not
+ * filtering, and the count should not pretend it is.
  */
 export default function PanelFilter({
+    ref,
     value,
     onChange,
     placeholder,
     shown,
     total,
 }: {
+    /** For a panel that hands focus back to the box, e.g. after "Clear search". */
+    ref?: Ref<HTMLInputElement>
     value: string
     onChange: (value: string) => void
     placeholder: string
@@ -36,6 +43,7 @@ export default function PanelFilter({
             </label>
             <span className={styles.icon} aria-hidden="true">⌕</span>
             <input
+                ref={ref}
                 id={id}
                 type="search"
                 className={styles.input}
