@@ -22,7 +22,17 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
+# Debian's server package keeps the binaries off PATH; Homebrew's postgresql@16
+# is keg-only. Anything else, set PGBIN.
+if [ -z "${PGBIN:-}" ]; then
+    for candidate in /usr/lib/postgresql/16/bin /opt/homebrew/opt/postgresql@16/bin /usr/local/opt/postgresql@16/bin; do
+        if [ -x "$candidate/pg_ctl" ]; then
+            PGBIN="$candidate"
+            break
+        fi
+    done
+    PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
+fi
 # Outside the repo by default: the data directory is throwaway state, and a
 # stray `git add -A` should not be able to reach it.
 DEV_ROOT="${PLOUFBAG_DEV_ROOT:-${TMPDIR:-/tmp}/ploufbag-dev}"
@@ -98,7 +108,12 @@ do_start() {
 # here, and the repetition is exactly how a developer's laptop came to have
 # tables production did not: four copies of one order, and adding a table meant
 # remembering all four.
-mapfile -t SCHEMA_FILES < <(
+#
+# A read loop rather than mapfile: macOS ships bash 3.2, which has no mapfile.
+SCHEMA_FILES=()
+while IFS= read -r name; do
+    SCHEMA_FILES+=("$name")
+done < <(
     sed 's/#.*//' "$REPO_ROOT/functions/src/model/database/scripts/manifest.txt" |
         awk 'NF { print $1 }'
 )
