@@ -14,6 +14,8 @@ they diff, review and version like code.
 ```
 design/
   library.lib.pen                 # Ploufbag UI library: tokens + components
+  library-assets/                 # images the library uses (map backdrops, 🪂 mark)
+  library-exports/                # overview + reference pages, PNG at scale 2
   research/patterns.md            # cross-project index of research findings
   PLOUF-12-flight-filters/        # one folder per Linear project
     research/
@@ -128,6 +130,35 @@ it rather than redrawing buttons, so designs stay on-brand and buildable. If a
 design needs something new, it is made as a component in the project file and
 called out under *Decisions* in the review pack; promote it to the library when
 it ships.
+
+What is in it:
+
+- **Variables** named after the CSS custom properties without the `--`
+  (`--color-primary` → `$color-primary`, `--space-4` → `$space-4`, in px).
+  Also tokens for values the site repeats outside `globals.css`: the track and
+  site palettes (`$track-*`, `$site-*`), translucent state colours
+  (`$color-secondary-a14` for a selected row) and the chrome radii.
+  Shadows are split into `-y`, `-blur` and `-color`, because pen effects take
+  numbers rather than a CSS shadow string. Transitions and
+  `--sheet-height-mobile` (a `dvh` calc) have no variable.
+- **Components**: top bar (desktop and mobile), buttons, search field,
+  checkboxes, chips and tags, list items (flight, site, pilot, wing), panels
+  (`Panel / Sheet`, `Panel / Sheet Mobile`, `Panel / Glass`, each with a
+  `Content` slot), cards, signup card, stat tiles, empty, error and loading
+  states, and `Map Backdrop` (a still of the satellite map, used for context only).
+- **Library overview** and one **Reference** frame per page and breakpoint,
+  rebuilt only from the components. If a reference stops matching
+  `dev/capture.mjs`, either the site or the library has drifted.
+
+Quirks of pen.dev worth knowing before editing it:
+
+- `width` and `height` ignore `$variables`; use the pixel value (padding, gap,
+  radius and colours do take variables).
+- A layer name containing `/` cannot be a `descendants` key: it is read as an
+  instance path. Name the parts of a component without slashes.
+- A frame with no children collapses to zero, padding or not. Use a parent's
+  `gap` for spacing rather than empty spacer frames.
+- Emoji render as monochrome glyphs, so the 🪂 mark is `library-assets/para.png`.
 
 ## Working with pen.dev headlessly
 
