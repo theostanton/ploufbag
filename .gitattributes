@@ -1,0 +1,4 @@
+# Design files (see design/README.md). review-assets groups them under "Assets"
+# in Linear's PR review so they don't bury the implementation changes.
+design/**/*.pen review-assets
+design/**/*.png binary review-assets
