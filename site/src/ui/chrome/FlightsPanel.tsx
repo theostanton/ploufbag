@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { FlightSummary } from '@database/flights'
+import { isStandout } from '@ploufbag/common/dist/flightList'
 import FlightRow from './FlightRow'
 import MapLegend from './MapLegend'
 import PanelFilter from './PanelFilter'
@@ -48,7 +49,12 @@ export default function FlightsPanel({ flights }: { flights: FlightSummary[] }) 
             <MapLegend flights={shown} query={query} onSelect={setQuery}/>
             <PanelSection>
                 {shown.map((flight) => (
-                    <FlightRow key={flight.strava_activity_id} flight={flight} />
+                    <FlightRow
+                        key={flight.strava_activity_id}
+                        flight={flight}
+                        dateStyle="day"
+                        standout={isStandout(flight)}
+                    />
                 ))}
                 {shown.length === 0 && (
                     <p className={styles.empty}>No flights match “{query}”.</p>

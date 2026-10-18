@@ -113,32 +113,29 @@
 }
 
 /*
- * Names inside the row: pilot, wing, takeoff, landing. Raised above the
+ * Names inside a flight row: pilot, wing, takeoff, landing. Raised above the
  * stretched link so they take their own clicks.
  *
- * Marked with a dotted underline rather than a solid one — solid on four names
- * in a two-line row is visual noise, but no underline at all is the problem
- * this set of changes exists to fix. It solidifies on hover.
+ * Plain text at rest (S-2): four underlined names in a two-line row is noise,
+ * and the row as a whole already reads as one target. They underline under the
+ * pointer and ring on focus, which is when it matters which one you are on.
  */
 .inline {
     position: relative;
     z-index: 2;
     color: inherit;
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-decoration-color: var(--color-text-muted);
+    text-decoration: none;
     text-underline-offset: 3px;
-    transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
+    transition: color var(--transition-fast);
 }
 
 .inline:hover {
     color: var(--color-secondary-hover);
-    text-decoration-style: solid;
-    text-decoration-color: currentColor;
+    text-decoration: underline;
 }
 
 .inline:focus-visible {
-    outline: 2px solid var(--color-secondary);
+    outline: 2px solid var(--color-secondary-hover);
     outline-offset: 2px;
     border-radius: 2px;
 }
@@ -230,4 +227,75 @@
 .row[data-current] .chevron {
     width: 12px;
     opacity: 1;
+}
+
+/*
+ * ===================================
+ * FLIGHT ROW
+ * ===================================
+ *
+ * Only FlightRow sets .flight, so none of this reaches the site and pilot rows.
+ */
+
+/* Decision 7: the row's focus ring is the darker cyan, readable on the tint. */
+.flight .primary:focus-visible {
+    outline-color: var(--color-secondary-hover);
+}
+
+/*
+ * The bar widens outward, into the row's padding, so the text beside it never
+ * moves: on hover, on focus and for a standout alike.
+ */
+.flight .swatch {
+    transition: width var(--transition-fast), margin var(--transition-fast);
+}
+
+.flight:hover .swatch,
+.flight[data-hovered] .swatch,
+.flight[data-standout] .swatch {
+    width: 6px;
+    margin-left: -2px;
+}
+
+/* Line 2: the tag, then pilot · wing · date. Cut off at its end, no ellipsis. */
+.metaLine {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Inside the list the secondary tier is the darker grey (S-2), for contrast on the tint. */
+.flight .meta {
+    min-width: 0;
+    color: var(--color-text-secondary);
+    text-overflow: clip;
+}
+
+.flight .numbers {
+    white-space: nowrap;
+}
+
+.flight .secondaryValue {
+    color: var(--color-text-secondary);
+}
+
+.flight[data-standout] .primaryValue {
+    color: var(--color-primary);
+}
+
+/* Tag / Label from the design library. */
+.tag {
+    flex: none;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-normal);
+    letter-spacing: 0.6px;
+    font-variant-numeric: tabular-nums;
 }
