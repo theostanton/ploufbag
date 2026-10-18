@@ -135,6 +135,41 @@ Test database operations thoroughly as they involve complex geospatial queries f
 - **Error Handling**: Tasks return `{ success: boolean, message?: string }` pattern
 - **Authentication**: JWT tokens in cookies, Strava OAuth refresh token handling
 
+## Autonomous Agent Mode (Cyrus via Linear)
+
+Work is also done by **Cyrus**, an agent that runs Claude Code unattended on the
+Mac mini when a Linear issue in the Ploufbag or Checks team is delegated to it.
+The process it follows lives in Linear (the team's agent guidance, sent with
+every session) and in the Notion page *Agent-Driven Development — the Ploufbag
+process*. In a Cyrus session the guardrails below apply, **except**:
+
+- **Branches.** Cyrus creates the issue's worktree and branch. Build work
+  targets the *project branch* named in the project's Implementation Plan, never
+  `main`. Use that, not `feature/…` names, and do not rebase other people's
+  branches.
+- **No draft PR at the start, no conversation history in the PR.** Open the PR
+  when there is something to review. The PR description links the Linear issue
+  (`Fixes PLOUF-123`, or `Part of PLOUF-123` for build tasks on a project
+  branch) and includes the issue's acceptance criteria and your verification —
+  the Linear issue is the conversation history.
+- **Pre-commit checks.** Run what the change touches:
+  `cd common && yarn test && yarn build`, `cd site && yarn build`, and
+  `cd functions && yarn test`. The functions suite needs Docker
+  (Testcontainers) and the site tests need a live database (`dev/db.sh up`);
+  if either is unavailable, say so in your verification and rely on CI rather
+  than skipping silently.
+- **No `docker compose up`.** Use the Docker-free harness in `dev/` instead:
+  `dev/db.sh up`, `dev/site.sh`, then `node dev/shots.mjs` for the regression
+  tour or `node dev/capture.mjs` for a single screenshot under stated
+  conditions (route, viewport, theme, signed-in pilot) — the latter is what
+  visual QA evidence is made with.
+- **Never** edit `.github/workflows/`, merge to `main`, run `task deploy` or
+  `scripts/migrate.sh` against a real database, or use production credentials.
+  Anything only a human can do becomes a `[Human]` issue in Linear.
+
+`cyrus-setup.sh` runs in every new worktree (dependencies + building
+`common`); keep it working when changing package layout.
+
 ## Development Workflow Guardrails
 
 **MANDATORY: Claude Code must follow these guardrails for ALL code changes:**

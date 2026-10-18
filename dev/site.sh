@@ -14,8 +14,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# shellcheck disable=SC2046
-export $(./dev/db.sh env | xargs -d '\n')
+# Not `export $(... | xargs -d '\n')`: BSD xargs on macOS has no -d.
+set -a
+eval "$(./dev/db.sh env)"
+set +a
 
 if [ -f dev/.env.local ]; then
     set -a

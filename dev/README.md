@@ -10,7 +10,8 @@ change is to look at it.
 
 ## What it needs
 
-- PostgreSQL 16 binaries (`/usr/lib/postgresql/16/bin`, override with `PGBIN`).
+- PostgreSQL 16 binaries (found at `/usr/lib/postgresql/16/bin` or Homebrew's
+  `postgresql@16`; override with `PGBIN`).
   The schema needs the `earthdistance`, `cube` and `uuid-ossp` extensions —
   **not** PostGIS, despite what `CLAUDE.md` says. `sites.polygon` is a plain
   `json` column.
@@ -96,3 +97,25 @@ node dev/shots.mjs --base http://localhost:3001
 ```
 
 Exits non-zero on any failure, so it can gate a commit.
+
+## One screenshot: capture.mjs
+
+The tour is fixed. For visual QA every check names its own page, state,
+breakpoint and theme, and the build screenshot has to be taken under exactly
+those conditions:
+
+```bash
+node dev/capture.mjs --path /flights --viewport mobile --out vqa-07.png
+node dev/capture.mjs --path /dashboard --pilot 4210001 --out dashboard.png   # signed in
+node dev/capture.mjs --path /sites --theme dark --full-page true --out sites.png
+node dev/capture.mjs --path /flights --wait-for "main" --out flights.png
+```
+
+`--pilot` signs in as any seeded pilot (same minted session as the tour);
+without it you get the logged-out view. It exits non-zero if the page throws,
+so a screenshot of a crashed page is never passed off as evidence.
+
+Both scripts share their browser plumbing in `browser.mjs`. Playwright is found
+via `PLAYWRIGHT_MODULE`, the agent-container path, or `npm root -g`, so a global
+`npm install -g playwright` (plus `npx playwright install chromium`) is enough
+on a Mac.
