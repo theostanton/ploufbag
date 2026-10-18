@@ -19,68 +19,25 @@
 // Exits non-zero if any assertion fails or any page throws, so it can gate a
 // commit.
 
-import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+    VIEWPORTS,
+    TOUR_PILOT_ID,
+    assertReachable,
+    contextOptionsFor,
+    launchChromium,
+    loadChromium,
+    mintSessionCookie,
+    signIn,
+} from './browser.mjs';
 
-// Playwright is installed globally in this environment rather than as a project
-// dependency -- the site's package.json should not grow a browser automation
-// dependency for a dev-only harness.
-const require = createRequire(import.meta.url);
-const requirePaths = [
-    '/opt/node22/lib/node_modules/playwright',
-    'playwright',
-];
-let chromium;
-for (const candidate of requirePaths) {
-    try {
-        ({ chromium } = require(candidate));
-        break;
-    } catch {
-        // try the next candidate
-    }
-}
-if (!chromium) {
-    console.error('playwright not found. Install it, or set NODE_PATH to the global node_modules.');
-    process.exit(1);
-}
+const chromium = loadChromium();
 
-// ---------------------------------------------------------------------- auth
-//
 // /dashboard and /welcome are behind middleware, and /admin only has anything
 // to show for a signed-in visitor, so without a session the tour photographed a
-// redirect to /login three times and called it coverage.
-//
-// The session is a plain HS256 JWT with the pilot id in `sub` (see
-// data/auth/index.ts), signed with the same SESSION_SECRET the dev server was
-// started with -- dev/site.sh defaults it, and this defaults it identically. No
-// Strava round trip is involved, and nothing here works against a deployment
-// whose secret we do not have, which is the point.
-
-const DEV_SESSION_SECRET =
-    process.env.SESSION_SECRET || 'dev-session-secret-not-for-any-real-use';
-
-/** The pilot the seed data gives the most flights; see dev/seed.mjs. */
-const TOUR_PILOT_ID = 4210001;
-
-/** jose comes from the site's own node_modules -- it is already a dependency. */
-async function mintSessionCookie() {
-    const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-    const siteRequire = createRequire(path.join(repoRoot, 'site', 'package.json'));
-    let SignJWT;
-    try {
-        ({ SignJWT } = siteRequire('jose'));
-    } catch {
-        return null;
-    }
-    const token = await new SignJWT({})
-        .setProtectedHeader({ alg: 'HS256' })
-        .setSubject(String(TOUR_PILOT_ID))
-        .setIssuedAt()
-        .setExpirationTime('2h')
-        .sign(new TextEncoder().encode(DEV_SESSION_SECRET));
-    return token;
-}
+// redirect to /login three times and called it coverage. The authed steps run
+// in a second context carrying a minted session; see dev/browser.mjs.
 
 // ------------------------------------------------------------------- options
 
@@ -105,11 +62,6 @@ function parseArgs(argv) {
 }
 
 const options = parseArgs(process.argv.slice(2));
-
-const VIEWPORTS = {
-    desktop: { width: 1440, height: 900, isMobile: false },
-    mobile: { width: 390, height: 844, isMobile: true, deviceScaleFactor: 2 },
-};
 
 // ---------------------------------------------------------------------- tour
 
@@ -799,15 +751,7 @@ async function runSteps(context, steps, viewportName, outDir, failures, label) {
 }
 
 async function runViewport(browser, viewportName, outDir, failures, sessionCookie) {
-    const contextOptions = {
-        viewport: {
-            width: VIEWPORTS[viewportName].width,
-            height: VIEWPORTS[viewportName].height,
-        },
-        isMobile: VIEWPORTS[viewportName].isMobile,
-        deviceScaleFactor: VIEWPORTS[viewportName].deviceScaleFactor ?? 1,
-        hasTouch: VIEWPORTS[viewportName].isMobile,
-    };
+    const contextOptions = contextOptionsFor(viewportName);
 
     const wanted = TOUR.filter((step) => !options.only || step.name.includes(options.only));
     const anonymous = wanted.filter((step) => !step.authed);
@@ -827,15 +771,7 @@ async function runViewport(browser, viewportName, outDir, failures, sessionCooki
     }
 
     const authedContext = await browser.newContext(contextOptions);
-    await authedContext.addCookies([
-        {
-            name: 'sid',
-            value: sessionCookie,
-            url: options.base,
-            httpOnly: true,
-            sameSite: 'Lax',
-        },
-    ]);
+    await signIn(authedContext, options.base, sessionCookie);
     console.log(`  -- signed in as pilot ${TOUR_PILOT_ID}`);
     await runSteps(authedContext, authed, viewportName, outDir, failures, ' (authed)');
     await authedContext.close();
@@ -845,23 +781,9 @@ async function main() {
     const outDir = path.resolve(options.out);
     fs.mkdirSync(outDir, { recursive: true });
 
-    // Fail fast with a clear message rather than 20 screenshots of a connection
-    // error page.
-    try {
-        const response = await fetch(options.base, { redirect: 'manual' });
-        if (response.status >= 500) {
-            throw new Error(`dev server returned ${response.status}`);
-        }
-    } catch (error) {
-        console.error(`Cannot reach ${options.base} -- is the dev server running?`);
-        console.error(`  ${error.message}`);
-        process.exit(1);
-    }
+    await assertReachable(options.base);
 
-    const browser = await chromium.launch({
-        executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
-        args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
-    });
+    const browser = await launchChromium(chromium);
 
     const sessionCookie = await mintSessionCookie();
     if (!sessionCookie) {
