@@ -45,8 +45,48 @@ switch sizes: no `initdb`, no schema pass. `reset` takes `--flights N` too.
 The same N always gives the same rows; different Ns share the pinned flights
 (below) but are otherwise different fixtures.
 
-`node dev/perf.mjs` — *placeholder: the 1,000-flight scroll measurement, added by
-task 7 of the flights list redesign.*
+## Scrolling at scale: perf.mjs
+
+The flights list is not virtualised, so every flight is in the DOM; what keeps
+it smooth is `content-visibility` on the month groups, memoised rows and months,
+and hover selectors that return primitives. `perf.mjs` is the check that it
+stays that way:
+
+```bash
+dev/db.sh reseed --flights 1000
+node dev/perf.mjs                                # both passes, desktop
+node dev/perf.mjs --viewport mobile
+node dev/perf.mjs --base http://localhost:3001   # e.g. a production build
+node dev/perf.mjs --pass expanded --budget 100 --throttle 4
+dev/db.sh reseed                                 # back to 165 when done
+```
+
+It throttles the CPU 4× through CDP, loads `/flights`, waits for the map to
+settle, then steps the panel's scroller from top to bottom while recording
+`longtask` entries. Two passes, each on a fresh page: **default** (the newest
+month open, older months showing their standouts) and **expanded** (every
+"Show all" opened first, so all 1,000 rows are in the panel). Any scroll task
+over the budget (100 ms) or any console error fails it; the exit code is
+non-zero.
+
+Only the scroll is gated. Load, the map settling and opening months are
+printed but not judged: hydrating a thousand rows under a 4× throttle is a
+long task by nature, and opening a month is work the reader asked for.
+
+What it cannot separate from the list is **the map**. In this headless
+Chromium WebGL is software (SwiftShader), so the map's drawing is on the main
+thread: the first draw of 1,000 tracks is several seconds of long tasks (up to
+~1.8 s each), and every hover redraw costs ~350 ms (~160 ms at 165 flights). That
+is why it waits for the map before scrolling, and parks the pointer on the top
+bar: rows passing under a pointer hover their flights. `--pointer over` leaves
+it on the panel to measure that map cost instead; it fails, and that is the
+map, not the list.
+
+Against a production build (`dev/site.sh build`, then `yarn next start` with
+the same environment) the map proxy is off by design, so build with
+`PLOUFBAG_DEV_MAP_PROXY=0` for the browser to reach Mapbox directly. There is
+no `window.__ploufbagMap` in production, so the wait is for the main thread to
+go quiet (3 s without a long task) instead.
 
 The Postgres data directory lives in `$TMPDIR/ploufbag-dev` by default, outside
 the repo, so it cannot be swept into a commit. Override with

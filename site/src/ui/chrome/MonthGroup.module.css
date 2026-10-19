@@ -2,7 +2,9 @@
  * A month is laid out and painted only when it is near the viewport. The panel
  * holds every flight -- hundreds, and a thousand is the target -- and almost all
  * of it is below the fold. The intrinsic size is an estimate of a collapsed
- * older month (heading, a couple of standouts, the toggle); `auto` lets the
+ * older month (heading, a couple of standouts, the toggle): at 1,000 flights
+ * those measure 89-953 px, about 310 on average, so the scrollbar starts close
+ * to the real length (dev/perf.mjs checks the scrolling). `auto` lets the
  * browser remember the real size once a month has been rendered, so the
  * scrollbar settles rather than jumping as months come into view.
  */
