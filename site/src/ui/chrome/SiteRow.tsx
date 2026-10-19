@@ -14,16 +14,16 @@ import RowLink from './RowLink'
  * Shares the row layout with flights and pilots so the three lists read as the
  * same kind of thing, and syncs hover with the map the same way.
  */
-export default function SiteRow({ site }: { site: Site & { flightCount: number } }) {
+export default function SiteRow({ site }: {
+    site: Site & { flightCount: number, takeoffCount: number, landingCount: number }
+}) {
     const id = site.ffvl_sid
     const href = `/sites/${site.slug}`
     const isHovered = useIsSiteHovered(id)
     const isCurrent = useIsCurrent(href)
 
-    // The list query gives a combined count, so role here comes from the
-    // declared type alone; the detail view, which knows the split, is more
-    // precise.
-    const color = siteRoleColor(siteRole(0, 0, site.type))
+    // Same inputs as the map marker and the detail page, so the three agree.
+    const color = siteRoleColor(siteRole(site.takeoffCount, site.landingCount, site.type))
     const name = formatSiteName(site.name)
 
     return (
