@@ -20,56 +20,69 @@ export function createClient(apiKey) {
         return body.data;
     }
 
-    // 250 issues is far beyond a template project (20 issues plus generated
-    // build, fix and check issues), so one page is enough.
+    // Linear rejects queries whose complexity score is too high, and nested
+    // connections multiply it: a single page of 250 issues, each with
+    // unbounded labels, relations and sessions, came back "Query too complex".
+    // So issues are fetched in pages of 25, with every inner list capped.
     const PROJECT_QUERY = `
-        query RelayProject($id: String!) {
+        query RelayProject($id: String!, $after: String) {
             project(id: $id) {
                 id
                 name
                 status { id name }
-                issues(first: 250) {
+                issues(first: 25, after: $after) {
+                    pageInfo { hasNextPage endCursor }
                     nodes {
                         id
                         identifier
                         parent { id }
                         state { name type }
-                        labels { nodes { name } }
+                        labels(first: 10) { nodes { name } }
                         delegate { id }
-                        agentSessions(first: 20) { nodes { status createdAt appUser { id } } }
-                        relations { nodes { type relatedIssue { id } } }
-                        inverseRelations { nodes { type issue { id } } }
+                        agentSessions(first: 10) { nodes { status createdAt appUser { id } } }
+                        relations(first: 20) { nodes { type relatedIssue { id } } }
+                        inverseRelations(first: 20) { nodes { type issue { id } } }
                     }
                 }
             }
         }`;
 
-    async function getProject(id) {
-        const { project } = await request(PROJECT_QUERY, { id });
-        if (!project) return null;
+    function toIssue(node) {
         return {
-            id: project.id,
-            name: project.name,
-            status: project.status,
-            issues: project.issues.nodes.map((node) => ({
-                id: node.id,
-                identifier: node.identifier,
-                parentId: node.parent?.id ?? null,
-                state: node.state,
-                labels: node.labels.nodes.map((label) => label.name),
-                delegateId: node.delegate?.id ?? null,
-                // Newest first, sorted here rather than trusting the API's order.
-                sessions: [...node.agentSessions.nodes]
-                    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-                    .map((session) => ({ status: session.status, appUserId: session.appUser?.id ?? null })),
-                blocks: node.relations.nodes
-                    .filter((relation) => relation.type === 'blocks')
-                    .map((relation) => relation.relatedIssue.id),
-                blockedBy: node.inverseRelations.nodes
-                    .filter((relation) => relation.type === 'blocks')
-                    .map((relation) => relation.issue.id),
-            })),
+            id: node.id,
+            identifier: node.identifier,
+            parentId: node.parent?.id ?? null,
+            state: node.state,
+            labels: node.labels.nodes.map((label) => label.name),
+            delegateId: node.delegate?.id ?? null,
+            // Newest first, sorted here rather than trusting the API's order.
+            sessions: [...node.agentSessions.nodes]
+                .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+                .map((session) => ({ status: session.status, appUserId: session.appUser?.id ?? null })),
+            blocks: node.relations.nodes
+                .filter((relation) => relation.type === 'blocks')
+                .map((relation) => relation.relatedIssue.id),
+            blockedBy: node.inverseRelations.nodes
+                .filter((relation) => relation.type === 'blocks')
+                .map((relation) => relation.issue.id),
         };
+    }
+
+    async function getProject(id) {
+        let project = null;
+        const issues = [];
+        let after = null;
+        // A template project is 20 issues plus generated build, fix and check
+        // issues -- 60-odd on the pilot. 20 pages is a ceiling, not a target.
+        for (let page = 0; page < 20; page += 1) {
+            const data = await request(PROJECT_QUERY, { id, after });
+            if (!data.project) return null;
+            project = data.project;
+            issues.push(...project.issues.nodes.map(toIssue));
+            if (!project.issues.pageInfo.hasNextPage) break;
+            after = project.issues.pageInfo.endCursor;
+        }
+        return { id: project.id, name: project.name, status: project.status, issues };
     }
 
     async function getProjectStatuses() {
