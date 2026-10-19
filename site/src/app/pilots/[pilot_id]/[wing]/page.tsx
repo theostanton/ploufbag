@@ -58,7 +58,7 @@ export default async function PilotWingPage({params}: {
 
             <PanelHeader
                 back={{href: `/pilots/${pilotId}`, label: pilot.first_name}}
-                accent={getFlightColor(String(pilotId), wingName)}
+                accent={getFlightColor(String(pilotId), wingName, flights[0]?.wing_colour)}
                 title={wingName}
                 subtitle={`${pilot.first_name} · ${flights.length} ${flights.length === 1 ? 'flight' : 'flights'}`}
             />

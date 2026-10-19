@@ -314,7 +314,10 @@ case "$COMMAND" in
         "$0" up ${FLIGHTS:+--flights "$FLIGHTS"}
         ;;
     psql)
-        as_pg "$PGBIN/psql -h 127.0.0.1 -p $PGPORT -U $PGUSER_NAME -d $PGDB $*"
+        # Each argument is re-quoted, because as_pg hands one string to a
+        # shell: with a bare $* `psql -c "select count(*) from flights"`
+        # arrived as five separate words.
+        as_pg "$PGBIN/psql -h 127.0.0.1 -p $PGPORT -U $PGUSER_NAME -d $PGDB $(printf '%q ' "$@")"
         ;;
     status)
         if is_running; then echo "running on port $PGPORT"; else echo "stopped"; fi

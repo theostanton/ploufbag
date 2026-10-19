@@ -9,7 +9,9 @@
 // It is also a regression check, not only a camera. The tour asserts the things
 // that are easy to break and invisible in a still frame -- above all that
 // navigating between views does not rebuild the Mapbox instance, which is the
-// entire premise of the redesign.
+// entire premise of the redesign. For the flights list it compares the panel's
+// structure across the server's HTML, hydration, a Los Angeles time zone, a
+// dark preference and a session (see dev/README.md).
 //
 //   node dev/shots.mjs                      # whole tour, both viewports
 //   node dev/shots.mjs --only flights       # steps whose name contains "flights"
@@ -68,6 +70,40 @@ const options = parseArgs(process.argv.slice(2));
 
 // ---------------------------------------------------------------------- tour
 
+// What some steps search for. SEARCH is a landing field with flights in
+// months the default view collapses; BACK_SEARCH matches enough rows to
+// scroll the panel on either viewport.
+const SEARCH = 'doussard';
+const BACK_SEARCH = 'gin';
+
+/** The custom colour db.sh gives pilot 4210001's Gin Bonanza 3 (#0d9488). */
+const WING_COLOUR = 'rgb(13, 148, 136)';
+
+/**
+ * The seed's pinned flights either side of midnight in Paris, by the Paris
+ * month they belong to (dev/seed.mjs). In Los Angeles every second one of each
+ * pair is still on the previous day -- the previous month, or year.
+ */
+const MIDNIGHT_FLIGHTS = {
+    15000015838: 'July 2026', // 31 Jul 23:35
+    15000023757: 'August 2026', // 1 Aug 00:25
+    15000031676: 'September 2026', // 30 Sep 23:50
+    15000039595: 'October 2026', // 1 Oct 00:10
+    15000047514: 'December 2025', // 31 Dec 23:40
+    15000055433: 'January 2026', // 1 Jan 00:20
+};
+
+/**
+ * Extra browser contexts, each signed out, for steps with `context: <name>`.
+ * A preference like the time zone or colour scheme belongs to the context, so
+ * it cannot be switched for one step in the shared one.
+ */
+const CONTEXTS = {
+    la: { timezoneId: 'America/Los_Angeles' },
+    dark: { colorScheme: 'dark' },
+};
+
+
 // Each step is a screenshot plus, optionally, an interaction that got us there
 // and assertions about where we ended up. `act` receives the Playwright page and
 // a helpers object.
@@ -80,8 +116,35 @@ const TOUR = [
         ambient: true,
     },
     {
+        // The month headings are the panel's structure for a screen reader: each
+        // is an <h2>, so a heading jump moves month by month (AC 10). And the
+        // list the server sends is the list that stays after hydration --
+        // nothing in it should depend on the browser.
         name: '02-flights',
         path: '/flights',
+        act: async (page, { expect, listStructure, serverStructure, waitForMapIdle }) => {
+            await waitForMapIdle();
+            const live = await listStructure();
+            expect(live.months.length > 0, 'no month groups in the panel');
+            const missing = [];
+            for (const month of live.months) {
+                const headings = await page
+                    .getByRole('heading', { level: 2, name: month.heading ?? '', exact: true })
+                    .count();
+                if (headings !== 1) missing.push(month.heading);
+            }
+            expect(
+                missing.length === 0,
+                `${missing.length} of ${live.months.length} month headings are not one level-2 heading: ` +
+                    missing.slice(0, 3).join(', ')
+            );
+            expect(
+                live.months.some((month) => month.toggle),
+                'no collapsed month: the default view should show older months as standouts'
+            );
+            expectSame(expect, await serverStructure('/flights'), live, 'server HTML', 'after hydration');
+            return {};
+        },
     },
     {
         name: '02b-nav-keeps-map',
@@ -104,7 +167,7 @@ const TOUR = [
         path: '/flights',
         // The premise of the redesign: clicking a track on the map navigates,
         // and the map itself is never rebuilt.
-        act: async (page, { clickFirstTrack, expect, mapCanvasId, waitForPath, peekSheet }) => {
+        act: async (page, { clickFirstTrack, expect, mapCanvasId, waitForPath, peekSheet, zoomToTrack }) => {
             const before = await mapCanvasId();
             let clicked = await clickFirstTrack();
             if (!clicked) {
@@ -114,7 +177,14 @@ const TOUR = [
                 // rather than skipping.
                 if (await peekSheet()) clicked = await clickFirstTrack();
             }
-            if (!clicked) return { skipped: 'no track-only point visible even at the peek snap' };
+            if (!clicked) {
+                // At the camera's opening zoom on a phone (about 5) every point
+                // of every track sits under a site marker, so the step skipped
+                // on most runs. Zooming in on one track is what a reader does,
+                // and it always leaves points that are only track.
+                if (await zoomToTrack()) clicked = await clickFirstTrack();
+            }
+            if (!clicked) return { skipped: 'no track-only point visible even zoomed in on a track' };
             await waitForPath(/^\/flights\/\d+/);
             const after = await mapCanvasId();
             expect(
@@ -171,6 +241,36 @@ const TOUR = [
         path: '/pilots/4210001',
     },
     {
+        // A pilot's flights on one wing. db.sh gives this wing the custom colour
+        // #0d9488, outside the hash palette, so the header's colour bar has to
+        // come from wing_colour to match the rows -- it used to show the hash
+        // colour (#22c55e) instead.
+        name: '09c-pilot-wing',
+        path: '/pilots/4210001/gin%20bonanza%203',
+        act: async (page, { expect }) => {
+            const heading = page.getByRole('heading', { level: 1, name: 'Gin Bonanza 3' });
+            expect((await heading.count()) === 1, 'no "Gin Bonanza 3" heading on the pilot-wing page');
+            const colours = await page.evaluate(() => {
+                const colour = (element) => element && getComputedStyle(element).backgroundColor;
+                return {
+                    header: colour(document.querySelector('h1 > span[aria-hidden="true"]')),
+                    rows: [...document.querySelectorAll('a[href^="/flights/"] + span[aria-hidden="true"]')]
+                        .map(colour),
+                };
+            });
+            expect(colours.rows.length > 0, 'no flights on the pilot-wing page');
+            expect(
+                colours.rows.every((colour) => colour === WING_COLOUR),
+                `pilot-wing rows are not all the wing's colour ${WING_COLOUR}: ${[...new Set(colours.rows)]}`
+            );
+            expect(
+                colours.header === WING_COLOUR,
+                `pilot-wing header bar is ${colours.header}, not the wing's colour ${WING_COLOUR}`
+            );
+            return {};
+        },
+    },
+    {
         // The peek snap is the reason snapping exists: at the half height the
         // sheet leaves too little map to hit a track on a phone. Cycling the
         // handle to peek should give the map back, and the camera should
@@ -189,6 +289,27 @@ const TOUR = [
             await page.waitForTimeout(600);
             const after = (await page.locator('section[data-mode]').boundingBox())?.height ?? 0;
             expect(after < before, `peek did not shrink the sheet (${before} -> ${after})`);
+            return {};
+        },
+    },
+    {
+        // Flights / Default full sheet: the third snap, the list over the map.
+        name: '09d-sheet-full',
+        path: '/flights',
+        act: async (page, { expect }) => {
+            const handle = page.getByRole('button', { name: /Resize panel/ });
+            if (!(await handle.isVisible().catch(() => false))) {
+                return { skipped: 'no drag handle (desktop rail)' };
+            }
+            await handle.click();
+            await page.waitForTimeout(600);
+            const label = (await handle.getAttribute('aria-label')) ?? '';
+            const height = (await page.locator('section[data-mode]').boundingBox())?.height ?? 0;
+            expect(label.includes('full'), `one tap from half did not reach the full snap (${label})`);
+            expect(
+                height > page.viewportSize().height * 0.6,
+                `full sheet is ${Math.round(height)}px tall`
+            );
             return {};
         },
     },
@@ -277,26 +398,73 @@ const TOUR = [
     },
     {
         // B2. The filter narrows the list already in hand; no query, no request.
+        // Older months are collapsed to their standouts, so a search is not a
+        // subset of what is on screen: it opens every month it matches, shows
+        // every match and drops the toggles, and clearing it puts the collapsed
+        // view back exactly as it was.
         name: '11d-filter',
         path: '/flights',
-        act: async (page, { expect }) => {
-            const rows = page.locator('a[href^="/flights/"]');
-            const before = await rows.count();
-            if (before === 0) return { skipped: 'no flights in the list' };
+        act: async (page, { expect, listStructure, waitForMapIdle }) => {
+            await waitForMapIdle();
             const box = page.getByPlaceholder(/Search site, pilot or wing/i);
             if (!(await box.isVisible().catch(() => false))) {
                 return { skipped: 'no filter input' };
             }
-            await box.fill('zzzzzz');
-            await page.waitForTimeout(200);
-            const after = await rows.count();
-            expect(after < before, `filter did not reduce the list (${before} -> ${after})`);
-            await box.fill('');
-            await page.waitForTimeout(200);
+            const before = await listStructure();
+            if (before.rows === 0) return { skipped: 'no flights in the list' };
+            expect(before.months.some((month) => month.toggle), 'no collapsed month to search into');
+
+            await box.fill(SEARCH);
+            await page.waitForTimeout(300);
+            const found = await listStructure();
+            expectSearchResult(expect, found, SEARCH, before.total);
             expect(
-                (await rows.count()) === before,
-                'clearing the filter did not restore the list'
+                found.hrefs.some((href) => !before.hrefs.includes(href)),
+                `"${SEARCH}" found nothing that the collapsed months were hiding`
             );
+
+            await box.fill('zzzzzz');
+            await page.waitForTimeout(300);
+            const none = await listStructure();
+            expect(none.rows === 0, `"zzzzzz" left ${none.rows} rows`);
+            expect(none.noResults, 'no "No flights match" message for a search with no results');
+
+            await box.fill('');
+            await page.waitForTimeout(300);
+            expectSame(expect, before, await listStructure(), 'before searching', 'after clearing');
+            return {};
+        },
+    },
+    {
+        // Flights / No results, arriving by URL, and its way out.
+        name: '11d2-no-results',
+        path: '/flights?q=zzzzzz',
+        act: async (page, { expect, listStructure, waitForMapIdle }) => {
+            await waitForMapIdle();
+            const none = await listStructure();
+            expect(none.rows === 0 && none.noResults, '?q=zzzzzz did not show the no-results state');
+            await page.getByRole('button', { name: 'Clear search' }).click();
+            await page.waitForTimeout(300);
+            const cleared = await listStructure();
+            expect(cleared.rows > 0 && cleared.query === '', 'Clear search did not bring the list back');
+            // Put the empty state back for the step's own frame.
+            await page.goto(options.base + '/flights?q=zzzzzz', { waitUntil: 'domcontentloaded' });
+            return {};
+        },
+    },
+    {
+        // A search is in the URL (PLOUF-35, AC 18), so a reload -- or a shared
+        // link -- arrives with the list already filtered in the HTML the server
+        // sends, not filtered a beat later by the client, and hydration changes
+        // nothing. Flights / Search results.
+        name: '11h-q-reload',
+        path: `/flights?q=${SEARCH}`,
+        act: async (page, { expect, listStructure, serverStructure, waitForMapIdle }) => {
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            const server = await serverStructure(`/flights?q=${SEARCH}`, { reload: true });
+            expectSearchResult(expect, server, SEARCH, null, 'server HTML');
+            await waitForMapIdle();
+            expectSame(expect, server, await listStructure(), 'server HTML', 'after hydration');
             return {};
         },
     },
@@ -313,52 +481,17 @@ const TOUR = [
         // where the reader left it (PLOUF-40).
         name: '11g-back-restores-scroll',
         path: '/flights',
-        act: async (page, { expect, waitForPath }) => {
+        act: async (page, { expect, waitForPath, panelPosition, scrollPanel }) => {
             const more = page.getByRole('button', { name: /^Show all \d+ flights in / }).first();
             if (!(await more.isVisible().catch(() => false))) {
                 return { skipped: 'no collapsed month to open' };
             }
             await more.click();
-            // The element the panel scrolls in: the sheet's, not the document.
-            await page.evaluate(() => {
-                window.scrollerOf = (element) => {
-                    while (element && !/(auto|scroll)/.test(getComputedStyle(element).overflowY)) {
-                        element = element.parentElement;
-                    }
-                    return element;
-                };
-            });
-            // The panel's scroller, and the first row whose top is inside it.
-            const read = () => page.evaluate(() => {
-                const scroller = scrollerOf(document.querySelector('a[href^="/flights/"]'));
-                if (!scroller) return null;
-                const box = scroller.getBoundingClientRect();
-                const rows = [...scroller.querySelectorAll('a[href^="/flights/"]')]
-                    .filter((row) => row.getBoundingClientRect().height > 0);
-                const first = rows.find((row) => row.getBoundingClientRect().top >= box.top - 1);
-                const inside = rows.filter((row) => {
-                    const r = row.getBoundingClientRect();
-                    return r.top >= box.top && r.bottom <= box.bottom;
-                });
-                const centre = (row) => {
-                    const r = row?.getBoundingClientRect();
-                    return r && { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-                };
-                return {
-                    scrollTop: scroller.scrollTop,
-                    first: first?.getAttribute('href') ?? null,
-                    low: centre(inside[inside.length - 1]),
-                    high: centre(inside[0]),
-                };
-            });
             for (const which of ['low', 'high']) {
-                await page.evaluate(() => {
-                    const scroller = scrollerOf(document.querySelector('a[href^="/flights/"]'));
-                    if (scroller) scroller.scrollTop = Math.min(900, scroller.scrollHeight / 3);
-                });
+                await scrollPanel(900);
                 // Longer than the panel's save throttle.
                 await page.waitForTimeout(400);
-                const before = await read();
+                const before = await panelPosition();
                 if (!before?.[which]) return { skipped: 'no row visible in the panel' };
                 await page.mouse.click(before[which].x, before[which].y);
                 await waitForPath(/^\/flights\/\d+/);
@@ -366,13 +499,73 @@ const TOUR = [
                 await page.goBack({ waitUntil: 'commit' });
                 await waitForPath(/^\/flights\/?$/);
                 await page.waitForTimeout(800);
-                const after = await read();
+                const after = await panelPosition();
                 expect(
                     after?.scrollTop === before.scrollTop && after?.first === before.first,
                     `back after clicking a ${which} row restored scrollTop ${after?.scrollTop} ` +
                         `(first row ${after?.first}), expected ${before.scrollTop} (${before.first})`
                 );
             }
+            return {};
+        },
+    },
+    {
+        // Back restores the search as well as the scroll: the text in the box,
+        // the ?q= in the URL, the filtered list and the first visible row.
+        name: '11i-back-restores-search',
+        path: '/flights',
+        act: async (page, { expect, waitForPath, panelPosition, scrollPanel, waitForMapIdle }) => {
+            await waitForMapIdle();
+            const box = page.getByPlaceholder(/Search site, pilot or wing/i);
+            await box.fill(BACK_SEARCH);
+            // Longer than the panel's save throttle and the URL update.
+            await page.waitForTimeout(400);
+            await scrollPanel(600);
+            await page.waitForTimeout(400);
+            const before = await panelPosition();
+            if (!before?.high) return { skipped: 'no row visible in the panel' };
+            expect(before.scrollTop > 0, `"${BACK_SEARCH}" did not give the panel anything to scroll`);
+            // By position: a locator click would scroll the panel first.
+            await page.mouse.click(before.high.x, before.high.y);
+            await waitForPath(/^\/flights\/\d+/);
+            await page.waitForTimeout(800);
+            await page.goBack({ waitUntil: 'commit' });
+            await waitForPath(/^\/flights\/?$/);
+            await page.waitForTimeout(800);
+            const after = await panelPosition();
+            const value = await box.inputValue().catch(() => null);
+            const q = new URL(page.url()).searchParams.get('q');
+            expect(value === BACK_SEARCH, `back restored the search box as "${value}", not "${BACK_SEARCH}"`);
+            expect(q === BACK_SEARCH, `back restored ?q=${q}, not ?q=${BACK_SEARCH}`);
+            expect(
+                after?.scrollTop === before.scrollTop && after?.first === before.first,
+                `back restored scrollTop ${after?.scrollTop} (first row ${after?.first}), ` +
+                    `expected ${before.scrollTop} (${before.first})`
+            );
+            return {};
+        },
+    },
+    {
+        // Flights / Month expanded: "Show all" opens a month in place.
+        name: '11j-month-expanded',
+        path: '/flights',
+        act: async (page, { expect, listStructure, waitForMapIdle }) => {
+            await waitForMapIdle();
+            const before = await listStructure();
+            const month = before.months.find((m) => m.toggle?.startsWith('Show all'));
+            if (!month) return { skipped: 'no collapsed month to open' };
+            const total = Number(month.toggle.match(/Show all (\d+)/)[1]);
+            await page.getByRole('button', { name: month.toggle, exact: true }).click();
+            await page.waitForTimeout(300);
+            const opened = (await listStructure()).months.find((m) => m.id === month.id);
+            expect(
+                opened?.hrefs.length === total,
+                `${month.heading} shows ${opened?.hrefs.length} rows after "${month.toggle}"`
+            );
+            expect(
+                opened?.expanded === 'true' && opened?.toggle === 'Show standouts only',
+                `${month.heading}'s toggle reads "${opened?.toggle}", aria-expanded=${opened?.expanded}`
+            );
             return {};
         },
     },
@@ -426,7 +619,81 @@ const TOUR = [
         },
     },
 
+    // ------------------------------------------------- other browser contexts
+
+    {
+        // Months are Paris months wherever the reader is (AC 13). A browser in
+        // Los Angeles is eight or nine hours behind, so the pinned flights just
+        // after midnight in Paris are on the previous day there; anything that
+        // formats in the browser's zone puts them in the wrong month, and shows
+        // up first as a hydration mismatch against the server's HTML.
+        name: '15-time-zone-la',
+        path: '/flights',
+        context: 'la',
+        act: async (page, { expect, listStructure, serverStructure, waitForMapIdle }) => {
+            const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+            expect(zone === 'America/Los_Angeles', `the context's time zone is ${zone}`);
+            await waitForMapIdle();
+            const live = await listStructure();
+            expectSame(expect, await serverStructure('/flights'), live, 'server HTML', 'after hydration');
+
+            // Open every month, then find each near-midnight flight.
+            for (let i = 0; i < 40; i++) {
+                const more = page.getByRole('button', { name: /^Show (all \d+ flights|1 flight) in / }).first();
+                if (!(await more.isVisible().catch(() => false))) break;
+                await more.click();
+            }
+            const months = await page.evaluate((ids) => Object.fromEntries(ids.map((id) => {
+                const row = document.querySelector(`a[href="/flights/${id}"]`);
+                const section = row?.closest('section[aria-labelledby^="month-"]');
+                return [id, section ? document.getElementById(section.getAttribute('aria-labelledby'))?.textContent ?? null : null];
+            })), Object.keys(MIDNIGHT_FLIGHTS));
+            for (const [id, month] of Object.entries(MIDNIGHT_FLIGHTS)) {
+                expect(months[id] === month, `flight ${id} is under ${months[id]}, not ${month}`);
+            }
+            // Leave the default view for the frame.
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            return {};
+        },
+    },
+    {
+        // The design is light only (VQA-24): a phone or desktop set to dark
+        // still gets the light panels, not a half-dark mix.
+        name: '16-dark-preference',
+        path: '/flights',
+        context: 'dark',
+        act: async (page, { expect, referencePage, waitForMapIdle }) => {
+            const dark = await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches);
+            expect(dark, 'the context does not prefer a dark colour scheme');
+            await waitForMapIdle();
+            const light = await referencePage('/flights');
+            const [want, got] = [await readStyles(light), await readStyles(page)];
+            expect(
+                got.body === 'rgb(245, 245, 240)',
+                `body background is ${got.body} under a dark preference`
+            );
+            expectSame(expect, want, got, 'light preference', 'dark preference');
+            return {};
+        },
+    },
+
     // ------------------------------------------------------------ authed routes
+
+    {
+        // A session changes the chrome around /flights, not the list (VQA-26):
+        // same months, same counts, same rows in the same order as signed out.
+        name: '12b-flights-signed-in',
+        path: '/flights',
+        authed: true,
+        act: async (page, { expect, listStructure, referencePage, serverStructure, waitForMapIdle }) => {
+            await waitForMapIdle();
+            const live = await listStructure();
+            expectSame(expect, await serverStructure('/flights'), live, 'server HTML', 'after hydration');
+            const signedOut = await listStructure(await referencePage('/flights'));
+            expectSame(expect, signedOut, live, 'signed out', 'signed in');
+            return {};
+        },
+    },
 
     {
         name: '12-dashboard',
@@ -470,6 +737,101 @@ const TOUR = [
     },
 ];
 
+/**
+ * The flights panel as structure: months, their headings and summaries, rows
+ * by href and label in order, toggles, the search box and its count. Run in the
+ * page. Comparing this rather than pixels is what makes the server-vs-hydrated
+ * and signed-in-vs-out checks exact without being flaky.
+ */
+function readListStructure() {
+    const text = (element) => element?.textContent.replace(/\s+/g, ' ').trim() ?? null;
+    const months = [...document.querySelectorAll('section[aria-labelledby^="month-"]')].map((section) => {
+        const rows = [...section.querySelectorAll('a[href^="/flights/"]')];
+        const toggle = section.querySelector('button[aria-expanded]');
+        return {
+            // The element the section is labelled by, whatever it is: the
+            // heading step asserts that it is an <h2>, so it is not assumed.
+            id: section.getAttribute('aria-labelledby'),
+            heading: text(document.getElementById(section.getAttribute('aria-labelledby'))),
+            summary: text(document.getElementById(section.getAttribute('aria-labelledby'))?.nextElementSibling),
+            hrefs: rows.map((row) => row.getAttribute('href')),
+            labels: rows.map((row) => row.getAttribute('aria-label')),
+            toggle: text(toggle),
+            expanded: toggle?.getAttribute('aria-expanded') ?? null,
+        };
+    });
+    const input = document.querySelector('input[type="search"]');
+    return {
+        months,
+        query: input ? input.value : null,
+        count: text(input?.parentElement?.querySelector('[aria-live]')),
+        noResults: /No flights match/.test(document.body.textContent),
+    };
+}
+
+function summariseStructure(raw) {
+    const hrefs = raw.months.flatMap((month) => month.hrefs);
+    const total = Number(String(raw.count ?? '').split(' of ').pop()) || null;
+    return { ...raw, hrefs, rows: hrefs.length, total };
+}
+
+/** Where two values first differ, as a path, or null when they are equal. */
+function firstDifference(a, b, at = '') {
+    if (Object.is(a, b)) return null;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+        return `${at || 'value'}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`;
+    }
+    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        const difference = firstDifference(a[key], b[key], `${at}${Array.isArray(a) ? `[${key}]` : `.${key}`}`);
+        if (difference) return difference;
+    }
+    return null;
+}
+
+function expectSame(expect, a, b, aName, bName) {
+    const difference = firstDifference(a, b);
+    expect(difference === null, `${aName} and ${bName} differ at ${difference}`);
+}
+
+/** A search result: every match shown, months open, no toggles. */
+function expectSearchResult(expect, list, query, total, where = 'the list') {
+    expect(list.query === query, `${where}: the search box holds "${list.query}", not "${query}"`);
+    expect(list.rows > 0, `${where}: "${query}" matched no rows`);
+    const count = total === null ? new RegExp(`^${list.rows} of \\d+$`) : `${list.rows} of ${total}`;
+    expect(
+        typeof count === 'string' ? list.count === count : count.test(list.count ?? ''),
+        `${where}: the count reads "${list.count}" with ${list.rows} rows shown`
+    );
+    expect(list.months.every((month) => month.toggle === null), `${where}: a month kept its toggle while searching`);
+    expect(
+        list.months.every((month) => /^\d+ of \d+ flights?\b/.test(month.summary ?? '')),
+        `${where}: a month summary is not "N of M flights" while searching`
+    );
+    const stray = list.months.flatMap((month) => month.labels)
+        .find((label) => !label?.toLowerCase().includes(query.toLowerCase()));
+    expect(stray === undefined, `${where}: "${stray}" does not match "${query}"`);
+}
+
+/** Computed colours that tell the light design from a dark one. */
+function readStyles(page) {
+    return page.evaluate(() => {
+        const css = (selector, property) => {
+            const element = document.querySelector(selector);
+            return element ? getComputedStyle(element)[property] : null;
+        };
+        return {
+            body: css('body', 'backgroundColor'),
+            text: css('body', 'color'),
+            scheme: css(':root', 'colorScheme'),
+            panel: css('section[data-mode]', 'backgroundColor'),
+            header: css('header', 'backgroundColor'),
+            heading: css('section[aria-labelledby^="month-"] [id^="month-"]', 'color'),
+            input: css('input[type="search"]', 'backgroundColor'),
+            inputText: css('input[type="search"]', 'color'),
+        };
+    });
+}
+
 // ------------------------------------------------------------------- helpers
 
 // The Next dev-tools badge floats over the bottom-left corner, which is exactly
@@ -491,7 +853,7 @@ async function hideDevOverlay(page) {
 /** Snap points in Sheet.tsx; the handle cycles through them in order. */
 const SNAP_CYCLE_LENGTH = 3;
 
-function makeHelpers(page, failures, stepName) {
+function makeHelpers(page, failures, stepName, env) {
     const expect = (condition, message) => {
         if (!condition) failures.push(`${stepName}: ${message}`);
     };
@@ -661,9 +1023,109 @@ function makeHelpers(page, failures, stepName) {
         return href;
     };
 
-    const waitForMapIdle = async (ambient = false) => {
-        const problem = await waitForMap(page, { ambient, timeout: options.timeout });
+    const waitForMapIdle = async (ambient = false, target = page) => {
+        const problem = await waitForMap(target, { ambient, timeout: options.timeout });
         if (problem) failures.push(`${stepName}: ${problem}`);
+    };
+
+    /**
+     * Fit the camera to one rendered track, without animating, and wait for
+     * the map to go idle there.
+     */
+    const zoomToTrack = async () => {
+        const zoomed = await page.evaluate(() => new Promise((resolve) => {
+            const map = window.__ploufbagMap;
+            const feature = map?.getLayer('flights-hit') &&
+                map.queryRenderedFeatures({ layers: ['flights-hit'] })[0];
+            if (!feature) return resolve(false);
+            const geometry = feature.geometry;
+            const coords = geometry.type === 'LineString' ? geometry.coordinates : geometry.coordinates.flat();
+            const xs = coords.map((c) => c[0]);
+            const ys = coords.map((c) => c[1]);
+            const timer = setTimeout(() => resolve(true), 10000);
+            map.once('idle', () => { clearTimeout(timer); resolve(true); });
+            map.fitBounds(
+                [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]],
+                { padding: 60, animate: false }
+            );
+        }));
+        await page.waitForTimeout(300);
+        return zoomed;
+    };
+
+    /**
+     * The panel's scroll position and the first row whose top is inside it,
+     * plus the centres of the lowest and highest rows wholly inside, to click
+     * by position. The scroller is the sheet's or the rail's, not the document.
+     */
+    const panelPosition = () => page.evaluate(() => {
+        let scroller = document.querySelector('a[href^="/flights/"]');
+        while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+            scroller = scroller.parentElement;
+        }
+        if (!scroller) return null;
+        const box = scroller.getBoundingClientRect();
+        const rows = [...scroller.querySelectorAll('a[href^="/flights/"]')]
+            .filter((row) => row.getBoundingClientRect().height > 0);
+        const first = rows.find((row) => row.getBoundingClientRect().top >= box.top - 1);
+        const inside = rows.filter((row) => {
+            const r = row.getBoundingClientRect();
+            return r.top >= box.top && r.bottom <= box.bottom;
+        });
+        const centre = (row) => {
+            const r = row?.getBoundingClientRect();
+            return r && { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        };
+        return {
+            scrollTop: scroller.scrollTop,
+            first: first?.getAttribute('href') ?? null,
+            low: centre(inside[inside.length - 1]),
+            high: centre(inside[0]),
+        };
+    });
+
+    /** Scroll the panel to `top`, or a third of the way down if that is less. */
+    const scrollPanel = (top) => page.evaluate((top) => {
+        let scroller = document.querySelector('a[href^="/flights/"]');
+        while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+            scroller = scroller.parentElement;
+        }
+        if (scroller) scroller.scrollTop = Math.min(top, scroller.scrollHeight / 3);
+    }, top);
+
+    const listStructure = async (target = page) => summariseStructure(await target.evaluate(readListStructure));
+
+    /**
+     * The panel as the server sent it: the same URL in a context with
+     * JavaScript off, so the DOM is the HTML and nothing else. It carries this
+     * context's cookies, time zone and colour scheme.
+     */
+    const serverStructure = async (route, { reload = false } = {}) => {
+        const context = await env.browser.newContext({ ...env.contextOptions, javaScriptEnabled: false });
+        try {
+            await context.addCookies(await page.context().cookies());
+            const html = await context.newPage();
+            await html.goto(options.base + route, { waitUntil: 'domcontentloaded', timeout: options.timeout });
+            if (reload) await html.reload({ waitUntil: 'domcontentloaded', timeout: options.timeout });
+            return await listStructure(html);
+        } finally {
+            await context.close();
+        }
+    };
+
+    /**
+     * The same route in a fresh signed-out context with no preferences -- the
+     * reference that a dark or signed-in page is compared against. Closed when
+     * the step ends; its console errors count like the step's own.
+     */
+    const referencePage = async (route) => {
+        const context = await env.browser.newContext(contextOptionsFor(env.viewportName));
+        env.opened.push(context);
+        const reference = await context.newPage();
+        env.watch(reference);
+        await reference.goto(options.base + route, { waitUntil: 'domcontentloaded', timeout: options.timeout });
+        await waitForMapIdle(false, reference);
+        return reference;
     };
 
     return {
@@ -675,6 +1137,12 @@ function makeHelpers(page, failures, stepName) {
         peekSheet,
         firstFlightHref,
         waitForMapIdle,
+        zoomToTrack,
+        panelPosition,
+        scrollPanel,
+        listStructure,
+        serverStructure,
+        referencePage,
     };
 }
 
@@ -689,22 +1157,31 @@ function makeHelpers(page, failures, stepName) {
  * header, the floating upsell -- so a single authed context would quietly turn
  * half the chrome checks into skips.
  */
-async function runSteps(context, steps, viewportName, outDir, failures, label) {
+async function runSteps(browser, context, contextOptions, steps, viewportName, outDir, failures, label) {
     if (steps.length === 0) return;
 
     const page = await context.newPage();
 
     // A React error or a Mapbox style failure will otherwise show up as a
-    // subtly wrong screenshot nobody notices. Surface them.
-    const pageErrors = [];
-    page.on('pageerror', (error) => {
-        if (!isIgnorable(String(error))) pageErrors.push(String(error));
-    });
-    page.on('console', (message) => {
-        if (message.type() !== 'error') return;
-        const text = consoleErrorText(message);
-        if (!isIgnorable(text)) pageErrors.push(`console: ${text}`);
-    });
+    // subtly wrong screenshot nobody notices. Surface them, against the step
+    // that was running. React 19 logs a hydration mismatch with console.error;
+    // a warning that mentions hydration counts too, so a quieter one cannot
+    // slip through.
+    const pageErrors = new Set();
+    let current = steps[0].name;
+    const watch = (target) => {
+        target.on('pageerror', (error) => {
+            if (!isIgnorable(String(error))) pageErrors.add(`${current}${label}: page error: ${String(error)}`);
+        });
+        target.on('console', (message) => {
+            const type = message.type();
+            if (type !== 'error' && type !== 'warning') return;
+            const text = consoleErrorText(message);
+            if (type === 'warning' && !/hydrat/i.test(text)) return;
+            if (!isIgnorable(text)) pageErrors.add(`${current}${label}: console ${type}: ${text}`);
+        });
+    };
+    watch(page);
 
     // Expose the map for the helpers above. MapCanvas assigns
     // window.__ploufbagMap on load; before that exists this is simply absent and
@@ -716,7 +1193,9 @@ async function runSteps(context, steps, viewportName, outDir, failures, label) {
     const skipped = new Set();
 
     for (const step of steps) {
-        const helpers = makeHelpers(page, failures, `${viewportName}/${step.name}`);
+        current = step.name;
+        const env = { browser, contextOptions, viewportName, opened: [], watch };
+        const helpers = makeHelpers(page, failures, `${viewportName}/${step.name}${label}`, env);
         let note = '';
 
         if (step.requires && skipped.has(step.requires)) {
@@ -746,14 +1225,12 @@ async function runSteps(context, steps, viewportName, outDir, failures, label) {
 
         const file = path.join(outDir, `${step.name}.${viewportName}.png`);
         await page.screenshot({ path: file, fullPage: false });
+        for (const opened of env.opened) await opened.close();
         console.log(`  ${path.basename(file)}${note}`);
     }
 
-    if (pageErrors.length > 0) {
-        // Deduplicate: React logs the same hydration complaint many times.
-        for (const error of [...new Set(pageErrors)]) {
-            failures.push(`${viewportName}${label}: page error: ${error.slice(0, 300)}`);
-        }
+    for (const error of pageErrors) {
+        failures.push(`${viewportName}/${error.slice(0, 400)}`);
     }
 
     await page.close();
@@ -763,12 +1240,22 @@ async function runViewport(browser, viewportName, outDir, failures, sessionCooki
     const contextOptions = contextOptionsFor(viewportName);
 
     const wanted = TOUR.filter((step) => !options.only || step.name.includes(options.only));
-    const anonymous = wanted.filter((step) => !step.authed);
+    const anonymous = wanted.filter((step) => !step.authed && !step.context);
     const authed = wanted.filter((step) => step.authed);
 
     const context = await browser.newContext(contextOptions);
-    await runSteps(context, anonymous, viewportName, outDir, failures, '');
+    await runSteps(browser, context, contextOptions, anonymous, viewportName, outDir, failures, '');
     await context.close();
+
+    for (const [name, extra] of Object.entries(CONTEXTS)) {
+        const steps = wanted.filter((step) => step.context === name);
+        if (steps.length === 0) continue;
+        const otherOptions = contextOptionsFor(viewportName, extra);
+        const other = await browser.newContext(otherOptions);
+        console.log(`  -- ${name}: ${JSON.stringify(extra)}`);
+        await runSteps(browser, other, otherOptions, steps, viewportName, outDir, failures, ` (${name})`);
+        await other.close();
+    }
 
     if (authed.length === 0) return;
 
@@ -782,7 +1269,7 @@ async function runViewport(browser, viewportName, outDir, failures, sessionCooki
     const authedContext = await browser.newContext(contextOptions);
     await signIn(authedContext, options.base, sessionCookie);
     console.log(`  -- signed in as pilot ${TOUR_PILOT_ID}`);
-    await runSteps(authedContext, authed, viewportName, outDir, failures, ' (authed)');
+    await runSteps(browser, authedContext, contextOptions, authed, viewportName, outDir, failures, ' (authed)');
     await authedContext.close();
 }
 
