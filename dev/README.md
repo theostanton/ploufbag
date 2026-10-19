@@ -166,7 +166,57 @@ asserts the things that are invisible in a still frame:
   the navigation. This is the entire premise of the redesign.
 - Browser back likewise keeps the same instance.
 - A cold load of a flight detail reaches the same view as arriving by click.
-- Any `pageerror` or `console.error` fails the run.
+- Any `pageerror` or `console.error`, and any console warning that mentions
+  hydration, fails the run. Each one is reported against the step that was
+  running when it arrived.
+
+### The flights list
+
+Most `/flights` checks compare the panel's **structure** rather than pixels:
+for each month, its heading, summary, rows (by `href` and `aria-label`, in
+order) and toggle, plus the search box and its count. "Server HTML" is that
+structure read from the same URL in a context with JavaScript turned off, so
+the DOM is exactly what the server sent.
+
+| Step | What it asserts |
+| --- | --- |
+| `02-flights` | Every month heading is a level-2 heading (`getByRole('heading', { level: 2 })`); at least one older month is collapsed; the server HTML matches the hydrated panel. |
+| `03-flight-detail-via-map-click` | Clicking a track opens the flight without rebuilding the map. On a phone the camera opens at about zoom 5, where every track point is under a site marker, so the step first tries the peek snap and then zooms in on one track. It no longer skips. |
+| `09c-pilot-wing` | `/pilots/4210001/gin%20bonanza%203`: the rows and the header's colour bar are both the wing's custom colour (`#0d9488`). |
+| `09d-sheet-full` | Mobile only. One tap from the half snap reaches full. |
+| `11d-filter` | Searching `doussard` opens every month it matches (including rows the collapsed months hid), drops the toggles, counts `N of 165` and shows only matches; `zzzzzz` shows the no-results state; clearing puts the collapsed view back exactly. |
+| `11d2-no-results` | `?q=zzzzzz` arrives empty, and *Clear search* brings the list back. |
+| `11h-q-reload` | After a reload of `/flights?q=doussard`, the server HTML is already filtered (box, count, rows, no toggles), and hydration changes nothing. |
+| `11g-back-restores-scroll` | Back from a flight restores the open months, the scroll position and the first visible row, for a row at the bottom of the panel and one at the top. |
+| `11i-back-restores-search` | Same, after searching `gin`: back restores the text in the box, `?q=gin`, the scroll position and the first visible row. |
+| `11j-month-expanded` | *Show all N flights in …* shows N rows and becomes *Show standouts only*, `aria-expanded="true"`. |
+| `15-time-zone-la` | A context with `timezoneId: 'America/Los_Angeles'`: the server HTML matches the hydrated panel, and with every month open, the pinned near-midnight flights (seed) are under their Paris month. |
+| `16-dark-preference` | A context with `colorScheme: 'dark'` renders the light design: body, panel, top bar, headings and search box have the same computed colours as a light reference page, and the body is `#F5F5F0` (VQA-24). |
+| `12b-flights-signed-in` | Signed in, the panel matches the signed-out panel exactly, in months, counts and row order (VQA-26), and matches its own server HTML. |
+
+Clicks that depend on the panel's scroll position are made by screen
+position. `locator.click()` scrolls its target into view first, which moves the
+sheet before the click lands.
+
+The LA and dark steps each run in a browser context of their own (`CONTEXTS`
+in `shots.mjs`), signed out, between the signed-out pass and the signed-in
+pass.
+
+Approved frames (`design/PLOUF-13-flights-list-redesign/exports/`) and the
+steps that photograph them:
+
+| Frame | Step |
+| --- | --- |
+| Flights / Default | `02-flights` |
+| Flights / Default peek (mobile) | `09b-sheet-peek` |
+| Flights / Default full sheet (mobile) | `09d-sheet-full` |
+| Flights / Month expanded | `11j-month-expanded` |
+| Flights / Search results | `11h-q-reload` |
+| Flights / No results | `11d2-no-results` |
+| Flights / Row states | `02-flights` (standout and plain rows); hover and current rows are not photographed |
+| Flights / Hidden row hover (desktop) | not photographed: hovering a specific hidden flight's track is not deterministic yet |
+| Pilot / Flights | `09c-pilot-wing` (and `09-pilot-detail`) |
+| Dashboard / Recent flights | `12-dashboard` |
 
 A step whose precondition did not happen (no track on the map to click, for
 instance) reports as skipped and cascades that skip to steps that depend on it,

@@ -92,6 +92,11 @@ export const IGNORED_CONSOLE_ERRORS = [
     // "Failed to fetch" from our own code still fails the run.
     /Failed to fetch[\s\S]*mapbox-gl/,
     /AbortError/,
+    // The dev tile proxy's own fetch to Mapbox failing ("fetch failed" in the
+    // site log), which it reports as a 500 for that tile: the network between
+    // this machine and Mapbox, not the site. Mapbox retries the tile.
+    /status of 5\d\d[\s\S]*\/api\/dev\/mapbox/,
+    /Internal Server Error[\s\S]*mapbox-gl/,
     // Mapbox telemetry. Some networks (the Mac mini's included) refuse it, and
     // the map does not depend on it. Only matchable by URL: Chromium's
     // "Failed to load resource" message does not name the request, which is

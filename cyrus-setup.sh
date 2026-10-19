@@ -34,9 +34,13 @@ echo "==> yarn install + build (common)"
 (cd common && "${YARN[@]}" install --frozen-lockfile --non-interactive --silent && "${YARN[@]}" build)
 
 # --check-files: on a re-run Yarn would otherwise keep its stale copy of common
-# and skip the install as "up to date".
+# and skip the install as "up to date". It is not enough on its own: while
+# common's version is unchanged Yarn restores the same cached file:../common
+# copy, so modules added to common since (dist/flightList, say) are missing.
+# Removing the copy forces a fresh one.
 for package in functions site; do
     echo "==> yarn install ($package)"
+    rm -rf "$package/node_modules/@ploufbag/common"
     (cd "$package" && "${YARN[@]}" install --frozen-lockfile --check-files --non-interactive --silent)
 done
 
