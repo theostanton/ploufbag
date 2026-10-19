@@ -18,7 +18,7 @@ const STATES = {
 };
 
 /** The start of the template's chain, linked as Review spec for gaps links it. */
-function pilotProject({ status = 'Agent Working', states = {}, delegates = {}, extra = [] } = {}) {
+function pilotProject({ status = 'Agent Working', states = {}, delegates = {}, sessions = {}, extra = [] } = {}) {
     const chain = [
         ['spec', 'Human'],
         ['review', 'Agent'],
@@ -34,17 +34,42 @@ function pilotProject({ status = 'Agent Working', states = {}, delegates = {}, e
         state: STATES[states[id] ?? 'backlog'],
         labels: [executor],
         delegateId: delegates[id] ?? null,
+        sessions: (sessions[id] ?? []).map((sessionStatus) => ({ status: sessionStatus, appUserId: CYRUS })),
         blockedBy: index > 0 ? [chain[index - 1][0]] : [],
         blocks: index < chain.length - 1 ? [chain[index + 1][0]] : [],
     }));
     return { id: 'p', name: 'Pilot', status: { id: 's', name: status }, issues: [...issues, ...extra] };
 }
 
-test('agent working while a delegated issue is in progress', () => {
+test('agent working while a delegated issue has a running session', () => {
     const project = pilotProject({
         status: 'Speccing',
         states: { spec: 'done', review: 'inProgress' },
         delegates: { review: CYRUS },
+        sessions: { review: ['active'] },
+    });
+    assert.equal(desiredProjectStatus(project, CYRUS), 'Agent working');
+});
+
+test('awaiting human when the session ended but the issue is still In Progress', () => {
+    // What PLOUF-11 did: Cyrus finished the review, left the issue In Progress,
+    // and the next gate is still blocked by it -- someone has to look.
+    for (const ended of ['complete', 'awaitingInput', 'error']) {
+        const project = pilotProject({
+            states: { spec: 'done', review: 'inProgress' },
+            delegates: { review: CYRUS },
+            sessions: { review: [ended, 'active'] },
+        });
+        assert.equal(desiredProjectStatus(project, CYRUS), 'Awaiting Human', ended);
+    }
+});
+
+test('a newer running session wins over an older ended one', () => {
+    const project = pilotProject({
+        status: 'Awaiting Human',
+        states: { spec: 'done', review: 'inProgress' },
+        delegates: { review: CYRUS },
+        sessions: { review: ['active', 'complete'] },
     });
     assert.equal(desiredProjectStatus(project, CYRUS), 'Agent working');
 });
@@ -83,7 +108,9 @@ test('speccing is kept while Theo is writing the spec', () => {
 
 test('statuses outside the managed three are never touched', () => {
     for (const status of ['Idea', 'Shipped', 'Canceled']) {
-        const project = pilotProject({ status, states: { review: 'inProgress' }, delegates: { review: CYRUS } });
+        const project = pilotProject({
+            status, states: { review: 'inProgress' }, delegates: { review: CYRUS }, sessions: { review: ['active'] },
+        });
         assert.equal(desiredProjectStatus(project, CYRUS), null, status);
     }
 });
@@ -93,6 +120,7 @@ test('status names match case-insensitively', () => {
         status: 'awaiting human',
         states: { spec: 'done', review: 'inProgress' },
         delegates: { review: CYRUS },
+        sessions: { review: ['active'] },
     });
     assert.equal(desiredProjectStatus(project, CYRUS), 'Agent working');
 });
@@ -114,7 +142,7 @@ test('nothing is delegated while another blocker is still open', () => {
     project.issues.find((issue) => issue.id === 'research').blockedBy.push('other');
     project.issues.push({
         id: 'other', identifier: 'PLOUF-99', parentId: null, state: STATES.todo,
-        labels: ['Human'], delegateId: null, blockedBy: [], blocks: ['research'],
+        labels: ['Human'], delegateId: null, sessions: [], blockedBy: [], blocks: ['research'],
     });
     assert.deepEqual(issuesToDelegate(project, 'approve'), []);
 });

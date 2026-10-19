@@ -10,6 +10,7 @@
 //       state: { name, type },          // type: backlog|unstarted|started|completed|canceled|triage
 //       labels: ['Agent' | 'Human', ...],
 //       delegateId,                     // null when not delegated
+//       sessions: [{ status, appUserId }],  // agent sessions, newest first
 //       blockedBy: [issueId, ...],      // issues that block this one
 //       blocks: [issueId, ...],         // issues this one blocks
 //     }],
@@ -40,13 +41,38 @@ function openBlockers(issue, byId) {
     return issue.blockedBy.map((id) => byId.get(id)).filter((blocker) => blocker && !isResolved(blocker));
 }
 
+// Agent session statuses (Linear's AgentSessionStatus).
+const RUNNING_SESSION = new Set(['pending', 'active', 'stopping']);
+const HANDED_BACK_SESSION = new Set(['complete', 'awaitingInput', 'error', 'stale']);
+
+/**
+ * Whether the agent is working on this issue right now. Issue state alone can't
+ * say: Cyrus leaves an issue In Progress when a session ends without a PR, so
+ * the agent session is what counts. Delegated with no session yet means Linear
+ * hasn't started one, which is still the agent's turn.
+ */
+function agentRunning(issue, cyrusUserId) {
+    if (issue.delegateId !== cyrusUserId) return false;
+    const latest = issue.sessions.find((session) => session.appUserId === cyrusUserId);
+    return !latest || RUNNING_SESSION.has(latest.status);
+}
+
+/** Delegated, but its latest session has ended: the agent has handed back. */
+function agentHandedBack(issue, cyrusUserId) {
+    if (issue.delegateId !== cyrusUserId) return false;
+    const latest = issue.sessions.find((session) => session.appUserId === cyrusUserId);
+    return Boolean(latest && HANDED_BACK_SESSION.has(latest.status));
+}
+
 /**
  * The project status the issues say it should have, or null to leave it alone.
  *
- * Agent working  -- something is delegated to the agent and is not waiting on a
- *                   person (Needs Human, or a PR in code review).
+ * Agent working  -- an agent session is running (or about to) on an open issue
+ *                   that isn't waiting on a person.
  * Awaiting Human -- otherwise, when something is waiting on Theo: an issue in
- *                   Needs Human, or an open [Human] issue nothing blocks.
+ *                   Needs Human or In Code Review, an agent issue whose session
+ *                   has ended but which is still open (someone has to look and
+ *                   close it), or an open [Human] issue nothing blocks.
  *
  * Only projects already in one of the three managed statuses are touched, so
  * Idea, Shipped and Canceled are never overridden; Speccing is left until an
@@ -63,13 +89,13 @@ export function desiredProjectStatus(project, cyrusUserId, names = DEFAULT_NAMES
     const waitingOnPerson = (issue) =>
         sameName(issue.state.name, names.needsHumanState) || sameName(issue.state.name, names.codeReviewState);
 
-    const agentBusy = open.some((issue) => issue.delegateId === cyrusUserId && !waitingOnPerson(issue));
+    const agentBusy = open.some((issue) => agentRunning(issue, cyrusUserId) && !waitingOnPerson(issue));
     if (agentBusy) return names.agentWorking;
 
     const humanNeeded = open.some(
         (issue) =>
-            sameName(issue.state.name, names.needsHumanState) ||
-            sameName(issue.state.name, names.codeReviewState) ||
+            waitingOnPerson(issue) ||
+            agentHandedBack(issue, cyrusUserId) ||
             (issue.labels.some((label) => sameName(label, names.humanLabel)) &&
                 openBlockers(issue, byId).length === 0)
     );
