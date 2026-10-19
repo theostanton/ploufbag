@@ -1,22 +1,20 @@
 'use client'
 
-import { ReactNode, useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef } from 'react'
 import type { FlightSummary } from '@database/flights'
+import { isStandout } from '@ploufbag/common/dist/flightList'
 import { getFlightColor } from '@ui/map/colors'
 import { useHoveredFlightAmong } from '@ui/map/store'
+import FlightRow from './FlightRow'
 import styles from './MonthGroup.module.css'
 
 export type MonthGroupToggle = {
     expanded: boolean
-    /** Every flight in the month, whatever is on screen. */
-    total: number
-    /** `September 2026` */
-    label: string
-    onToggle: () => void
     /**
      * The month's flights and its standouts, as grouped: what is hidden while
-     * collapsed is the difference. Stable references, so the hover
-     * subscription below is not rebuilt on every render of the panel.
+     * collapsed is the difference, and `flights.length` is the count the
+     * button offers. Stable references, so the hover subscription below is not
+     * rebuilt on every render of the panel.
      */
     flights: readonly FlightSummary[]
     standouts: readonly FlightSummary[]
@@ -40,19 +38,34 @@ export type MonthGroupToggle = {
  * the way it would have lit up the row, colour bar and all (D-3). It does not
  * expand the month or scroll to it: the map is where the pointer is, and the
  * list moving under it would be the surprise.
+ *
+ * Memoised, and every prop is a string or a reference the panel keeps stable
+ * (the grouped arrays, a shared onToggle), so expanding one month or typing a
+ * search re-renders only the months whose rows changed. With a thousand flights
+ * expanded that is the difference between rendering one month and all of them.
  */
-export default function MonthGroup({
+function MonthGroup({
     monthKey,
     label,
     summary,
-    toggle,
-    children,
+    rows,
+    expanded,
+    flights,
+    standouts,
+    onToggle,
 }: {
     monthKey: string
+    /** `September 2026` */
     label: string
     summary: string
-    toggle?: MonthGroupToggle
-    children: ReactNode
+    /** The flights to show, in order. */
+    rows: readonly FlightSummary[]
+    /** Absent on a month with no toggle: the newest, a search result, all standouts. */
+    expanded?: boolean
+    flights?: readonly FlightSummary[]
+    standouts?: readonly FlightSummary[]
+    /** Called with `monthKey`, so one function serves every month. */
+    onToggle?: (monthKey: string) => void
 }) {
     const headingId = `month-${monthKey}`
 
@@ -62,13 +75,37 @@ export default function MonthGroup({
                 <h2 id={headingId} className={styles.label}>{label}</h2>
                 <span className={styles.summary}>{summary}</span>
             </div>
-            {children}
-            {toggle && <ToggleRow {...toggle}/>}
+            {rows.map((flight) => (
+                <FlightRow
+                    key={flight.strava_activity_id}
+                    flight={flight}
+                    dateStyle="day"
+                    standout={isStandout(flight)}
+                />
+            ))}
+            {expanded !== undefined && flights && standouts && onToggle && (
+                <ToggleRow
+                    expanded={expanded}
+                    flights={flights}
+                    standouts={standouts}
+                    label={label}
+                    onToggle={() => onToggle(monthKey)}
+                />
+            )}
         </section>
     )
 }
 
-function ToggleRow({ expanded, total, label, onToggle, flights, standouts }: MonthGroupToggle) {
+export default memo(MonthGroup)
+
+function ToggleRow({
+    expanded,
+    label,
+    onToggle,
+    flights,
+    standouts,
+}: MonthGroupToggle & { label: string; onToggle: () => void }) {
+    const total = flights.length
     const button = useRef<HTMLButtonElement>(null)
 
     // Flights this month is not showing, by id. Nothing is hidden once the

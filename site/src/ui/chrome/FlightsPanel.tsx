@@ -1,15 +1,13 @@
 'use client'
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { FlightSummary } from '@database/flights'
 import {
     formatMonthSummary,
     groupByMonth,
-    isStandout,
     matchesQuery,
 } from '@ploufbag/common/dist/flightList'
-import FlightRow from './FlightRow'
 import MonthGroup from './MonthGroup'
 import PanelFilter from './PanelFilter'
 import styles from './PanelFilter.module.css'
@@ -165,12 +163,14 @@ export default function FlightsPanel({
         ? matches.reduce((sum, match) => sum + match.hits.length, 0)
         : flights.length
 
-    const toggle = (key: string) =>
+    // Stable, so the memoised months it is passed to are not all re-rendered
+    // when one of them opens.
+    const toggle = useCallback((key: string) =>
         setExpanded((current) => {
             const next = new Set(current)
             if (!next.delete(key)) next.add(key)
             return next
-        })
+        }), [])
 
     const clearSearch = () => {
         search('')
@@ -189,9 +189,7 @@ export default function FlightsPanel({
             />
             {matches
                 ? matches.map(({ month, hits, summary }) => (
-                    <MonthGroup key={month.key} monthKey={month.key} label={month.label} summary={summary}>
-                        {hits.map((flight) => row(flight))}
-                    </MonthGroup>
+                    <MonthGroup key={month.key} monthKey={month.key} label={month.label} summary={summary} rows={hits}/>
                 ))
                 : months.map((month, index) => {
                     const newest = index === 0
@@ -204,17 +202,14 @@ export default function FlightsPanel({
                             monthKey={month.key}
                             label={month.label}
                             summary={formatMonthSummary(month)}
-                            toggle={collapsible ? {
+                            rows={open ? month.flights : month.standouts}
+                            {...(collapsible && {
                                 expanded: open,
-                                total: month.flights.length,
-                                label: month.label,
-                                onToggle: () => toggle(month.key),
                                 flights: month.flights,
                                 standouts: month.standouts,
-                            } : undefined}
-                        >
-                            {(open ? month.flights : month.standouts).map((flight) => row(flight))}
-                        </MonthGroup>
+                                onToggle: toggle,
+                            })}
+                        />
                     )
                 })}
             {matches?.length === 0 && (
@@ -263,15 +258,4 @@ function writeSnapshot(snapshot: Snapshot) {
     } catch {
         // Back will open the default view. Nothing worse.
     }
-}
-
-function row(flight: FlightSummary) {
-    return (
-        <FlightRow
-            key={flight.strava_activity_id}
-            flight={flight}
-            dateStyle="day"
-            standout={isStandout(flight)}
-        />
-    )
 }
